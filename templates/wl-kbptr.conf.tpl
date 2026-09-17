@@ -29,12 +29,17 @@ label_font_size=8 50% 100
 label_symbols=abcdefghijklmnopqrstuvwxyz
 
 [mode_floating]
+# Floating labels land on top of whatever is on screen, so they cannot rely on
+# alpha the way tile mode can: the label sits on a near-opaque chip of the
+# theme background, making the text foreground-on-background, a pairing the
+# theme already guarantees is readable. The screen behind is dimmed harder for
+# the same reason.
 source=stdin
-label_color=#{{ foreground_strip }}ee
-label_select_color=#{{ accent_strip }}ff
-unselectable_bg_color=#{{ background_strip }}66
-selectable_bg_color=#{{ accent_strip }}22
-selectable_border_color=#{{ accent_strip }}88
+label_color=#{{ bright_foreground_strip }}ff
+label_select_color=#{{ yellow_strip }}ff
+unselectable_bg_color=#{{ background_strip }}bb
+selectable_bg_color=#{{ background_strip }}ee
+selectable_border_color=#{{ accent_strip }}cc
 label_font_family=sans-serif
 label_font_size=12 50% 100
 label_symbols=abcdefghijklmnopqrstuvwxyz
