@@ -67,22 +67,66 @@ while wl-kbptr holds the keyboard, which is what makes this reachable at all.
 
 ## Configuration
 
-User files override the plugin, and survive reinstalls:
+`imthemousenow` has its own config file, and it is a **superset of wl-kbptr's**:
+every section wl-kbptr understands passes straight through, so an existing
+wl-kbptr config is already a valid one here. Two section names are reserved and
+never reach wl-kbptr:
 
-```
-~/.config/omarchy/imthemousenow/presets.toml   # replaces the shipped presets entirely
-~/.config/omarchy/imthemousenow/config.local   # one `section.key=value` per line, applied last
-~/.config/omarchy/themed/wl-kbptr.conf.tpl   # the colour template itself
+| Section | Owner |
+| --- | --- |
+| `[imthemousenow]`, `[imthemousenow.*]` | this tool's own behaviour |
+| `[preset.<name>]` | named mode chains |
+| everything else | passed through to wl-kbptr verbatim |
+
+Passing sections through rather than enumerating them means an option upstream
+adds tomorrow works today, without a code change here.
+
+Your config lives at `~/.config/omarchy/imthemousenow/config.toml` and is merged
+over the shipped defaults, key by key:
+
+```toml
+[imthemousenow]
+default_preset = "precise"
+single_instance = true    # never let two overlays stack
+theme_colors = true       # start from the Omarchy theme
+theme_font = true
+
+[imthemousenow.scope]
+default = "screen"        # screen | active-window | workspace
+
+[imthemousenow.repeat]
+guard_ms = 200            # a "success" faster than this is a misfire
+max_quick_exits = 5       # this many in a row stops a runaway burst
+max_passes = 0            # 0 = unlimited clicks per burst
+
+# Anything below here is wl-kbptr's own config, passed through:
+[mode_tile]
+label_symbols = "arstgmneio"
+
+# Presets are config too, so you can add your own:
+[preset.myown]
+description = "Grid, then click"
+modes = "tile,click"
 ```
 
-`config.local` uses wl-kbptr's own `-o` syntax, so anything the binary accepts
-works without this plugin knowing about it:
+The layers, later winning:
 
+1. `config.default.toml` — shipped defaults and presets
+2. the Omarchy theme template — colours, re-rendered on every theme change
+3. your `config.toml`
+
+`imthemousenow-config` drives all of it:
+
+```bash
+imthemousenow-config check      # validate every layer
+imthemousenow-config path       # where each layer lives
+imthemousenow-config compile    # write the wl-kbptr config, print its path
+imthemousenow-config presets    # every preset, from every layer
 ```
-general.home_row_keys=arstgmneio
-mode_tile.label_symbols=arstgmneio
-mode_click.button=left
-```
+
+Compilation is cached in `$XDG_RUNTIME_DIR` and redone only when a layer
+changes, so it costs nothing per keypress. The compiled file is a build
+artifact — edit a layer, never the output.
 
 ## OpenCV 5
 

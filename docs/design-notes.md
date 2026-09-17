@@ -46,6 +46,19 @@ only receive colours, and wl-kbptr re-reads its config on every invocation, so
 the wrapper passes `omarchy-font-current` as `-o <mode>.label_font_family`.
 The `font-set` hook is therefore a no-op that exists to document this.
 
+**The config is a superset, by passthrough not enumeration.** `[imthemousenow]`
+and `[preset.*]` are reserved; every other section is copied into the compiled
+wl-kbptr config unread. This is what keeps "drives, does not reimplement" true
+at the config layer: a new upstream mode or option needs no change here. The
+compiler (`bin/imthemousenow-config`) is the only thing that knows both
+dialects, and the wrapper asks it rather than parsing config itself.
+
+The theme is a *layer*, not the base: shipped defaults sit under it and the
+user's config over it, so re-theming cannot clobber a user's setting and a user
+cannot accidentally freeze their colours. One trap worth remembering: wl-kbptr
+config values start with `#` (colours), so only a *leading* `#` is a comment
+when parsing that file -- treating `#` as an inline comment blanks the palette.
+
 ## Known gaps
 
 - **Mouse mode** (sticky submap: `hjkl` movement, press/release for drag,

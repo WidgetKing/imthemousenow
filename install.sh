@@ -91,11 +91,11 @@ command -v wl-kbptr >/dev/null 2>&1 ||
 
 # --- 2. plugin files ----------------------------------------------------------
 say "Installing plugin files ($( ((dev)) && echo symlinked || echo copied ))"
-for item in bin presets.toml hypr; do
+for item in bin config.default.toml hypr; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-regions imthemousenow-panic; do
+for script in imthemousenow imthemousenow-regions imthemousenow-panic imthemousenow-config; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
@@ -129,6 +129,11 @@ errors="$(hyprctl configerrors 2>/dev/null | grep -v "^no errors" | grep -v "^[[
 if [[ -n $errors ]]; then
   warn "Hyprland reported config errors:"
   echo "$errors" >&2
+fi
+
+# Fail loudly here rather than at the first keypress.
+if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
+  warn "The config did not validate; see the errors above."
 fi
 
 say "Done. Try: imthemousenow quick   (or SUPER + ;)"

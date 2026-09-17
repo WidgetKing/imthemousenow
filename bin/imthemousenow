@@ -9,9 +9,11 @@ PLUGIN_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}"
 USER_DIR="$HOME/.config/omarchy/imthemousenow"
 STATE_DIR="$HOME/.local/state/imthemousenow"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
-THEME_CONF="$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
+CONFIG_CMD="$PLUGIN_DIR/bin/imthemousenow-config"
+[[ -x $CONFIG_CMD ]] || CONFIG_CMD="imthemousenow-config"
 
 notify() {
+  [[ $("$CONFIG_CMD" get notify 2>/dev/null || echo true) == false ]] && return 0
   if command -v omarchy-notification-send >/dev/null 2>&1; then
     omarchy-notification-send -u low "I'm the mouse now" "$1"
   else
@@ -24,52 +26,22 @@ die() {
   exit 1
 }
 
-presets_file() {
-  if [[ -f "$USER_DIR/presets.toml" ]]; then
-    echo "$USER_DIR/presets.toml"
-  else
-    echo "$PLUGIN_DIR/presets.toml"
-  fi
+# One [imthemousenow] setting, or $2 when it is unset.
+setting() {
+  local value
+  value="$("$CONFIG_CMD" get "$1" 2>/dev/null || true)"
+  echo "${value:-$2}"
 }
 
-# Emit "key<TAB>value" for one preset's keys.
+# A preset's fields as key<TAB>value.
 read_preset() {
-  awk -v want="$1" '
-    /^[[:space:]]*\[/ {
-      section = $0
-      sub(/^[[:space:]]*\[/, "", section)
-      sub(/\].*$/, "", section)
-      in_section = (section == want)
-      next
-    }
-    !in_section { next }
-    /^[[:space:]]*#/ { next }
-    /=/ {
-      key = $0; sub(/=.*$/, "", key)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
-      val = $0; sub(/^[^=]*=/, "", val)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
-      gsub(/^"|"$/, "", val)
-      print key "\t" val
-    }
-  ' "$(presets_file)"
+  "$CONFIG_CMD" preset "$1" 2>/dev/null
 }
 
 list_presets() {
-  awk '
-    /^[[:space:]]*\[/ {
-      name = $0
-      sub(/^[[:space:]]*\[/, "", name)
-      sub(/\].*$/, "", name)
-      next
-    }
-    /^[[:space:]]*description[[:space:]]*=/ {
-      val = $0; sub(/^[^=]*=/, "", val)
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
-      gsub(/^"|"$/, "", val)
-      printf "  %-12s %s\n", name, val
-    }
-  ' "$(presets_file)"
+  "$CONFIG_CMD" presets | while IFS=$'\t' read -r name description; do
+    printf "  %-12s %s\n" "$name" "$description"
+  done
 }
 
 has_opencv() {
@@ -147,6 +119,7 @@ EOF
     esac
   done
 
+  [[ -n $preset ]] || preset="$(setting default_preset "")"
   [[ -n $preset ]] || die "no preset given; try --help"
   if ((dry_run == 0)); then
     command -v wl-kbptr >/dev/null 2>&1 || die "wl-kbptr is not installed; run the plugin's install.sh"
@@ -166,7 +139,7 @@ EOF
   done < <(read_preset "$preset")
 
   [[ -n $modes ]] || die "unknown preset '$preset'; try --list"
-  [[ -n $scope ]] || scope="${preset_scope:-screen}"
+  [[ -n $scope ]] || scope="${preset_scope:-$(setting scope.default screen)}"
 
   if [[ $needs == opencv && $dry_run -eq 0 ]] && ! has_opencv; then
     notify "Preset '$preset' needs an OpenCV build of wl-kbptr"
@@ -174,13 +147,16 @@ EOF
   fi
 
   # --- command --------------------------------------------------------------
-  local args=()
-  [[ -f $THEME_CONF ]] && args+=(-c "$THEME_CONF")
+  local args=() compiled
+  compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
+  [[ -n $compiled && -f $compiled ]] && args+=(-c "$compiled")
   args+=(-o "modes=$modes")
 
   # Font from the Omarchy theme, applied to every mode that draws labels.
   local font=""
-  command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
+  if [[ $(setting theme_font true) == true ]]; then
+    command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
+  fi
   if [[ -n $font ]]; then
     args+=(-o "mode_tile.label_font_family=$font")
     args+=(-o "mode_floating.label_font_family=$font")
@@ -233,9 +209,11 @@ EOF
   # binding twice used to lock the session out. A non-blocking flock means the
   # second press is a no-op instead. The lock is held by this script, so it is
   # released however the process dies; no stale lock can wedge it.
-  exec 9>"$LOCK_FILE"
-  if ! flock -n 9; then
-    exit 0
+  if [[ $(setting single_instance true) == true ]]; then
+    exec 9>"$LOCK_FILE"
+    if ! flock -n 9; then
+      exit 0
+    fi
   fi
 
   mkdir -p "$STATE_DIR"
@@ -264,6 +242,10 @@ EOF
     # Exit 0 means a completed selection: go again. Anything else -- Escape
     # (cancellation_status_code), a bad config, a compositor error -- stops.
     local passes=0 quick_exits=0 started elapsed
+    local guard_ms max_quick max_passes
+    guard_ms="$(setting repeat.guard_ms 200)"
+    max_quick="$(setting repeat.max_quick_exits 5)"
+    max_passes="$(setting repeat.max_passes 0)"
     while :; do
       started=$(date +%s%N)
       status=0
@@ -275,9 +257,13 @@ EOF
 
       # A pass that "succeeds" instantly means nothing was actually selected;
       # without this a misconfigured run would spin forever.
-      if ((elapsed < 200)); then
+      if ((max_passes > 0 && passes >= max_passes)); then
+        break
+      fi
+
+      if ((elapsed < guard_ms)); then
         quick_exits=$((quick_exits + 1))
-        if ((quick_exits >= 5)); then
+        if ((quick_exits >= max_quick)); then
           notify "Repeat mode stopped: wl-kbptr kept exiting immediately"
           status=1
           break

@@ -17,7 +17,7 @@ say() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 
 say "Removing plugin files"
 rm -rf "$PLUGIN_DIR" "$HOME/.config/omarchy/plugins/imthemousenow"
-rm -f "$BIN_DIR/imthemousenow" "$BIN_DIR/imthemousenow-regions" "$BIN_DIR/imthemousenow-panic"
+rm -f "$BIN_DIR/imthemousenow" "$BIN_DIR/imthemousenow-regions" "$BIN_DIR/imthemousenow-panic" "$BIN_DIR/imthemousenow-config"
 rm -f "$HOME/.config/omarchy/themed/wl-kbptr.conf.tpl"
 rm -f "$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 rm -f "$HOME/.config/omarchy/hooks"/{theme-set,font-set,post-update}.d/imthemousenow.hook
@@ -35,7 +35,7 @@ if [[ -f "$STATE_DIR/installed" ]] && pacman -Qq wl-kbptr-omarchy >/dev/null 2>&
   sudo pacman -Rns --noconfirm wl-kbptr-omarchy
 fi
 
-rm -rf "$STATE_DIR"
+rm -rf "$STATE_DIR" "${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 ((purge)) && { say "Removing user overrides"; rm -rf "$USER_DIR"; }
 
 say "Done."
