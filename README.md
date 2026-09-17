@@ -247,4 +247,7 @@ install.sh / uninstall.sh
 ```
 
 See [docs/design-notes.md](docs/design-notes.md) for what was verified against
-this machine and where the implementation departs from the original plan.
+this machine and where the implementation departs from the original plan, and
+[docs/lessons-learned.md](docs/lessons-learned.md) for what it cost to find out
+— wl-kbptr internals, Hyprland's Lua config surface, and which decisions here
+are load-bearing.
