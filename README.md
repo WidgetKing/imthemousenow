@@ -17,7 +17,7 @@ names to memorise and no special cases — any combination is valid.
 | --- | --- | --- |
 | **MODE** | `hints` · `grid` | how targets are presented |
 | **SCOPE** | `window` · `monitor` | where the overlay is drawn |
-| **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land |
+| **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land (`;` switches it live) |
 | **LIFETIME** | `single` · `continuous` | one selection, or until Escape |
 
 **MODE** — `hints` labels what looks clickable: detected targets when the build
@@ -32,7 +32,10 @@ stay short and you aren't offered the rest of the desktop. `monitor` covers the
 whole focused screen.
 
 **ACTION** — what the pointer does on arrival. `move` places the pointer and
-leaves it there, clicking nothing. `drag` is not implemented yet.
+leaves it there, clicking nothing. `drag` is not implemented yet. This is the
+one axis you do not have to decide up front: `;` switches it while the overlay
+is on screen, which is the only moment you can actually see what you are
+aiming at.
 
 **LIFETIME** — `single` clicks once and gets out of the way. `continuous`
 reopens after every click, so a burst of clicking is one invocation; Escape
@@ -43,7 +46,8 @@ open or close between clicks.
 
 `SUPER + ;` is the common case: hints, in the window you are already looking at,
 one left click. Each modifier flips exactly one axis, and they compose — so you
-memorise one binding plus what three modifiers mean, not eight bindings.
+memorise one binding plus what three modifiers mean, not eight bindings. ACTION
+is not among them, because it is chosen inside the overlay instead.
 
 | Modifier | Flips |
 | --- | --- |
@@ -65,30 +69,31 @@ memorise one binding plus what three modifiers mean, not eight bindings.
 ### Inside the overlay
 
 In `hints`, type a label and it clicks. In `grid`, type a label to pick a cell,
-then the home row halves it until the pointer is where you want it:
+then the home row (`a s d f` / `j k l m`) halves it until the pointer is where
+you want it; `g`, `h` and `b` commit with a left, right or middle click.
+
+**`;` switches ACTION**, in either mode, at any point before you commit:
 
 ```
-a s d f      the eight sub-areas, left to right, top row first
-j k l m
-
-g            commit here with a LEFT click
-;            commit here with a RIGHT click
-b            commit here with a MIDDLE click
-Escape       cancel
+;   left click  <->  right click        the overlay turns red for right click
+;   again                               back to left click
 ```
 
-So in `grid`, **right-click is always one keypress away**, whatever ACTION the
-binding asked for — and it is a one-off: the next selection is back to a left
-click, even in a continuous lifetime.
+It is a one-off: after the click lands, the overlay returns to whatever ACTION
+the chord asked for, even in a continuous lifetime. So a right click costs one
+extra keypress and never changes what the next click does.
 
-These keys belong to the halving step, so they do not exist in `hints`, which
-has no halving step. To right-click a hint, ask for it up front:
-`imthemousenow --action right-click`.
+The overlay is torn down and relaunched to do this, because wl-kbptr takes its
+configuration at startup and cannot be reconfigured while it holds the
+keyboard. You will see a flicker, and anything you had already typed is
+discarded — the trade for being able to decide *after* seeing the overlay
+rather than before.
 
-`a s d f j k l m` are wl-kbptr's own defaults, so bisecting feels unchanged.
-Only right-click is moved, from `h` to `;`, so it matches the key that opened
-the overlay. There is no colour change to signal it, because there is no state
-to signal: the keypress *is* the click.
+`;` reaches us rather than wl-kbptr because it is a compositor binding inside a
+Hyprland submap that exists only while the overlay is up. Everywhere else, and
+at every other moment, `;` is an ordinary semicolon. The submap is reset
+however the overlay exits, including a crash, and `CTRL + ALT + DELETE` resets
+it too.
 
 ## Install
 
@@ -195,7 +200,14 @@ Compilation is cached in `$XDG_RUNTIME_DIR` and redone only when a layer
 changes, so it costs nothing per keypress. The compiled file is a build
 artifact — edit a layer, never the output.
 
-One trap worth knowing: `general.home_row_keys` must be **exactly 11
+`[imthemousenow.action.right-click]` is rendered by the theme template, so the
+right-click tint follows your palette. It uses `red`: Omarchy themes collapse
+semantic colour names freely — in Matte Black, `blue` equals `accent` and
+`yellow` is a red — but `accent` and `red` were distinct in every theme checked,
+and they read as "normal" versus "careful".
+
+One trap worth knowing: `general.home_row_keys` is left unset, so wl-kbptr
+derives it from your keymap. If you do set it, it must be **exactly 11
 characters** or wl-kbptr rejects the entire config, and every chord silently
 does nothing. `imthemousenow-config check` catches that before you find out the
 hard way.

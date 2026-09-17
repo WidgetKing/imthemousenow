@@ -18,6 +18,10 @@ PLUGIN_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}"
 USER_DIR="$HOME/.config/omarchy/imthemousenow"
 STATE_DIR="$HOME/.local/state/imthemousenow"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
+RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
+ACTION_FILE="$RUNTIME_DIR/action"
+SWITCH_FILE="$RUNTIME_DIR/switch"
+SUBMAP="imthemousenow"
 CONFIG_CMD="$PLUGIN_DIR/bin/imthemousenow-config"
 [[ -x $CONFIG_CMD ]] || CONFIG_CMD="imthemousenow-config"
 
@@ -103,6 +107,23 @@ EOF
         # Escape hatch: close any overlay that is up, including one left
         # behind by a crash. Safe to run when nothing is running.
         pkill -x wl-kbptr >/dev/null 2>&1 || true
+        hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+        exit 0
+        ;;
+      --switch-action)
+        # Bound to `;` inside the overlay's submap, so it only exists while an
+        # overlay is up. wl-kbptr has the keyboard and cannot be reconfigured
+        # once running, so switching ACTION means tearing the overlay down and
+        # putting it back up: we record the new action, drop a flag the
+        # waiting run loop will find, and kill the overlay. The loop relaunches
+        # rather than exits, because the flag is there.
+        mkdir -p "$RUNTIME_DIR"
+        local now next
+        now="$(cat "$ACTION_FILE" 2>/dev/null || echo left-click)"
+        [[ $now == right-click ]] && next="left-click" || next="right-click"
+        echo "$next" >"$ACTION_FILE"
+        : >"$SWITCH_FILE"
+        pkill -x wl-kbptr >/dev/null 2>&1 || true
         exit 0
         ;;
       --mode) mode="${2:-}"; [[ -n $mode ]] || die "--mode needs a value"; shift 2 ;;
@@ -133,6 +154,9 @@ EOF
   expect_one_of "$scope" scope window monitor
   expect_one_of "$action" action left-click right-click move drag
   expect_one_of "$lifetime" lifetime single continuous
+
+  # The ACTION the chords asked for. `;` switches away from it and back.
+  local base_action="$action"
 
   if [[ $action == drag ]]; then
     notify "Drag is not implemented yet"
@@ -177,64 +201,86 @@ EOF
     esac
   fi
 
-  # ACTION decides whether the chain ends in a click, and which button.
-  local modes="$chain"
-  [[ -n $refine ]] && modes="$modes,$refine"
-  case "$action" in
-    left-click) modes="$modes,click"; options="$options mode_click.button=left" ;;
-    right-click) modes="$modes,click"; options="$options mode_click.button=right" ;;
-    move) ;; # no click stage: the pointer lands and stays
-  esac
-
   # --- command --------------------------------------------------------------
-  local args=() compiled
+  # Geometry is settled once; ACTION is not, because `;` can switch it while
+  # the overlay is up, so the flags are rebuilt for every launch.
+  local compiled font=""
   compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
-  [[ -n $compiled && -f $compiled ]] && args+=(-c "$compiled")
-  args+=(-o "modes=$modes")
-
-  # Font from the Omarchy theme, applied to every mode that draws labels.
-  local font=""
   if [[ $(setting theme_font true) == true ]]; then
     command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
   fi
-  if [[ -n $font ]]; then
-    args+=(-o "mode_tile.label_font_family=$font")
-    args+=(-o "mode_floating.label_font_family=$font")
-    args+=(-o "mode_bisect.label_font_family=$font")
-  fi
 
-  local opt
-  for opt in $options; do args+=(-o "$opt"); done
-
-  # User overrides last: one `section.key=value` per line.
-  if [[ -f $USER_DIR/config.local ]]; then
-    while IFS= read -r line; do
-      line="${line%%#*}"
-      line="$(echo "$line" | xargs || true)"
-      [[ -n $line ]] && args+=(-o "$line")
-    done <"$USER_DIR/config.local"
-  fi
-
-  # --- scope ----------------------------------------------------------------
   local mon_name mon_x mon_y mon_w mon_h
   IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
-  args+=(-O "$mon_name")
 
+  local restrict=""
   if [[ $scope == window ]]; then
     local win
     win="$(hyprctl -j activewindow)"
     if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
       local wx wy ww wh
       read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
-      args+=(-r "${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))")
+      restrict="${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))"
     fi
     # No focused window (an empty workspace) falls through to the monitor,
     # which is what you wanted anyway: there is nothing else to aim at.
   fi
 
-  ((${#extra_opts[@]})) && args+=("${extra_opts[@]}")
+  # Fills `args` for one launch in ACTION $1.
+  args=()
+  build_args() {
+    local act="$1" modes="$chain" opts="$options"
+    [[ -n $refine ]] && modes="$modes,$refine"
+    case "$act" in
+      # move has no click stage: the pointer lands and stays.
+      move) ;;
+      *) modes="$modes,click"; opts="$opts mode_click.button=${act%-click}" ;;
+    esac
+
+    args=()
+    [[ -n $compiled && -f $compiled ]] && args+=(-c "$compiled")
+    args+=(-o "modes=$modes")
+
+    if [[ -n $font ]]; then
+      args+=(-o "mode_tile.label_font_family=$font")
+      args+=(-o "mode_floating.label_font_family=$font")
+      args+=(-o "mode_bisect.label_font_family=$font")
+    fi
+
+    # A different ACTION must look different, or you cannot tell which overlay
+    # you are in -- that is the whole reason the relaunch is worth its flicker.
+    if [[ $act != "$base_action" ]]; then
+      local tint
+      tint="$(setting "action.${act}.color" "")"
+      if [[ -n $tint ]]; then
+        args+=(-o "mode_tile.label_select_color=${tint}ff")
+        args+=(-o "mode_tile.selectable_border_color=${tint}aa")
+        args+=(-o "mode_floating.label_select_color=${tint}ff")
+        args+=(-o "mode_floating.selectable_border_color=${tint}ee")
+        args+=(-o "mode_bisect.pointer_color=${tint}dd")
+      fi
+    fi
+
+    local opt
+    for opt in $opts; do args+=(-o "$opt"); done
+
+    # User overrides last: one `section.key=value` per line.
+    if [[ -f $USER_DIR/config.local ]]; then
+      while IFS= read -r line; do
+        line="${line%%#*}"
+        line="$(echo "$line" | xargs || true)"
+        [[ -n $line ]] && args+=(-o "$line")
+      done <"$USER_DIR/config.local"
+    fi
+
+    args+=(-O "$mon_name")
+    [[ -n $restrict ]] && args+=(-r "$restrict")
+    ((${#extra_opts[@]})) && args+=("${extra_opts[@]}")
+    return 0
+  }
 
   if ((dry_run)); then
+    build_args "$action"
     printf '# %s / %s / %s / %s\n' "$mode" "$scope" "$action" "$lifetime"
     printf 'wl-kbptr'
     printf ' %q' "${args[@]}"
@@ -255,7 +301,20 @@ EOF
     fi
   fi
 
-  mkdir -p "$STATE_DIR"
+  mkdir -p "$STATE_DIR" "$RUNTIME_DIR"
+  rm -f "$SWITCH_FILE"
+  echo "$base_action" >"$ACTION_FILE"
+
+  # `;` must reach us, not wl-kbptr, and must mean nothing at all when no
+  # overlay is up. A submap is exactly that: it is entered for the lifetime of
+  # the overlay and rebinds one key, leaving every other key to pass through.
+  # The trap matters more than the dispatch -- a submap left active would make
+  # `;` dead system-wide, so it is reset however this process dies.
+  submap_off() {
+    hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+  }
+  trap submap_off EXIT INT TERM HUP
+  hyprctl dispatch "hl.dsp.submap(\"$SUBMAP\")" >/dev/null 2>&1 || true
 
   # --- run ------------------------------------------------------------------
   # One pass. Regions are recomputed per pass so a continuous lifetime follows
@@ -278,48 +337,64 @@ EOF
     return "$rc"
   }
 
-  local status=0
-  if [[ $lifetime == continuous ]]; then
-    # Exit 0 means a completed selection: go again. Anything else -- Escape
-    # (cancellation_status_code), a bad config, a compositor error -- stops.
-    local passes=0 quick_exits=0 started elapsed
-    local guard_ms max_quick max_passes
-    guard_ms="$(setting continuous.guard_ms 200)"
-    max_quick="$(setting continuous.max_quick_exits 5)"
-    max_passes="$(setting continuous.max_passes 0)"
-    while :; do
-      started=$(date +%s%N)
-      status=0
-      run_once || status=$?
-      ((status == 0)) || break
+  local status=0 passes=0 quick_exits=0 started elapsed
+  local current_action="$base_action"
+  local guard_ms max_quick max_passes
+  guard_ms="$(setting continuous.guard_ms 200)"
+  max_quick="$(setting continuous.max_quick_exits 5)"
+  max_passes="$(setting continuous.max_passes 0)"
 
-      passes=$((passes + 1))
-      elapsed=$((($(date +%s%N) - started) / 1000000))
-
-      if ((max_passes > 0 && passes >= max_passes)); then
-        break
-      fi
-
-      # A pass that "succeeds" instantly means nothing was actually selected;
-      # without this a misconfigured run would spin forever.
-      if ((elapsed < guard_ms)); then
-        quick_exits=$((quick_exits + 1))
-        if ((quick_exits >= max_quick)); then
-          notify "Continuous stopped: wl-kbptr kept exiting immediately"
-          status=1
-          break
-        fi
-      else
-        quick_exits=0
-      fi
-    done
-
-    # Escape is how you leave a continuous lifetime, so it is a success.
-    [[ $status -eq 1 && $passes -gt 0 ]] && status=0
-  else
+  while :; do
+    build_args "$current_action"
+    started=$(date +%s%N)
     status=0
     run_once || status=$?
-  fi
+
+    # A switch is not an exit. wl-kbptr was killed on purpose, so whatever it
+    # exited with says nothing; put the overlay back up in the new ACTION
+    # without counting a pass.
+    if [[ -f $SWITCH_FILE ]]; then
+      rm -f "$SWITCH_FILE"
+      current_action="$(cat "$ACTION_FILE" 2>/dev/null || echo "$base_action")"
+      continue
+    fi
+
+    # Anything but a completed selection -- Escape (cancellation_status_code),
+    # a bad config, a compositor error -- ends the run.
+    ((status == 0)) || break
+
+    passes=$((passes + 1))
+
+    # One off: a switched-to ACTION lasts exactly one click, then the overlay
+    # goes back to what the chord originally asked for.
+    if [[ $current_action != "$base_action" ]]; then
+      current_action="$base_action"
+      echo "$base_action" >"$ACTION_FILE"
+    fi
+
+    [[ $lifetime == continuous ]] || break
+
+    elapsed=$((($(date +%s%N) - started) / 1000000))
+    if ((max_passes > 0 && passes >= max_passes)); then
+      break
+    fi
+
+    # A pass that "succeeds" instantly means nothing was actually selected;
+    # without this a misconfigured run would spin forever.
+    if ((elapsed < guard_ms)); then
+      quick_exits=$((quick_exits + 1))
+      if ((quick_exits >= max_quick)); then
+        notify "Continuous stopped: wl-kbptr kept exiting immediately"
+        status=1
+        break
+      fi
+    else
+      quick_exits=0
+    fi
+  done
+
+  # Escape is how you leave a continuous lifetime, so it is a success.
+  [[ $lifetime == continuous && $status -eq 1 && $passes -gt 0 ]] && status=0
 
   # Detect builds that start but never find anything (upstream issue #99).
   if [[ $source == detect && $status -ne 0 ]]; then

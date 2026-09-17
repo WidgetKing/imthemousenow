@@ -67,3 +67,14 @@ history_border_color=#{{ muted_strip }}99
 
 [mode_click]
 button=left
+
+# Not wl-kbptr's: imthemousenow strips this section before compiling, and uses
+# it to tint the overlay when you switch ACTION mid-flight. It lives here
+# because it is a palette value and must follow the theme.
+#
+# `red` rather than a hue chosen by eye: Omarchy themes collapse semantic
+# colour names freely (in Matte Black, blue == accent and yellow is a red), but
+# accent and red were distinct in every theme checked, and they are the pair
+# that reads as "normal" versus "careful".
+[imthemousenow.action.right-click]
+color=#{{ red_strip }}

@@ -105,3 +105,35 @@ Because the keypress *is* the click, there is no right-click state to render,
 so the overlay cannot change colour to signal it. Colour-on-ACTION needs either
 relaunching wl-kbptr with a different compiled config (flicker, and it discards
 any typed label prefix) or owning the overlay ourselves.
+
+## Switching ACTION from inside the overlay
+
+wl-kbptr reads its configuration once at startup and holds a keyboard grab, so
+there is no way to change the click button of a running overlay. `bisect` and
+`split` do bind per-selection click keys (`g`/`h`/`b`, derived from the keymap),
+but those are one keypress that clicks immediately, so nothing can indicate
+which button is armed -- and `hints` has no such stage at all.
+
+Switching ACTION is therefore a teardown and relaunch: `;` is bound inside a
+Hyprland submap, and writes the new action, drops a flag file and kills
+wl-kbptr; the wrapper's run loop finds the flag, treats the exit as "not a
+result", and relaunches with the new button and a red tint. The flicker and the
+loss of any typed prefix are accepted costs, chosen deliberately over the
+alternatives (deciding before the overlay appears, or an extra keypress per
+left click).
+
+Two Hyprland details this depends on, both specific to the Lua config parser
+Omarchy uses:
+
+- `hyprctl keyword` does not work at all ("keyword can't work with non-legacy
+  parsers"), so binds cannot be added at runtime that way. `hyprctl eval` and
+  `hyprctl dispatch` both take Lua, and `hl`/`o` are in scope.
+- The dispatch is `hyprctl dispatch 'hl.dsp.submap("name")'`; the bare
+  `hyprctl dispatch submap name` form fails to parse. The key is `SEMICOLON`,
+  not `;`, which is rejected as an unknown keysym.
+
+A submap is the right scope for this: it rebinds one key for exactly the
+overlay's lifetime and lets every other key through to wl-kbptr, so `;` keeps
+its ordinary meaning at all other times. The risk is a submap left active,
+which would make `;` do nothing system-wide -- so it is reset from the
+wrapper's EXIT/INT/TERM/HUP trap, from `--stop`, and from the panic key.

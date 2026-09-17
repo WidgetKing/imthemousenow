@@ -15,6 +15,11 @@ DEFAULT_ACTION="${MOUSENOW_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
 
 pkill -x wl-kbptr >/dev/null 2>&1 || true
 
+# The overlay's submap is normally reset by the wrapper's own exit trap, but a
+# panic key exists precisely for the times that did not happen. A submap left
+# active would make `;` do nothing everywhere.
+hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+
 if command -v "${DEFAULT_ACTION%% *}" >/dev/null 2>&1; then
   exec $DEFAULT_ACTION
 fi

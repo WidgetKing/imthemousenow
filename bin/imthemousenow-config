@@ -39,6 +39,12 @@ COMPILED = RUNTIME / "wl-kbptr.conf"
 RESERVED = {"imthemousenow", "mode"}
 
 
+def is_reserved(section: str) -> bool:
+    """TOML nests `[imthemousenow.action...]`; the theme template, being ini,
+    spells the same thing as one flat section name. Both are ours."""
+    return section.split(".", 1)[0] in RESERVED
+
+
 def die(msg: str, code: int = 1):
     print(f"imthemousenow-config: {msg}", file=sys.stderr)
     sys.exit(code)
@@ -85,6 +91,21 @@ def parse_ini(path: Path) -> dict:
     return out
 
 
+def nest_reserved(flat: dict) -> dict:
+    """Turn ini's `[imthemousenow.action.right-click]` into the nested tables a
+    TOML layer would have produced, so both layers merge as one shape."""
+    out: dict = {}
+    for section, body in flat.items():
+        if not is_reserved(section) or "." not in section:
+            out[section] = body
+            continue
+        node = out
+        for part in section.split("."):
+            node = node.setdefault(part, {})
+        node.update(body)
+    return out
+
+
 def settings() -> dict:
     """The merged config, all layers applied."""
     merged = load_toml(DEFAULTS)
@@ -93,7 +114,7 @@ def settings() -> dict:
     # A user turning theme_colors off must win over the default that turns it on.
     theme_on = user.get("imthemousenow", {}).get("theme_colors", theme_on)
     if theme_on:
-        merged = deep_merge(merged, parse_ini(THEME_CONF))
+        merged = deep_merge(merged, nest_reserved(parse_ini(THEME_CONF)))
     return deep_merge(merged, user)
 
 
@@ -118,7 +139,7 @@ def compile_config(force: bool = False) -> Path:
         "",
     ]
     for section, body in merged.items():
-        if section in RESERVED or not isinstance(body, dict):
+        if is_reserved(section) or not isinstance(body, dict):
             continue
         lines.append(f"[{section}]")
         for key, value in body.items():
@@ -193,7 +214,7 @@ def cmd_check(args):
         if value is not None and value not in valid:
             problems.append(f"[imthemousenow.defaults].{field} = '{value}' is not one of {sorted(valid)}")
     for section, body in merged.items():
-        if section in RESERVED:
+        if is_reserved(section):
             continue
         if not isinstance(body, dict):
             problems.append(f"top-level key '{section}' is not in any section")

@@ -16,12 +16,27 @@
 --   CTRL   flips LIFETIME  single -> continuous
 --
 -- They compose, so you never memorise eight bindings: you memorise one, plus
--- what each modifier means. ACTION is not on a modifier because it is chosen
--- inside the overlay: `;` at the narrowing-down step commits a right click.
+-- what each modifier means. ACTION is not on a modifier because it is decided
+-- after you can see the overlay, not before: `;` switches it.
 
 -- The overlay is a layer-shell surface that must appear instantly: a fade or
 -- slide makes the labels unreadable for the first frames.
 hl.layer_rule({ match = { namespace = "wl-kbptr" }, no_anim = true, animation = "none" })
+
+-- Must match SUBMAP in bin/imthemousenow.
+SUBMAP_NAME = "imthemousenow"
+
+-- ACTION is switched from inside the overlay, and `;` is the key that opened
+-- it. wl-kbptr holds the keyboard, so this cannot be a key wl-kbptr sees: it
+-- has to be a compositor binding. A submap scopes it to exactly the overlay's
+-- lifetime -- imthemousenow enters it on launch and resets it on exit, however
+-- it exits -- so `;` keeps its ordinary meaning everywhere else. Keys with no
+-- binding here, including every label and Escape, pass through untouched.
+hl.define_submap(SUBMAP_NAME, function()
+  hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action"), {
+    description = "Pointer: switch between left and right click",
+  })
+end)
 
 local chords = {
   -- modifiers                      scope       mode     lifetime      label

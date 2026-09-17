@@ -75,13 +75,16 @@ source = "auto"
 # Continuous lifetime depends on this to know when to stop.
 cancellation_status_code = 1
 
-# EXACTLY 11 characters or wl-kbptr refuses to start the whole config. The
-# first 8 pick bisect sub-areas (4 columns x 2 rows, left to right, top row
-# first); the last 3 commit the current area with a left, right or middle
-# click. The first 8 are upstream's own defaults, so bisect feels unchanged;
-# only the right-click key is moved, from `h` to `;`, so that ACTION and the
-# keybinding that opened the overlay use the same key.
-home_row_keys = "asdfjklmg;b"
+# home_row_keys is deliberately NOT set. Left unset, wl-kbptr derives it from
+# the active keymap (a s d f j k l m to pick bisect sub-areas, then g, h, b to
+# commit with a left, right or middle click), which follows a non-QWERTY layout
+# where a hard-coded string would not. `;` is no longer a candidate for the
+# right-click key: while an overlay is up it belongs to the submap, which
+# switches ACTION for the whole overlay instead of just one selection.
+#
+# If you do set it, it must be EXACTLY 11 characters or wl-kbptr rejects this
+# entire file and every chord silently does nothing. `imthemousenow-config
+# check` tests for that.
 
 # 27 symbols, not 26, and the reason is arithmetic rather than taste. wl-kbptr
 # caps the grid at 26*26 cells but derives rows and columns by truncating a
