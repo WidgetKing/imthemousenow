@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install the omarchy-kbptr plugin. Idempotent: safe to re-run after edits.
+# Install the imthemousenow plugin. Idempotent: safe to re-run after edits.
 #
 #   ./install.sh            copy this checkout into place
 #   ./install.sh --dev      symlink it instead, so edits here are live
@@ -8,15 +8,15 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PLUGIN_DIR="$HOME/.local/share/omarchy-kbptr"
+PLUGIN_DIR="$HOME/.local/share/imthemousenow"
 BIN_DIR="$HOME/.local/bin"
-USER_DIR="$HOME/.config/omarchy/kbptr"
-STATE_DIR="$HOME/.local/state/omarchy-kbptr"
+USER_DIR="$HOME/.config/omarchy/imthemousenow"
+STATE_DIR="$HOME/.local/state/imthemousenow"
 THEMED_DIR="$HOME/.config/omarchy/themed"
 HOOKS_DIR="$HOME/.config/omarchy/hooks"
 HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
-MARKER="-- omarchy-kbptr (managed by install.sh; remove with uninstall.sh)"
-REQUIRE_LINE='require("omarchy.plugins.kbptr.hypr.kbptr")'
+MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
+REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
 
 dev=0 build=1 lite=0
 while (($#)); do
@@ -71,8 +71,8 @@ if ((build)); then
     cp "$REPO/pkg/PKGBUILD" "$build_dir/"
     (
       cd "$build_dir"
-      KBPTR_COMMIT="$SRC_COMMIT" \
-        KBPTR_OPENCV="$([[ $SRC_OPENCV == true ]] && echo 1 || echo 0)" \
+      MOUSENOW_COMMIT="$SRC_COMMIT" \
+        MOUSENOW_OPENCV="$([[ $SRC_OPENCV == true ]] && echo 1 || echo 0)" \
         makepkg -si --noconfirm
     )
     echo "$SRC_COMMIT" >"$STATE_DIR/commit"
@@ -95,13 +95,13 @@ for item in bin presets.toml hypr; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in omarchy-kbptr omarchy-kbptr-regions omarchy-kbptr-panic; do
+for script in imthemousenow imthemousenow-regions imthemousenow-panic; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
 # The Hyprland module is required by module path, so it must live under
-# ~/.config/omarchy/plugins/kbptr/ regardless of where the rest goes.
-link_or_copy "$REPO/hypr" "$HOME/.config/omarchy/plugins/kbptr/hypr"
+# ~/.config/omarchy/plugins/imthemousenow/ regardless of where the rest goes.
+link_or_copy "$REPO/hypr" "$HOME/.config/omarchy/plugins/imthemousenow/hypr"
 
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
@@ -109,7 +109,7 @@ link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
 # --- 4. hooks -----------------------------------------------------------------
 for hook in theme-set font-set post-update; do
   mkdir -p "$HOOKS_DIR/$hook.d"
-  link_or_copy "$REPO/hooks/$hook" "$HOOKS_DIR/$hook.d/kbptr.hook"
+  link_or_copy "$REPO/hooks/$hook" "$HOOKS_DIR/$hook.d/imthemousenow.hook"
 done
 
 # --- 5. Hyprland include ------------------------------------------------------
@@ -131,6 +131,6 @@ if [[ -n $errors ]]; then
   echo "$errors" >&2
 fi
 
-say "Done. Try: omarchy-kbptr quick   (or SUPER + ;)"
+say "Done. Try: imthemousenow quick   (or SUPER + ;)"
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

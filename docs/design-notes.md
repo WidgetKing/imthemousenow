@@ -9,7 +9,7 @@ the implementation differs from the original plan.
 | --- | --- |
 | Omarchy theme templates | Real and first-class. `~/.config/omarchy/themed/<name>.tpl` is rendered by `omarchy-theme-set-templates` into `~/.local/state/omarchy/current/theme/<name>` on every theme change. Placeholders: `{{ key }}`, `{{ key_strip }}` (no `#`), `{{ key_rgb }}`, plus `{{ mix a b 30% }}`. |
 | Hook types | `theme-set`, `font-set`, `post-update`, `battery-low`, `pre-refresh-pacman`. Drop an executable in `~/.config/omarchy/hooks/<type>.d/`. |
-| Hyprland Lua module path | `package.path` includes `~/.config/?.lua`, so `require("omarchy.plugins.kbptr.hypr.kbptr")` resolves to `~/.config/omarchy/plugins/kbptr/hypr/kbptr.lua`. |
+| Hyprland Lua module path | `package.path` includes `~/.config/?.lua`, so `require("omarchy.plugins.imthemousenow.hypr.imthemousenow")` resolves to `~/.config/omarchy/plugins/imthemousenow/hypr/imthemousenow.lua`. |
 | `o.bind` / `hl.layer_rule` | Both exist; `o.bind(keys, description, command)` puts the description in the keybinding overlay. |
 | Keys `SUPER + [SHIFT/ALT/CTRL +] SEMICOLON` | All four unbound in Omarchy defaults and in the user's config. |
 | wl-kbptr CLI | `-r/--restrict WxH+X+Y`, `-O/--output <name>`, `-o/--option`, `-c/--config`, `-p/--only-print` all confirmed in `src/main.c`. Note it is `--only-print`, not `--print-only`. |
@@ -33,7 +33,7 @@ well, with `install.sh` still doing the build and the Hyprland wiring.
 
 **Config is layered through `-o`, not merged files.** The plan had a single
 generated config. Instead: `-c` points at the theme-rendered colours, then the
-font, the preset's options, and finally `~/.config/omarchy/kbptr/config.local`
+font, the preset's options, and finally `~/.config/omarchy/imthemousenow/config.local`
 are applied as `-o` flags. Later flags win, so there is no ini-merging code and
 user overrides cannot be clobbered by a re-theme.
 
@@ -55,7 +55,7 @@ The `font-set` hook is therefore a no-op that exists to document this.
   package on this machine) or `ydotool` (installed) with a uinput group.
 - **All-monitors mode**: upstream PR #79 was closed, not merged. The wrapper
   always passes `-O <focused monitor>`.
-- **AT-SPI region source** is not implemented; `omarchy-kbptr-regions` has a
+- **AT-SPI region source** is not implemented; `imthemousenow-regions` has a
   `--source` switch with only `windows` behind it so far.
 - **Menu entry**: `~/.config/omarchy/extensions/omarchy-menu.jsonc` is a single
   user-owned file, so `install.sh` deliberately does not edit it. Add a Pointer

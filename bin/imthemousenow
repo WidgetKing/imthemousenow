@@ -1,26 +1,26 @@
 #!/bin/bash
 # omarchy:summary=Move and click the pointer with the keyboard (wl-kbptr)
 # omarchy:args=<preset> [--scope screen|active-window|workspace]
-# omarchy:examples=omarchy-kbptr quick | omarchy-kbptr detect --scope active-window
+# omarchy:examples=imthemousenow quick | imthemousenow detect --scope active-window
 
 set -euo pipefail
 
-PLUGIN_DIR="${KBPTR_PLUGIN_DIR:-$HOME/.local/share/omarchy-kbptr}"
-USER_DIR="$HOME/.config/omarchy/kbptr"
-STATE_DIR="$HOME/.local/state/omarchy-kbptr"
-LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-kbptr.lock"
+PLUGIN_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}"
+USER_DIR="$HOME/.config/omarchy/imthemousenow"
+STATE_DIR="$HOME/.local/state/imthemousenow"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
 THEME_CONF="$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 
 notify() {
   if command -v omarchy-notification-send >/dev/null 2>&1; then
-    omarchy-notification-send -u low "wl-kbptr" "$1"
+    omarchy-notification-send -u low "I'm the mouse now" "$1"
   else
-    command -v notify-send >/dev/null 2>&1 && notify-send "wl-kbptr" "$1"
+    command -v notify-send >/dev/null 2>&1 && notify-send "I'm the mouse now" "$1"
   fi
 }
 
 die() {
-  echo "omarchy-kbptr: $1" >&2
+  echo "imthemousenow: $1" >&2
   exit 1
 }
 
@@ -88,7 +88,7 @@ main() {
     case "$1" in
       -h | --help)
         cat <<EOF
-Usage: omarchy-kbptr <preset> [--scope screen|active-window|workspace] [-- <wl-kbptr args>]
+Usage: imthemousenow <preset> [--scope screen|active-window|workspace] [-- <wl-kbptr args>]
 
 Presets:
 $(list_presets)
@@ -247,7 +247,7 @@ EOF
     local rc=0
     if [[ $options == *"source=stdin"* ]]; then
       local regions
-      regions="$("$PLUGIN_DIR/bin/omarchy-kbptr-regions" --scope "$scope" || true)"
+      regions="$("$PLUGIN_DIR/bin/imthemousenow-regions" --scope "$scope" || true)"
       if [[ -z $regions ]]; then
         notify "No regions found for '$preset'"
         return 1

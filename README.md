@@ -1,10 +1,14 @@
-# omarchy-kbptr
+# imthemousenow
 
-Keyboard-driven mouse pointer for [Omarchy](https://omarchy.org), wrapping
-[wl-kbptr](https://github.com/moverest/wl-kbptr). It drives wl-kbptr; it does
-not reimplement it, so new upstream options pass straight through `-o`.
+Drive the mouse pointer from the keyboard on [Omarchy](https://omarchy.org).
 
-What the plugin adds on top of the binary:
+Today the pointing is done by [wl-kbptr](https://github.com/moverest/wl-kbptr),
+which `imthemousenow` drives rather than reimplements, so upstream options pass
+straight through `-o`. That backend is an implementation detail: the CLI, the
+presets and the keybindings are the stable surface, and are free to grow
+capabilities wl-kbptr does not have.
+
+What the tool adds today:
 
 - **Presets** — named mode chains (`quick`, `precise`, `detect`, `windows`, ...)
   instead of memorising `-o modes=tile,bisect,click`.
@@ -41,22 +45,22 @@ What the plugin adds on top of the binary:
 | `SUPER + SHIFT + ALT + ;` | `detect --scope active-window` | Detect targets inside the focused window |
 
 ```bash
-omarchy-kbptr --list                      # every preset
-omarchy-kbptr quick --scope active-window # restrict to the focused window
-omarchy-kbptr move                        # move the pointer, don't click
-omarchy-kbptr quick --repeat              # keep reopening until Escape
-omarchy-kbptr detect --scope active-window
-omarchy-kbptr --stop                      # close a stuck overlay
+imthemousenow --list                      # every preset
+imthemousenow quick --scope active-window # restrict to the focused window
+imthemousenow move                        # move the pointer, don't click
+imthemousenow quick --repeat              # keep reopening until Escape
+imthemousenow detect --scope active-window
+imthemousenow --stop                      # close a stuck overlay
 ```
 
 Only one overlay runs at a time. wl-kbptr grabs the keyboard, so a second
 instance would stack an unreachable overlay beneath the new one and lock the
 session out; pressing any pointer binding while one is up is a no-op instead.
-`omarchy-kbptr --stop` closes whatever is running, including an overlay left
+`imthemousenow --stop` closes whatever is running, including an overlay left
 behind by a crash.
 
 `CTRL + ALT + DELETE` is also a way out: the plugin rebinds it to
-`omarchy-kbptr-panic`, which dismisses any overlay and then runs Omarchy's own
+`imthemousenow-panic`, which dismisses any overlay and then runs Omarchy's own
 action for that key (`omarchy-hyprland-window-close-all`), so the stock
 behaviour is preserved rather than replaced. Hyprland keybindings still fire
 while wl-kbptr holds the keyboard, which is what makes this reachable at all.
@@ -66,8 +70,8 @@ while wl-kbptr holds the keyboard, which is what makes this reachable at all.
 User files override the plugin, and survive reinstalls:
 
 ```
-~/.config/omarchy/kbptr/presets.toml   # replaces the shipped presets entirely
-~/.config/omarchy/kbptr/config.local   # one `section.key=value` per line, applied last
+~/.config/omarchy/imthemousenow/presets.toml   # replaces the shipped presets entirely
+~/.config/omarchy/imthemousenow/config.local   # one `section.key=value` per line, applied last
 ~/.config/omarchy/themed/wl-kbptr.conf.tpl   # the colour template itself
 ```
 
@@ -102,11 +106,11 @@ OpenCV support. `--lite` makes that configuration explicit.
 ## Layout
 
 ```
-bin/omarchy-kbptr           preset -> wl-kbptr flags; the whole CLI
-bin/omarchy-kbptr-regions   window rects for floating/stdin mode
+bin/imthemousenow           preset -> wl-kbptr flags; the whole CLI
+bin/imthemousenow-regions   window rects for floating/stdin mode
 presets.toml                shipped presets
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
-hypr/kbptr.lua              keybindings + layer rules
+hypr/imthemousenow.lua              keybindings + layer rules
 hooks/{theme-set,font-set,post-update}
 pkg/{PKGBUILD,source.toml}  from-source build
 install.sh / uninstall.sh

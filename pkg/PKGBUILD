@@ -1,7 +1,7 @@
-# Built by omarchy-kbptr's install.sh, which exports KBPTR_* from pkg/source.toml.
+# Built by imthemousenow's install.sh, which exports KBPTR_* from pkg/source.toml.
 # pacman owns the binary, so uninstalling is `pacman -Rns wl-kbptr-omarchy`.
 pkgname=wl-kbptr-omarchy
-pkgver="${KBPTR_PKGVER:-0.4.1.r0854a51}"
+pkgver="${MOUSENOW_PKGVER:-0.4.1.r0854a51}"
 pkgrel=1
 pkgdesc="Control the mouse pointer with the keyboard on Wayland (Omarchy build)"
 arch=(x86_64 aarch64)
@@ -11,16 +11,16 @@ depends=(wayland libxkbcommon cairo)
 makedepends=(git meson ninja wayland-protocols)
 provides=(wl-kbptr)
 conflicts=(wl-kbptr wl-kbptr-git)
-source=("wl-kbptr::git+${url}.git#commit=${KBPTR_COMMIT}")
+source=("wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT}")
 sha256sums=('SKIP')
 
-if [[ ${KBPTR_OPENCV:-1} == 1 ]]; then
+if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)
 fi
 
 build() {
   local opencv=disabled
-  [[ ${KBPTR_OPENCV:-1} == 1 ]] && opencv=enabled
+  [[ ${MOUSENOW_OPENCV:-1} == 1 ]] && opencv=enabled
   arch-meson wl-kbptr build -Dopencv=$opencv
   meson compile -C build
 }

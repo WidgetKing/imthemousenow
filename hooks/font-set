@@ -1,7 +1,7 @@
 #!/bin/bash
-# omarchy-kbptr font-set hook.
+# imthemousenow font-set hook.
 #
-# No work to do: omarchy-kbptr reads `omarchy-font-current` at launch and
+# No work to do: imthemousenow reads `omarchy-font-current` at launch and
 # passes it as -o <mode>.label_font_family, and wl-kbptr re-reads its config on
 # every invocation. The hook exists so `omarchy font set` proves the wiring,
 # and as the place to hang work if the font ever needs baking into the config.

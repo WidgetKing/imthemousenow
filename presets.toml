@@ -1,4 +1,4 @@
-# Named wl-kbptr mode chains. Each [preset] becomes `omarchy-kbptr <name>`.
+# Named wl-kbptr mode chains. Each [preset] becomes `imthemousenow <name>`.
 #
 # Keys (all optional except `modes`):
 #   description = shown in --list and the Omarchy menu
@@ -7,7 +7,7 @@
 #   scope       = screen | active-window | workspace   (default: screen)
 #   needs       = opencv   (preset is hidden when the binary lacks that feature)
 #
-# Copy this file to ~/.config/omarchy/kbptr/presets.toml to override; a user
+# Copy this file to ~/.config/omarchy/imthemousenow/presets.toml to override; a user
 # file replaces this one entirely.
 
 [quick]

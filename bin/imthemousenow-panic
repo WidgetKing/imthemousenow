@@ -11,7 +11,7 @@ set -uo pipefail
 
 # Omarchy's stock CTRL + ALT + DELETE action. Override in the environment if
 # Omarchy ever changes it, or to chain something else.
-DEFAULT_ACTION="${KBPTR_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
+DEFAULT_ACTION="${MOUSENOW_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
 
 pkill -x wl-kbptr >/dev/null 2>&1 || true
 
@@ -22,6 +22,6 @@ fi
 # The default action is gone (renamed upstream?). Say so rather than failing
 # silently -- the overlay is already closed, which is the urgent half.
 command -v omarchy-notification-send >/dev/null 2>&1 &&
-  omarchy-notification-send -u critical "wl-kbptr" \
-    "Pointer overlay closed, but '$DEFAULT_ACTION' was not found. Check the omarchy-kbptr keybindings."
+  omarchy-notification-send -u critical "I'm the mouse now" \
+    "Pointer overlay closed, but '$DEFAULT_ACTION' was not found. Check the imthemousenow keybindings."
 exit 0
