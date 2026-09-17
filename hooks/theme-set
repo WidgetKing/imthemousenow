@@ -1,0 +1,16 @@
+#!/bin/bash
+# omarchy-kbptr theme-set hook.
+#
+# omarchy-theme-set-templates already renders
+# ~/.config/omarchy/themed/wl-kbptr.conf.tpl into the new theme directory
+# before this hook runs, so there is nothing to render here. This hook only
+# warns when the template went missing (e.g. a partial uninstall), because the
+# failure is otherwise silent: wl-kbptr would fall back to its own defaults and
+# simply stop matching the theme.
+set -euo pipefail
+
+[[ -f "$HOME/.config/omarchy/themed/wl-kbptr.conf.tpl" ]] && exit 0
+
+command -v omarchy-notification-send >/dev/null 2>&1 &&
+  omarchy-notification-send -u low "wl-kbptr" "Theme template missing; pointer overlay is unthemed. Re-run the omarchy-kbptr install.sh."
+exit 0

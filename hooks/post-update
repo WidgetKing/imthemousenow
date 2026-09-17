@@ -1,0 +1,41 @@
+#!/bin/bash
+# omarchy-kbptr post-update hook: keep the locally built wl-kbptr working
+# across Arch and Omarchy updates.
+set -euo pipefail
+
+STATE_DIR="$HOME/.local/state/omarchy-kbptr"
+HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
+MARKER="omarchy-kbptr"
+
+notify() {
+  command -v omarchy-notification-send >/dev/null 2>&1 &&
+    omarchy-notification-send -u normal "wl-kbptr" "$1"
+}
+
+# Only act on installs this plugin actually made.
+[[ -f "$STATE_DIR/installed" ]] || exit 0
+command -v wl-kbptr >/dev/null 2>&1 || exit 0
+
+# 1. A soname bump (opencv 5 -> 6, cairo, ...) breaks the binary silently.
+if ldd "$(command -v wl-kbptr)" 2>/dev/null | grep -q "not found"; then
+  notify "wl-kbptr broke after a library update. Re-run the plugin's install.sh to rebuild."
+fi
+
+# 2. The Hyprland include can be lost when hyprland.lua is refreshed.
+if [[ -f $HYPR_ENTRY ]] && ! grep -q "$MARKER" "$HYPR_ENTRY"; then
+  notify "wl-kbptr keybindings are no longer loaded from hyprland.lua. Re-run install.sh."
+fi
+
+# 3. Tell the user when upstream finally tags the OpenCV 5 fix, so the build
+#    can move from a pinned commit to a release (or back to the AUR).
+if [[ -f "$STATE_DIR/commit" ]] && command -v curl >/dev/null 2>&1; then
+  latest="$(curl -fsSL --max-time 5 https://api.github.com/repos/moverest/wl-kbptr/releases/latest 2>/dev/null |
+    grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
+  if [[ -n ${latest:-} && $latest != "$(cat "$STATE_DIR/release-seen" 2>/dev/null || echo)" ]]; then
+    echo "$latest" >"$STATE_DIR/release-seen"
+    [[ $latest != v0.4.1 ]] &&
+      notify "wl-kbptr $latest was released. Set mode = \"release\" in pkg/source.toml and re-run install.sh."
+  fi
+fi
+
+exit 0

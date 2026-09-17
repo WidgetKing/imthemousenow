@@ -1,0 +1,240 @@
+#!/bin/bash
+# omarchy:summary=Move and click the pointer with the keyboard (wl-kbptr)
+# omarchy:args=<preset> [--scope screen|active-window|workspace]
+# omarchy:examples=omarchy-kbptr quick | omarchy-kbptr detect --scope active-window
+
+set -euo pipefail
+
+PLUGIN_DIR="${KBPTR_PLUGIN_DIR:-$HOME/.local/share/omarchy-kbptr}"
+USER_DIR="$HOME/.config/omarchy/kbptr"
+STATE_DIR="$HOME/.local/state/omarchy-kbptr"
+THEME_CONF="$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
+
+notify() {
+  if command -v omarchy-notification-send >/dev/null 2>&1; then
+    omarchy-notification-send -u low "wl-kbptr" "$1"
+  else
+    command -v notify-send >/dev/null 2>&1 && notify-send "wl-kbptr" "$1"
+  fi
+}
+
+die() {
+  echo "omarchy-kbptr: $1" >&2
+  exit 1
+}
+
+presets_file() {
+  if [[ -f "$USER_DIR/presets.toml" ]]; then
+    echo "$USER_DIR/presets.toml"
+  else
+    echo "$PLUGIN_DIR/presets.toml"
+  fi
+}
+
+# Emit "key<TAB>value" for one preset's keys.
+read_preset() {
+  awk -v want="$1" '
+    /^[[:space:]]*\[/ {
+      section = $0
+      sub(/^[[:space:]]*\[/, "", section)
+      sub(/\].*$/, "", section)
+      in_section = (section == want)
+      next
+    }
+    !in_section { next }
+    /^[[:space:]]*#/ { next }
+    /=/ {
+      key = $0; sub(/=.*$/, "", key)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      val = $0; sub(/^[^=]*=/, "", val)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      gsub(/^"|"$/, "", val)
+      print key "\t" val
+    }
+  ' "$(presets_file)"
+}
+
+list_presets() {
+  awk '
+    /^[[:space:]]*\[/ {
+      name = $0
+      sub(/^[[:space:]]*\[/, "", name)
+      sub(/\].*$/, "", name)
+      next
+    }
+    /^[[:space:]]*description[[:space:]]*=/ {
+      val = $0; sub(/^[^=]*=/, "", val)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", val)
+      gsub(/^"|"$/, "", val)
+      printf "  %-12s %s\n", name, val
+    }
+  ' "$(presets_file)"
+}
+
+has_opencv() {
+  wl-kbptr --version 2>&1 | grep -qi opencv
+}
+
+# Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
+focused_monitor() {
+  hyprctl -j monitors | jq -r '.[] | select(.focused) | [.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
+}
+
+main() {
+  local preset="" scope="" dry_run=0 extra_opts=()
+
+  while (($#)); do
+    case "$1" in
+      -h | --help)
+        cat <<EOF
+Usage: omarchy-kbptr <preset> [--scope screen|active-window|workspace] [-- <wl-kbptr args>]
+
+Presets:
+$(list_presets)
+
+Options:
+  --scope <s>   Restrict the overlay to the screen, the active window, or the
+                focused workspace's monitor. Overrides the preset's own scope.
+  --list        List presets, one name per line.
+  -n, --dry-run Print the wl-kbptr command that would run, then exit.
+  --            Pass everything after this straight to wl-kbptr.
+EOF
+        exit 0
+        ;;
+      -n | --dry-run)
+        dry_run=1
+        shift
+        ;;
+      --list)
+        list_presets
+        exit 0
+        ;;
+      --scope)
+        scope="${2:-}"
+        [[ -n $scope ]] || die "--scope needs a value"
+        shift 2
+        ;;
+      --scope=*)
+        scope="${1#*=}"
+        shift
+        ;;
+      --)
+        shift
+        extra_opts+=("$@")
+        break
+        ;;
+      -*) die "unknown option: $1" ;;
+      *)
+        [[ -z $preset ]] || die "only one preset at a time (got '$preset' and '$1')"
+        preset="$1"
+        shift
+        ;;
+    esac
+  done
+
+  [[ -n $preset ]] || die "no preset given; try --help"
+  if ((dry_run == 0)); then
+    command -v wl-kbptr >/dev/null 2>&1 || die "wl-kbptr is not installed; run the plugin's install.sh"
+  fi
+  command -v jq >/dev/null 2>&1 || die "jq is required"
+  command -v hyprctl >/dev/null 2>&1 || die "hyprctl is required"
+
+  # --- preset ---------------------------------------------------------------
+  local modes="" options="" needs="" preset_scope=""
+  while IFS=$'\t' read -r key value; do
+    case "$key" in
+      modes) modes="$value" ;;
+      options) options="$value" ;;
+      needs) needs="$value" ;;
+      scope) preset_scope="$value" ;;
+    esac
+  done < <(read_preset "$preset")
+
+  [[ -n $modes ]] || die "unknown preset '$preset'; try --list"
+  [[ -n $scope ]] || scope="${preset_scope:-screen}"
+
+  if [[ $needs == opencv && $dry_run -eq 0 ]] && ! has_opencv; then
+    notify "Preset '$preset' needs an OpenCV build of wl-kbptr"
+    die "preset '$preset' needs OpenCV support, which this wl-kbptr build lacks"
+  fi
+
+  # --- command --------------------------------------------------------------
+  local args=()
+  [[ -f $THEME_CONF ]] && args+=(-c "$THEME_CONF")
+  args+=(-o "modes=$modes")
+
+  # Font from the Omarchy theme, applied to every mode that draws labels.
+  local font=""
+  command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
+  if [[ -n $font ]]; then
+    args+=(-o "mode_tile.label_font_family=$font")
+    args+=(-o "mode_floating.label_font_family=$font")
+    args+=(-o "mode_bisect.label_font_family=$font")
+  fi
+
+  local opt
+  for opt in $options; do args+=(-o "$opt"); done
+
+  # User overrides last: one `section.key=value` per line.
+  if [[ -f $USER_DIR/config.local ]]; then
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="$(echo "$line" | xargs || true)"
+      [[ -n $line ]] && args+=(-o "$line")
+    done <"$USER_DIR/config.local"
+  fi
+
+  # --- scope ----------------------------------------------------------------
+  local mon_name mon_x mon_y mon_w mon_h
+  IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
+  args+=(-O "$mon_name")
+
+  case "$scope" in
+    screen | workspace) ;;
+    active-window)
+      local win
+      win="$(hyprctl -j activewindow)"
+      if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
+        local wx wy ww wh
+        read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
+        args+=(-r "${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))")
+      fi
+      ;;
+    *) die "unknown scope '$scope'" ;;
+  esac
+
+  ((${#extra_opts[@]})) && args+=("${extra_opts[@]}")
+
+  if ((dry_run)); then
+    printf 'wl-kbptr'
+    printf ' %q' "${args[@]}"
+    [[ $options == *"source=stdin"* ]] && printf '   # regions on stdin'
+    printf '\n'
+    exit 0
+  fi
+
+  mkdir -p "$STATE_DIR"
+
+  # --- run ------------------------------------------------------------------
+  local status=0
+  if [[ $options == *"source=stdin"* ]]; then
+    local regions
+    regions="$("$PLUGIN_DIR/bin/omarchy-kbptr-regions" --scope "$scope" || true)"
+    if [[ -z $regions ]]; then
+      notify "No regions found for '$preset'"
+      exit 1
+    fi
+    wl-kbptr "${args[@]}" <<<"$regions" || status=$?
+  else
+    wl-kbptr "${args[@]}" || status=$?
+  fi
+
+  # Detect builds that start but never find anything (upstream issue #99).
+  if [[ $preset == detect && $status -ne 0 ]]; then
+    echo "detect exited $status" >"$STATE_DIR/last-detect"
+  fi
+
+  exit "$status"
+}
+
+main "$@"

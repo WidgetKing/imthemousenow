@@ -1,0 +1,4 @@
+*.bak
+*.pkg.tar.zst
+pkg/src/
+pkg/pkg/

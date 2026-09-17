@@ -1,0 +1,45 @@
+#!/bin/bash
+# omarchy:summary=Emit wl-kbptr floating regions (wxh+x+y) for the focused output
+# omarchy:args=[--scope screen|active-window|workspace] [--source windows|merge]
+set -euo pipefail
+
+scope="screen"
+source_kind="windows"
+
+while (($#)); do
+  case "$1" in
+    --scope) scope="${2:?}"; shift 2 ;;
+    --scope=*) scope="${1#*=}"; shift ;;
+    --source) source_kind="${2:?}"; shift 2 ;;
+    --source=*) source_kind="${1#*=}"; shift ;;
+    -h | --help)
+      echo "Usage: omarchy-kbptr-regions [--scope ...] [--source windows|merge]"
+      exit 0
+      ;;
+    *) echo "omarchy-kbptr-regions: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+
+# Focused monitor origin: regions must be output-relative.
+read -r mon_x mon_y mon_id < <(hyprctl -j monitors | jq -r '.[] | select(.focused) | [.x, .y, .id] | @tsv')
+
+# Windows on the focused monitor's active workspace, topmost first.
+windows() {
+  hyprctl -j clients | jq -r --argjson mon "$mon_id" --argjson mx "$mon_x" --argjson my "$mon_y" '
+    [ .[]
+      | select(.monitor == $mon)
+      | select(.hidden == false)
+      | select(.mapped == true)
+      | select(.workspace.id > 0)
+      | select(.size[0] > 8 and .size[1] > 8)
+    ]
+    | sort_by(-.focusHistoryID)
+    | .[]
+    | "\(.size[0])x\(.size[1])+\(.at[0] - $mx)+\(.at[1] - $my)"
+  '
+}
+
+case "$source_kind" in
+  windows | merge) windows ;;
+  *) echo "omarchy-kbptr-regions: unknown source '$source_kind'" >&2; exit 2 ;;
+esac
