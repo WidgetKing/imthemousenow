@@ -10,7 +10,11 @@
 # launch. The trailing two hex digits on each colour are alpha.
 
 [general]
-home_row_keys=asdfghjkl
+# home_row_keys must be EXACTLY 11 characters or wl-kbptr refuses to start:
+# the first 8 pick bisect sub-areas (4 columns x 2 rows, left to right, top row
+# first), the last 3 are left, right and middle click. Left unset to keep
+# upstream's built-in keys; override in ~/.config/omarchy/kbptr/config.local,
+# e.g. general.home_row_keys=erui dfjk vbn  (without the spaces).
 modes=tile,bisect
 cancellation_status_code=1
 
