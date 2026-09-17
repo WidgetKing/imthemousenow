@@ -4,7 +4,7 @@
 #   ./install.sh            copy this checkout into place
 #   ./install.sh --dev      symlink it instead, so edits here are live
 #   ./install.sh --no-build skip building wl-kbptr (wire up integration only)
-#   ./install.sh --lite     build without OpenCV (drops the `detect` preset)
+#   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,9 +79,9 @@ if ((build)); then
   fi
   touch "$STATE_DIR/installed"
 
-  # Verify what we actually got, and fall back rather than ship a broken preset.
+  # Verify what we actually got, and fall back rather than ship a broken mode.
   if [[ ${SRC_OPENCV:-true} == true ]] && ! wl-kbptr --version 2>&1 | grep -qi opencv; then
-    warn "This build has no OpenCV support; the 'detect' preset will refuse to run."
+    warn "This build has no OpenCV support; hints will label windows instead of detecting targets."
     warn "Re-run with --lite to make that the intended configuration."
   fi
 fi
@@ -136,6 +136,6 @@ if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
   warn "The config did not validate; see the errors above."
 fi
 
-say "Done. Try: imthemousenow quick   (or SUPER + ;)"
+say "Done. Try: SUPER + ;   (or: imthemousenow)"
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

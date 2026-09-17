@@ -73,3 +73,35 @@ when parsing that file -- treating `#` as an inline comment blanks the palette.
 - **Menu entry**: `~/.config/omarchy/extensions/omarchy-menu.jsonc` is a single
   user-owned file, so `install.sh` deliberately does not edit it. Add a Pointer
   submenu by hand if you want one.
+
+## home_row_keys, and where right-click came from
+
+wl-kbptr's `home_row_keys` defaults to empty, but empty does not mean "no
+keys": `load_home_row()` in `src/main.c` derives them from the active keymap at
+keyboard-enter time, from hard-coded keycodes — `a s d f j k l m` for the eight
+bisect sub-areas, then `g`, `h`, `b` for left, right and middle click.
+
+So per-selection right-click already existed; it was on `h` and undocumented
+here. `src/mode_bisect.c` sets `state->click` from the matched index and calls
+`enter_next_mode()` immediately, which is exactly the one-off semantics we
+wanted: the button applies to this selection only, with no persistent state.
+
+We set the key explicitly to `asdfjklmg;b` — upstream's own eight, with
+right-click moved from `h` to `;` so it matches the key that opens the overlay.
+Setting it explicitly means it no longer follows a non-QWERTY keymap the way
+the derived default does; that is the trade for a predictable right-click key,
+and a user with another layout can override the whole string in their config.
+
+Two consequences worth remembering:
+
+- The string must be **exactly 11 characters** or wl-kbptr rejects the entire
+  config file, so every chord becomes a silent no-op. This cost us a debugging
+  session once; `imthemousenow-config check` now tests for it, and any change
+  to it must be run against the real binary, not just dry-run flag assembly.
+- The click keys only exist at the **bisect** stage. At the label stage the
+  keys are `label_symbols`, so `;` does nothing there.
+
+Because the keypress *is* the click, there is no right-click state to render,
+so the overlay cannot change colour to signal it. Colour-on-ACTION needs either
+relaunching wl-kbptr with a different compiled config (flicker, and it discards
+any typed label prefix) or owning the overlay ourselves.

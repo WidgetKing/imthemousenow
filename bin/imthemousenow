@@ -1,7 +1,16 @@
 #!/bin/bash
-# omarchy:summary=Move and click the pointer with the keyboard (wl-kbptr)
-# omarchy:args=<preset> [--scope screen|active-window|workspace]
-# omarchy:examples=imthemousenow quick | imthemousenow detect --scope active-window
+# omarchy:summary=Move and click the pointer with the keyboard
+# omarchy:args=[--mode grid|hints] [--scope window|monitor] [--action ...] [--lifetime ...]
+# omarchy:examples=imthemousenow | imthemousenow --mode grid --scope monitor
+#
+# Every invocation is four independent choices:
+#
+#   MODE      grid | hints          how targets are presented
+#   SCOPE     window | monitor      where the overlay is drawn
+#   ACTION    left-click | right-click | move | drag
+#   LIFETIME  single | continuous   one selection, or until Escape
+#
+# Unset choices come from [imthemousenow.defaults].
 
 set -euo pipefail
 
@@ -33,14 +42,9 @@ setting() {
   echo "${value:-$2}"
 }
 
-# A preset's fields as key<TAB>value.
-read_preset() {
-  "$CONFIG_CMD" preset "$1" 2>/dev/null
-}
-
-list_presets() {
-  "$CONFIG_CMD" presets | while IFS=$'\t' read -r name description; do
-    printf "  %-12s %s\n" "$name" "$description"
+list_modes() {
+  "$CONFIG_CMD" modes | while IFS=$'\t' read -r name description; do
+    printf "              %-8s %s\n" "$name" "$description"
   done
 }
 
@@ -53,26 +57,43 @@ focused_monitor() {
   hyprctl -j monitors | jq -r '.[] | select(.focused) | [.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
 }
 
+# $1 must be one of the remaining arguments.
+expect_one_of() {
+  local value="$1" label="$2"
+  shift 2
+  local candidate
+  for candidate in "$@"; do
+    [[ $value == "$candidate" ]] && return 0
+  done
+  die "unknown $label '$value'; expected one of: $*"
+}
+
 main() {
-  local preset="" scope="" dry_run=0 repeat_mode=0 extra_opts=()
+  local mode="" scope="" action="" lifetime="" dry_run=0 extra_opts=()
 
   while (($#)); do
     case "$1" in
       -h | --help)
         cat <<EOF
-Usage: imthemousenow <preset> [--scope screen|active-window|workspace] [-- <wl-kbptr args>]
+Usage: imthemousenow [--mode M] [--scope S] [--action A] [--lifetime L] [-- <wl-kbptr args>]
 
-Presets:
-$(list_presets)
+Every invocation is four independent choices. Anything you leave out comes
+from [imthemousenow.defaults] in the config.
+
+  --mode      grid | hints        how targets are presented
+$(list_modes)
+  --scope     window | monitor    the focused window, or the whole monitor
+  --action    left-click | right-click | move | drag
+  --lifetime  single | continuous one selection, or reopen until Escape
+
+Inside the overlay, at the narrowing-down step, the home row picks a sub-area
+and three keys commit it:  g = left click,  ; = right click,  b = middle click.
+So a right click is always one keypress away, whatever --action says.
 
 Options:
-  --scope <s>   Restrict the overlay to the screen, the active window, or the
-                focused workspace's monitor. Overrides the preset's own scope.
-  --list        List presets, one name per line.
+  --list        List modes, one per line.
   -n, --dry-run Print the wl-kbptr command that would run, then exit.
-  -R, --repeat  Keep reopening after each click, until Escape cancels. Needs
-                general.cancellation_status_code to be non-zero (the Omarchy
-                template sets it to 1).
+  -R, --repeat  Alias for --lifetime continuous.
   --stop        Close any running overlay. Bind this if you ever get stuck.
   --            Pass everything after this straight to wl-kbptr.
 EOF
@@ -84,67 +105,86 @@ EOF
         pkill -x wl-kbptr >/dev/null 2>&1 || true
         exit 0
         ;;
-      -R | --repeat)
-        repeat_mode=1
-        shift
-        ;;
-      -n | --dry-run)
-        dry_run=1
-        shift
-        ;;
-      --list)
-        list_presets
-        exit 0
-        ;;
-      --scope)
-        scope="${2:-}"
-        [[ -n $scope ]] || die "--scope needs a value"
-        shift 2
-        ;;
-      --scope=*)
-        scope="${1#*=}"
-        shift
-        ;;
+      --mode) mode="${2:-}"; [[ -n $mode ]] || die "--mode needs a value"; shift 2 ;;
+      --mode=*) mode="${1#*=}"; shift ;;
+      --scope) scope="${2:-}"; [[ -n $scope ]] || die "--scope needs a value"; shift 2 ;;
+      --scope=*) scope="${1#*=}"; shift ;;
+      --action) action="${2:-}"; [[ -n $action ]] || die "--action needs a value"; shift 2 ;;
+      --action=*) action="${1#*=}"; shift ;;
+      --lifetime) lifetime="${2:-}"; [[ -n $lifetime ]] || die "--lifetime needs a value"; shift 2 ;;
+      --lifetime=*) lifetime="${1#*=}"; shift ;;
+      -R | --repeat) lifetime="continuous"; shift ;;
+      -n | --dry-run) dry_run=1; shift ;;
+      --list) list_modes; exit 0 ;;
       --)
         shift
         extra_opts+=("$@")
         break
         ;;
-      -*) die "unknown option: $1" ;;
-      *)
-        [[ -z $preset ]] || die "only one preset at a time (got '$preset' and '$1')"
-        preset="$1"
-        shift
-        ;;
+      *) die "unknown argument: $1; try --help" ;;
     esac
   done
 
-  [[ -n $preset ]] || preset="$(setting default_preset "")"
-  [[ -n $preset ]] || die "no preset given; try --help"
+  [[ -n $mode ]] || mode="$(setting defaults.mode hints)"
+  [[ -n $scope ]] || scope="$(setting defaults.scope window)"
+  [[ -n $action ]] || action="$(setting defaults.action left-click)"
+  [[ -n $lifetime ]] || lifetime="$(setting defaults.lifetime single)"
+
+  expect_one_of "$scope" scope window monitor
+  expect_one_of "$action" action left-click right-click move drag
+  expect_one_of "$lifetime" lifetime single continuous
+
+  if [[ $action == drag ]]; then
+    notify "Drag is not implemented yet"
+    die "--action drag is not implemented yet"
+  fi
+
   if ((dry_run == 0)); then
     command -v wl-kbptr >/dev/null 2>&1 || die "wl-kbptr is not installed; run the plugin's install.sh"
   fi
   command -v jq >/dev/null 2>&1 || die "jq is required"
   command -v hyprctl >/dev/null 2>&1 || die "hyprctl is required"
 
-  # --- preset ---------------------------------------------------------------
-  local modes="" options="" needs="" preset_scope=""
+  # --- mode -----------------------------------------------------------------
+  local chain="" refine="" source=""
   while IFS=$'\t' read -r key value; do
     case "$key" in
-      modes) modes="$value" ;;
-      options) options="$value" ;;
-      needs) needs="$value" ;;
-      scope) preset_scope="$value" ;;
+      chain) chain="$value" ;;
+      refine) refine="$value" ;;
+      source) source="$value" ;;
     esac
-  done < <(read_preset "$preset")
+  done < <("$CONFIG_CMD" mode "$mode" 2>/dev/null)
 
-  [[ -n $modes ]] || die "unknown preset '$preset'; try --list"
-  [[ -n $scope ]] || scope="${preset_scope:-$(setting scope.default screen)}"
+  [[ -n $chain ]] || die "unknown mode '$mode'; try --list"
 
-  if [[ $needs == opencv && $dry_run -eq 0 ]] && ! has_opencv; then
-    notify "Preset '$preset' needs an OpenCV build of wl-kbptr"
-    die "preset '$preset' needs OpenCV support, which this wl-kbptr build lacks"
+  local options=""
+
+  # hints: OpenCV detection when the build has it, window rectangles when it
+  # does not. The fallback is not a lesser mode -- it is exact where detection
+  # is heuristic -- so it degrades silently rather than refusing to run.
+  if [[ -n $source ]]; then
+    if [[ $source == auto ]]; then
+      if ((dry_run == 0)) && ! has_opencv; then
+        source="windows"
+      else
+        source="detect"
+      fi
+    fi
+    case "$source" in
+      detect) options="mode_floating.source=detect" ;;
+      windows) options="mode_floating.source=stdin" ;;
+      *) die "unknown source '$source' for mode '$mode'" ;;
+    esac
   fi
+
+  # ACTION decides whether the chain ends in a click, and which button.
+  local modes="$chain"
+  [[ -n $refine ]] && modes="$modes,$refine"
+  case "$action" in
+    left-click) modes="$modes,click"; options="$options mode_click.button=left" ;;
+    right-click) modes="$modes,click"; options="$options mode_click.button=right" ;;
+    move) ;; # no click stage: the pointer lands and stays
+  esac
 
   # --- command --------------------------------------------------------------
   local args=() compiled
@@ -180,23 +220,22 @@ EOF
   IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
   args+=(-O "$mon_name")
 
-  case "$scope" in
-    screen | workspace) ;;
-    active-window)
-      local win
-      win="$(hyprctl -j activewindow)"
-      if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
-        local wx wy ww wh
-        read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
-        args+=(-r "${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))")
-      fi
-      ;;
-    *) die "unknown scope '$scope'" ;;
-  esac
+  if [[ $scope == window ]]; then
+    local win
+    win="$(hyprctl -j activewindow)"
+    if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
+      local wx wy ww wh
+      read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
+      args+=(-r "${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))")
+    fi
+    # No focused window (an empty workspace) falls through to the monitor,
+    # which is what you wanted anyway: there is nothing else to aim at.
+  fi
 
   ((${#extra_opts[@]})) && args+=("${extra_opts[@]}")
 
   if ((dry_run)); then
+    printf '# %s / %s / %s / %s\n' "$mode" "$scope" "$action" "$lifetime"
     printf 'wl-kbptr'
     printf ' %q' "${args[@]}"
     [[ $options == *"source=stdin"* ]] && printf '   # regions on stdin'
@@ -219,15 +258,17 @@ EOF
   mkdir -p "$STATE_DIR"
 
   # --- run ------------------------------------------------------------------
-  # One pass. Regions are recomputed per pass so repeat mode follows windows
-  # that move, open or close between clicks.
+  # One pass. Regions are recomputed per pass so a continuous lifetime follows
+  # windows that move, open or close between clicks.
   run_once() {
     local rc=0
     if [[ $options == *"source=stdin"* ]]; then
-      local regions
-      regions="$("$PLUGIN_DIR/bin/imthemousenow-regions" --scope "$scope" || true)"
+      local regions scope_arg
+      # imthemousenow-regions speaks the older scope vocabulary.
+      [[ $scope == window ]] && scope_arg="active-window" || scope_arg="screen"
+      regions="$("$PLUGIN_DIR/bin/imthemousenow-regions" --scope "$scope_arg" || true)"
       if [[ -z $regions ]]; then
-        notify "No regions found for '$preset'"
+        notify "Nothing to label in this $scope"
         return 1
       fi
       wl-kbptr "${args[@]}" <<<"$regions" || rc=$?
@@ -238,14 +279,14 @@ EOF
   }
 
   local status=0
-  if ((repeat_mode)); then
+  if [[ $lifetime == continuous ]]; then
     # Exit 0 means a completed selection: go again. Anything else -- Escape
     # (cancellation_status_code), a bad config, a compositor error -- stops.
     local passes=0 quick_exits=0 started elapsed
     local guard_ms max_quick max_passes
-    guard_ms="$(setting repeat.guard_ms 200)"
-    max_quick="$(setting repeat.max_quick_exits 5)"
-    max_passes="$(setting repeat.max_passes 0)"
+    guard_ms="$(setting continuous.guard_ms 200)"
+    max_quick="$(setting continuous.max_quick_exits 5)"
+    max_passes="$(setting continuous.max_passes 0)"
     while :; do
       started=$(date +%s%N)
       status=0
@@ -253,18 +294,18 @@ EOF
       ((status == 0)) || break
 
       passes=$((passes + 1))
-      elapsed=$(((  $(date +%s%N) - started ) / 1000000 ))
+      elapsed=$((($(date +%s%N) - started) / 1000000))
 
-      # A pass that "succeeds" instantly means nothing was actually selected;
-      # without this a misconfigured run would spin forever.
       if ((max_passes > 0 && passes >= max_passes)); then
         break
       fi
 
+      # A pass that "succeeds" instantly means nothing was actually selected;
+      # without this a misconfigured run would spin forever.
       if ((elapsed < guard_ms)); then
         quick_exits=$((quick_exits + 1))
         if ((quick_exits >= max_quick)); then
-          notify "Repeat mode stopped: wl-kbptr kept exiting immediately"
+          notify "Continuous stopped: wl-kbptr kept exiting immediately"
           status=1
           break
         fi
@@ -273,7 +314,7 @@ EOF
       fi
     done
 
-    # Escape is how you leave repeat mode, so it is a success, not a failure.
+    # Escape is how you leave a continuous lifetime, so it is a success.
     [[ $status -eq 1 && $passes -gt 0 ]] && status=0
   else
     status=0
@@ -281,7 +322,7 @@ EOF
   fi
 
   # Detect builds that start but never find anything (upstream issue #99).
-  if [[ $preset == detect && $status -ne 0 ]]; then
+  if [[ $source == detect && $status -ne 0 ]]; then
     echo "detect exited $status" >"$STATE_DIR/last-detect"
   fi
 

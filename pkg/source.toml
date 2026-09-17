@@ -7,10 +7,10 @@
 # The OpenCV 5 build fix (upstream 0854a51, fixes issue #99) is NOT in any
 # tagged release yet, and the AUR package is still 0.4.1 -- which does not
 # build against Arch's opencv 5. Until upstream tags a release, "commit" is
-# the only mode that gets you a working `detect` preset on this system.
+# the only mode that gets you OpenCV target detection on this system.
 mode = "commit"
 commit = "0854a51cfa5b3d74c0f81f0a4da9b5bb11c9b9f1"
 
-# false builds without OpenCV: every preset keeps working except `detect`,
+# false builds without OpenCV: hints then label windows instead of detecting,
 # and the build loses a 100MB+ dependency.
 opencv = true

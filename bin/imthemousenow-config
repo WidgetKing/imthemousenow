@@ -2,18 +2,18 @@
 """Compile and query imthemousenow's config.
 
 The config is a superset of wl-kbptr's: sections wl-kbptr understands pass
-straight through, `[imthemousenow]` and `[preset.*]` are ours and are stripped
+straight through, `[imthemousenow]` and `[mode.*]` are ours and are stripped
 before wl-kbptr ever sees the file. Layers, later winning:
 
-  1. config.default.toml         shipped defaults (behaviour, presets)
+  1. config.default.toml         shipped defaults (behaviour, modes)
   2. the Omarchy theme template  rendered colours, if theme_colors is on
   3. ~/.config/omarchy/imthemousenow/config.toml   the user's own
 
 Subcommands:
   compile [--force]   write the wl-kbptr config, print its path
-  preset <name>       the preset's fields, as key<TAB>value
-  presets             every preset name and description
-  get <dotted.key>    one [imthemousenow] setting, e.g. repeat.guard_ms
+  mode <name>         the MODE's fields, as key<TAB>value
+  modes               every MODE name and description
+  get <dotted.key>    one [imthemousenow] setting, e.g. continuous.guard_ms
   check               parse every layer and report problems
   path                where each layer lives
 """
@@ -36,7 +36,7 @@ USER_CONF = USER_DIR / "config.toml"
 COMPILED = RUNTIME / "wl-kbptr.conf"
 
 # Ours; never emitted to wl-kbptr.
-RESERVED = {"imthemousenow", "preset"}
+RESERVED = {"imthemousenow", "mode"}
 
 
 def die(msg: str, code: int = 1):
@@ -135,20 +135,19 @@ def cmd_compile(args):
     print(compile_config(force="--force" in args))
 
 
-def cmd_preset(args):
+def cmd_mode(args):
     if not args:
-        die("preset needs a name")
-    presets = settings().get("preset", {})
-    preset = presets.get(args[0])
-    if preset is None:
-        die(f"unknown preset '{args[0]}'")
-    for key, value in preset.items():
+        die("mode needs a name")
+    mode = settings().get("mode", {}).get(args[0])
+    if mode is None:
+        die(f"unknown mode '{args[0]}'")
+    for key, value in mode.items():
         print(f"{key}\t{ini_value(value)}")
 
 
-def cmd_presets(args):
-    for name, preset in settings().get("preset", {}).items():
-        print(f"{name}\t{preset.get('description', '')}")
+def cmd_modes(args):
+    for name, mode in settings().get("mode", {}).items():
+        print(f"{name}\t{mode.get('description', '')}")
 
 
 def cmd_get(args):
@@ -169,11 +168,30 @@ def cmd_check(args):
     if not DEFAULTS.is_file():
         problems.append(f"missing shipped defaults: {DEFAULTS}")
     merged = settings()
-    for name, preset in merged.get("preset", {}).items():
-        if not isinstance(preset, dict):
-            problems.append(f"[preset.{name}] must be a table")
-        elif "modes" not in preset:
-            problems.append(f"[preset.{name}] has no `modes`")
+    for name, mode in merged.get("mode", {}).items():
+        if not isinstance(mode, dict):
+            problems.append(f"[mode.{name}] must be a table")
+        elif "chain" not in mode:
+            problems.append(f"[mode.{name}] has no `chain`")
+
+    # 11 exactly, or wl-kbptr rejects the entire config and every chord looks
+    # like a dead keybinding. Cheap to check here; expensive to discover live.
+    keys = merged.get("general", {}).get("home_row_keys", "")
+    if keys and len(keys) != 11:
+        problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")
+    if keys and len(set(keys)) != len(keys):
+        problems.append("general.home_row_keys has duplicate characters")
+
+    defaults = merged.get("imthemousenow", {}).get("defaults", {})
+    for field, valid in (
+        ("mode", set(merged.get("mode", {}))),
+        ("scope", {"window", "monitor"}),
+        ("action", {"left-click", "right-click", "move", "drag"}),
+        ("lifetime", {"single", "continuous"}),
+    ):
+        value = defaults.get(field)
+        if value is not None and value not in valid:
+            problems.append(f"[imthemousenow.defaults].{field} = '{value}' is not one of {sorted(valid)}")
     for section, body in merged.items():
         if section in RESERVED:
             continue
@@ -183,7 +201,7 @@ def cmd_check(args):
         print(f"imthemousenow-config: {problem}", file=sys.stderr)
     if problems:
         sys.exit(1)
-    print(f"ok: {len(merged.get('preset', {}))} presets, compiles to {compile_config(force=True)}")
+    print(f"ok: {len(merged.get('mode', {}))} modes, compiles to {compile_config(force=True)}")
 
 
 def cmd_path(args):
@@ -199,8 +217,8 @@ def cmd_path(args):
 
 COMMANDS = {
     "compile": cmd_compile,
-    "preset": cmd_preset,
-    "presets": cmd_presets,
+    "mode": cmd_mode,
+    "modes": cmd_modes,
     "get": cmd_get,
     "check": cmd_check,
     "path": cmd_path,
