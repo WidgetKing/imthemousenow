@@ -59,9 +59,11 @@ chain = "tile"
 refine = "bisect"
 
 [mode.hints]
-description = "Label what looks clickable, then narrow down"
+description = "Label what looks clickable, then click it"
 chain = "floating"
-refine = "bisect"
+# Nothing: a hint already names a target, so clicking it is the whole point.
+# Narrowing down afterwards would ask you to aim at something you just named.
+refine = ""
 source = "auto"
 
 # --- wl-kbptr passthrough ----------------------------------------------------
@@ -80,3 +82,16 @@ cancellation_status_code = 1
 # only the right-click key is moved, from `h` to `;`, so that ACTION and the
 # keybinding that opened the overlay use the same key.
 home_row_keys = "asdfjklmg;b"
+
+# 27 symbols, not 26, and the reason is arithmetic rather than taste. wl-kbptr
+# caps the grid at 26*26 cells but derives rows and columns by truncating a
+# square root, so the product can land just over that cap -- 680 cells in a
+# 1330x1102 window. Label length is "how many times does the count divide by
+# the symbol count", so one cell past 675 costs a THIRD character on every
+# label in the grid. A 27th symbol raises the ceiling to 729 and keeps the
+# whole grid at two characters.
+[mode_tile]
+label_symbols = "abcdefghijklmnopqrstuvwxyz,"
+
+[mode_floating]
+label_symbols = "abcdefghijklmnopqrstuvwxyz,"

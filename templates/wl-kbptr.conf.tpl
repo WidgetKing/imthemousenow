@@ -26,7 +26,6 @@ selectable_bg_color=#{{ background_strip }}33
 selectable_border_color=#{{ accent_strip }}55
 label_font_family=sans-serif
 label_font_size=8 50% 100
-label_symbols=abcdefghijklmnopqrstuvwxyz
 
 [mode_floating]
 # Floating labels land on top of whatever is on screen, so they cannot rely on
@@ -42,7 +41,6 @@ selectable_bg_color=#{{ background_strip }}ee
 selectable_border_color=#{{ accent_strip }}cc
 label_font_family=sans-serif
 label_font_size=12 50% 100
-label_symbols=abcdefghijklmnopqrstuvwxyz
 
 [mode_bisect]
 label_color=#{{ foreground_strip }}ee
