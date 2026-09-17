@@ -46,7 +46,14 @@ omarchy-kbptr quick --scope active-window # restrict to the focused window
 omarchy-kbptr move                        # move the pointer, don't click
 omarchy-kbptr quick --repeat              # keep reopening until Escape
 omarchy-kbptr detect --scope active-window
+omarchy-kbptr --stop                      # close a stuck overlay
 ```
+
+Only one overlay runs at a time. wl-kbptr grabs the keyboard, so a second
+instance would stack an unreachable overlay beneath the new one and lock the
+session out; pressing any pointer binding while one is up is a no-op instead.
+`omarchy-kbptr --stop` closes whatever is running, including an overlay left
+behind by a crash.
 
 ## Configuration
 

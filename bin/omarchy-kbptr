@@ -8,6 +8,7 @@ set -euo pipefail
 PLUGIN_DIR="${KBPTR_PLUGIN_DIR:-$HOME/.local/share/omarchy-kbptr}"
 USER_DIR="$HOME/.config/omarchy/kbptr"
 STATE_DIR="$HOME/.local/state/omarchy-kbptr"
+LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/omarchy-kbptr.lock"
 THEME_CONF="$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 
 notify() {
@@ -100,8 +101,15 @@ Options:
   -R, --repeat  Keep reopening after each click, until Escape cancels. Needs
                 general.cancellation_status_code to be non-zero (the Omarchy
                 template sets it to 1).
+  --stop        Close any running overlay. Bind this if you ever get stuck.
   --            Pass everything after this straight to wl-kbptr.
 EOF
+        exit 0
+        ;;
+      --stop)
+        # Escape hatch: close any overlay that is up, including one left
+        # behind by a crash. Safe to run when nothing is running.
+        pkill -x wl-kbptr >/dev/null 2>&1 || true
         exit 0
         ;;
       -R | --repeat)
@@ -217,6 +225,16 @@ EOF
     printf ' %q' "${args[@]}"
     [[ $options == *"source=stdin"* ]] && printf '   # regions on stdin'
     printf '\n'
+    exit 0
+  fi
+
+  # Only ever one overlay. wl-kbptr grabs the keyboard, so a second instance
+  # stacks an unreachable overlay under the new one -- pressing any pointer
+  # binding twice used to lock the session out. A non-blocking flock means the
+  # second press is a no-op instead. The lock is held by this script, so it is
+  # released however the process dies; no stale lock can wedge it.
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
     exit 0
   fi
 
