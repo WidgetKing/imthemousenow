@@ -15,3 +15,17 @@ o.bind("SUPER + SEMICOLON", "Pointer: grid", "omarchy-kbptr quick")
 o.bind("SUPER + SHIFT + SEMICOLON", "Pointer: detect targets", "omarchy-kbptr detect")
 o.bind("SUPER + ALT + SEMICOLON", "Pointer: pick window", "omarchy-kbptr windows")
 o.bind("SUPER + CTRL + SEMICOLON", "Pointer: precise split", "omarchy-kbptr precise")
+
+-- Stays up after each click and reopens, until Escape. For bursts of clicking.
+o.bind(
+  "SUPER + CTRL + SHIFT + SEMICOLON",
+  "Pointer: repeat clicking",
+  "omarchy-kbptr quick --repeat"
+)
+
+-- Detect, confined to the focused window.
+o.bind(
+  "SUPER + SHIFT + ALT + SEMICOLON",
+  "Pointer: detect in window",
+  "omarchy-kbptr detect --scope active-window"
+)

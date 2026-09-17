@@ -37,11 +37,15 @@ What the plugin adds on top of the binary:
 | `SUPER + CTRL + ;` | `precise` | Grid → arrow-key split → click |
 | `SUPER + SHIFT + ;` | `detect` | OpenCV-detected targets → click |
 | `SUPER + ALT + ;` | `windows` | Label open windows → click |
+| `SUPER + CTRL + SHIFT + ;` | `quick --repeat` | Reopens after every click until Escape |
+| `SUPER + SHIFT + ALT + ;` | `detect --scope active-window` | Detect targets inside the focused window |
 
 ```bash
 omarchy-kbptr --list                      # every preset
 omarchy-kbptr quick --scope active-window # restrict to the focused window
 omarchy-kbptr move                        # move the pointer, don't click
+omarchy-kbptr quick --repeat              # keep reopening until Escape
+omarchy-kbptr detect --scope active-window
 ```
 
 ## Configuration

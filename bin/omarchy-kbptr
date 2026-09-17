@@ -81,7 +81,7 @@ focused_monitor() {
 }
 
 main() {
-  local preset="" scope="" dry_run=0 extra_opts=()
+  local preset="" scope="" dry_run=0 repeat_mode=0 extra_opts=()
 
   while (($#)); do
     case "$1" in
@@ -97,9 +97,16 @@ Options:
                 focused workspace's monitor. Overrides the preset's own scope.
   --list        List presets, one name per line.
   -n, --dry-run Print the wl-kbptr command that would run, then exit.
+  -R, --repeat  Keep reopening after each click, until Escape cancels. Needs
+                general.cancellation_status_code to be non-zero (the Omarchy
+                template sets it to 1).
   --            Pass everything after this straight to wl-kbptr.
 EOF
         exit 0
+        ;;
+      -R | --repeat)
+        repeat_mode=1
+        shift
         ;;
       -n | --dry-run)
         dry_run=1
@@ -216,17 +223,57 @@ EOF
   mkdir -p "$STATE_DIR"
 
   # --- run ------------------------------------------------------------------
-  local status=0
-  if [[ $options == *"source=stdin"* ]]; then
-    local regions
-    regions="$("$PLUGIN_DIR/bin/omarchy-kbptr-regions" --scope "$scope" || true)"
-    if [[ -z $regions ]]; then
-      notify "No regions found for '$preset'"
-      exit 1
+  # One pass. Regions are recomputed per pass so repeat mode follows windows
+  # that move, open or close between clicks.
+  run_once() {
+    local rc=0
+    if [[ $options == *"source=stdin"* ]]; then
+      local regions
+      regions="$("$PLUGIN_DIR/bin/omarchy-kbptr-regions" --scope "$scope" || true)"
+      if [[ -z $regions ]]; then
+        notify "No regions found for '$preset'"
+        return 1
+      fi
+      wl-kbptr "${args[@]}" <<<"$regions" || rc=$?
+    else
+      wl-kbptr "${args[@]}" || rc=$?
     fi
-    wl-kbptr "${args[@]}" <<<"$regions" || status=$?
+    return "$rc"
+  }
+
+  local status=0
+  if ((repeat_mode)); then
+    # Exit 0 means a completed selection: go again. Anything else -- Escape
+    # (cancellation_status_code), a bad config, a compositor error -- stops.
+    local passes=0 quick_exits=0 started elapsed
+    while :; do
+      started=$(date +%s%N)
+      status=0
+      run_once || status=$?
+      ((status == 0)) || break
+
+      passes=$((passes + 1))
+      elapsed=$(((  $(date +%s%N) - started ) / 1000000 ))
+
+      # A pass that "succeeds" instantly means nothing was actually selected;
+      # without this a misconfigured run would spin forever.
+      if ((elapsed < 200)); then
+        quick_exits=$((quick_exits + 1))
+        if ((quick_exits >= 5)); then
+          notify "Repeat mode stopped: wl-kbptr kept exiting immediately"
+          status=1
+          break
+        fi
+      else
+        quick_exits=0
+      fi
+    done
+
+    # Escape is how you leave repeat mode, so it is a success, not a failure.
+    [[ $status -eq 1 && $passes -gt 0 ]] && status=0
   else
-    wl-kbptr "${args[@]}" || status=$?
+    status=0
+    run_once || status=$?
   fi
 
   # Detect builds that start but never find anything (upstream issue #99).
