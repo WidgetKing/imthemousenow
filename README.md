@@ -21,10 +21,11 @@ names to memorise and no special cases — any combination is valid.
 | **LIFETIME** | `single` · `continuous` | one selection, or until Escape |
 
 **MODE** — `hints` labels what looks clickable: detected targets when the build
-has OpenCV, open window rectangles when it does not. `grid` labels a grid of
-cells covering the area, which always works and never misses a target, because
-it does not try to guess where the targets are. Both then narrow down to a
-point with the home row.
+has OpenCV, open window rectangles when it does not. Typing a hint's label
+clicks it, because the hint already identifies the target. `grid` labels a grid
+of cells covering the area, then halves the chosen cell with the home row until
+the pointer is exactly where you want it — slower, but it never misses a target,
+because it does not try to guess where the targets are.
 
 **SCOPE** — `window` confines the overlay to the focused window, so the labels
 stay short and you aren't offered the rest of the desktop. `monitor` covers the
@@ -63,8 +64,8 @@ memorise one binding plus what three modifiers mean, not eight bindings.
 
 ### Inside the overlay
 
-Type a label to pick a target, then the home row halves the area until the
-pointer is where you want it:
+In `hints`, type a label and it clicks. In `grid`, type a label to pick a cell,
+then the home row halves it until the pointer is where you want it:
 
 ```
 a s d f      the eight sub-areas, left to right, top row first
@@ -76,9 +77,13 @@ b            commit here with a MIDDLE click
 Escape       cancel
 ```
 
-So **right-click is always one keypress away**, whatever ACTION the binding
-asked for — and it is a one-off: the next selection is back to a left click,
-even in a continuous lifetime. That is why ACTION is not on a modifier.
+So in `grid`, **right-click is always one keypress away**, whatever ACTION the
+binding asked for — and it is a one-off: the next selection is back to a left
+click, even in a continuous lifetime.
+
+These keys belong to the halving step, so they do not exist in `hints`, which
+has no halving step. To right-click a hint, ask for it up front:
+`imthemousenow --action right-click`.
 
 `a s d f j k l m` are wl-kbptr's own defaults, so bisecting feels unchanged.
 Only right-click is moved, from `h` to `;`, so it matches the key that opened
