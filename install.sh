@@ -95,7 +95,7 @@ for item in bin presets.toml hypr; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in omarchy-kbptr omarchy-kbptr-regions; do
+for script in omarchy-kbptr omarchy-kbptr-regions omarchy-kbptr-panic; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 

@@ -29,3 +29,11 @@ o.bind(
   "Pointer: detect in window",
   "omarchy-kbptr detect --scope active-window"
 )
+
+-- Panic key. Ctrl+Alt+Delete is what people try when the screen stops
+-- responding, so it doubles as the guaranteed way out of a stuck overlay:
+-- Hyprland keybindings still fire while wl-kbptr holds the keyboard.
+-- omarchy-kbptr-panic closes the overlay and then runs Omarchy's own action
+-- for this key, so the default behaviour is preserved, not replaced.
+hl.unbind("CTRL + ALT + DELETE")
+o.bind("CTRL + ALT + DELETE", "Close all windows", "omarchy-kbptr-panic")

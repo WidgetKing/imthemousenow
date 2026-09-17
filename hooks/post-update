@@ -13,7 +13,13 @@ notify() {
 }
 
 # Only act on installs this plugin actually made.
-[[ -f "$STATE_DIR/installed" ]] || exit 0
+[[ -f "$STATE_DIR/installed" ]] || # 4. The panic key chains to an Omarchy command; a rename upstream would turn
+#    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
+if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
+  notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/kbptr.lua."
+fi
+
+exit 0
 command -v wl-kbptr >/dev/null 2>&1 || exit 0
 
 # 1. A soname bump (opencv 5 -> 6, cairo, ...) breaks the binary silently.

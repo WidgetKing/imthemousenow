@@ -17,7 +17,7 @@ say() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
 
 say "Removing plugin files"
 rm -rf "$PLUGIN_DIR" "$HOME/.config/omarchy/plugins/kbptr"
-rm -f "$BIN_DIR/omarchy-kbptr" "$BIN_DIR/omarchy-kbptr-regions"
+rm -f "$BIN_DIR/omarchy-kbptr" "$BIN_DIR/omarchy-kbptr-regions" "$BIN_DIR/omarchy-kbptr-panic"
 rm -f "$HOME/.config/omarchy/themed/wl-kbptr.conf.tpl"
 rm -f "$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 rm -f "$HOME/.config/omarchy/hooks"/{theme-set,font-set,post-update}.d/kbptr.hook

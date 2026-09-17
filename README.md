@@ -55,6 +55,12 @@ session out; pressing any pointer binding while one is up is a no-op instead.
 `omarchy-kbptr --stop` closes whatever is running, including an overlay left
 behind by a crash.
 
+`CTRL + ALT + DELETE` is also a way out: the plugin rebinds it to
+`omarchy-kbptr-panic`, which dismisses any overlay and then runs Omarchy's own
+action for that key (`omarchy-hyprland-window-close-all`), so the stock
+behaviour is preserved rather than replaced. Hyprland keybindings still fire
+while wl-kbptr holds the keyboard, which is what makes this reachable at all.
+
 ## Configuration
 
 User files override the plugin, and survive reinstalls:

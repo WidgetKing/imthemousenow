@@ -1,0 +1,27 @@
+#!/bin/bash
+# omarchy:summary=Dismiss any pointer overlay, then run Omarchy's Ctrl+Alt+Delete action
+#
+# Ctrl+Alt+Delete is what people reach for when the screen stops responding, so
+# it is the right place to guarantee a way out of a stuck wl-kbptr overlay --
+# Hyprland keybindings still fire while wl-kbptr holds the keyboard.
+#
+# This must never swallow Omarchy's own action: the overlay is closed first,
+# then the default runs regardless of what happened above.
+set -uo pipefail
+
+# Omarchy's stock CTRL + ALT + DELETE action. Override in the environment if
+# Omarchy ever changes it, or to chain something else.
+DEFAULT_ACTION="${KBPTR_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
+
+pkill -x wl-kbptr >/dev/null 2>&1 || true
+
+if command -v "${DEFAULT_ACTION%% *}" >/dev/null 2>&1; then
+  exec $DEFAULT_ACTION
+fi
+
+# The default action is gone (renamed upstream?). Say so rather than failing
+# silently -- the overlay is already closed, which is the urgent half.
+command -v omarchy-notification-send >/dev/null 2>&1 &&
+  omarchy-notification-send -u critical "wl-kbptr" \
+    "Pointer overlay closed, but '$DEFAULT_ACTION' was not found. Check the omarchy-kbptr keybindings."
+exit 0
