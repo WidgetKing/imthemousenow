@@ -94,7 +94,10 @@ a test that passes for the wrong reason is worse than none.
   sensibly decide before seeing the target. `;` tears the overlay down and
   relaunches it tinted. The flicker and the discarded typed prefix were
   explicitly accepted by the user, twice, after being offered cheaper
-  alternatives. Do not "fix" this by moving ACTION back to a chord.
+  alternatives, and confirmed tolerable in real use afterwards. Do not "fix"
+  this by moving ACTION back to a chord. A flicker-free version needs
+  imthemousenow to own the overlay rather than drive wl-kbptr — worth doing
+  eventually, but it is finessing, and functionality comes first.
 - **Hints click directly** (`floating,click`, no refine). A hint already names a
   target; asking the user to then aim at it was the thing they rejected. Grid
   keeps `bisect`, which is the entire point of a grid.
