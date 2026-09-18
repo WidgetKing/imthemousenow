@@ -45,17 +45,17 @@ SUBMAP_NAME = "imthemousenow"
 -- arrows, so nothing is taken away from it. In window scope the commands
 -- return without doing anything: the overlay is tied to one window there.
 hl.define_submap(SUBMAP_NAME, function()
-  hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action right-click"), {
+  hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow-steer action right-click"), {
     description = "Pointer: switch to a right click",
   })
   -- `:` is the same key with SHIFT, which keeps the two ACTION switches on one
   -- physical key: `;` to click differently, `:` to not click at all.
-  hl.bind("SHIFT + SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action move"), {
+  hl.bind("SHIFT + SEMICOLON", hl.dsp.exec_cmd("imthemousenow-steer action move"), {
     description = "Pointer: switch to move without clicking",
   })
 
   for workspace = 1, 9 do
-    hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow --workspace " .. workspace), {
+    hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow-steer workspace " .. workspace), {
       description = "Pointer: move the overlay to workspace " .. workspace,
     })
   end
@@ -74,30 +74,30 @@ hl.define_submap(SUBMAP_NAME, function()
   -- keeps SHIFT working as a modifier -- without it `:` would be unreachable.
   -- Both sides of the keyboard, because neither is the "real" one.
   for _, key in ipairs({ "Shift_L", "Shift_R" }) do
-    hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow --switch-scope"), {
+    hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow-steer scope"), {
       release = true,
       non_consuming = true,
       description = "Pointer: switch between window and monitor scope",
     })
   end
   for _, key in ipairs({ "Alt_L", "Alt_R" }) do
-    hl.bind("ALT + " .. key, hl.dsp.exec_cmd("imthemousenow --switch-mode"), {
+    hl.bind("ALT + " .. key, hl.dsp.exec_cmd("imthemousenow-steer mode"), {
       release = true,
       non_consuming = true,
       description = "Pointer: switch between hints and grid",
     })
   end
 
-  hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow --workspace-step -1"), {
+  hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow-steer workspace -1"), {
     description = "Pointer: move the overlay to the previous workspace",
   })
-  hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow --workspace-step +1"), {
+  hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow-steer workspace +1"), {
     description = "Pointer: move the overlay to the next workspace",
   })
-  hl.bind("UP", hl.dsp.exec_cmd("imthemousenow --monitor-step -1"), {
+  hl.bind("UP", hl.dsp.exec_cmd("imthemousenow-steer monitor -1"), {
     description = "Pointer: move the overlay to the previous monitor",
   })
-  hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow --monitor-step +1"), {
+  hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow-steer monitor +1"), {
     description = "Pointer: move the overlay to the next monitor",
   })
 end)

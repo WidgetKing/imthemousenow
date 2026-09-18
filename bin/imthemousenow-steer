@@ -1,0 +1,141 @@
+#!/bin/bash
+# omarchy:summary=Steer the pointer overlay that is already up
+# omarchy:args=action <a> | scope | mode | workspace <n|±n> | monitor <±n> | stop
+#
+# wl-kbptr grabs the keyboard, so nothing typed at an overlay can reach the
+# process that launched it. The keys that change an overlay are compositor
+# bindings instead -- registered in hypr/imthemousenow.lua, live only for the
+# submap an overlay is in -- and every one of them runs this script.
+#
+# Each verb writes what changed into the session and asks the run loop to
+# rebuild the overlay around it. None of them launch anything: if no overlay is
+# up, they are no-ops. `imthemousenow` is the launcher; this is the steering.
+set -euo pipefail
+
+LIB_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}/bin"
+[[ -f $LIB_DIR/imthemousenow-lib.sh ]] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=imthemousenow-lib.sh
+source "$LIB_DIR/imthemousenow-lib.sh"
+# shellcheck source=imthemousenow-session.sh
+source "$LIB_DIR/imthemousenow-session.sh"
+
+usage() {
+  cat <<EOF
+Usage: imthemousenow-steer <verb> [value]
+
+  action <a>     switch ACTION to left-click|right-click|move, or back
+  scope          flip SCOPE between window and monitor
+  mode           flip MODE between hints and grid
+  workspace <n>  go to workspace n, or step by ±n
+  monitor <±n>   step the overlay to another monitor
+  stop           close any overlay that is up
+
+These are what the overlay's own keys run. Bound in hypr/imthemousenow.lua.
+EOF
+}
+
+# hl.dsp.focus({ $1 }), reporting a refusal instead of swallowing it. Hyprland
+# answers a dispatch it could not parse with "error: ..." on stdout and still
+# exits 0, so the exit status is not the thing to test.
+dispatch_focus() {
+  local reply
+  reply="$(hyprctl dispatch "hl.dsp.focus({$1})" 2>&1)"
+  if [[ $reply == error:* ]]; then
+    notify "Could not move the overlay: ${reply#error: }"
+    return 1
+  fi
+}
+
+# Moving the view under the overlay is meaningless in window scope -- the
+# overlay is tied to one window there -- so it is a no-op rather than a
+# surprise.
+require_monitor_scope() {
+  [[ $(session_get scope) == monitor ]] || exit 0
+}
+
+# Everything but `stop` acts on a run that is up. With none, do nothing at all
+# -- not even stamp a bind -- so a stray invocation leaves no state behind.
+[[ ${1:-} =~ ^(stop|-h|--help)$ ]] || session_active || exit 0
+
+verb="${1:-}"
+[[ -n $verb ]] || { usage; exit 2; }
+shift || true
+
+case "$verb" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+
+  action)
+    # Bound to `;` (right-click) and `:` (move). wl-kbptr cannot be
+    # reconfigured once running, so switching ACTION means tearing the overlay
+    # down and putting it back up: record the new action, ask for a relaunch,
+    # and the loop puts it back rather than exiting.
+    target="${1:-right-click}"
+    now="$(session_get action)"
+    base="$(session_get base-action)"
+    # Pressing the same key again goes back to what the chord asked for, so `;`
+    # and `:` are each their own undo rather than needing one.
+    [[ $now == "$target" ]] && next="$base" || next="$target"
+    session_stamp_bind
+    # Already there: relaunching would cost a flicker and change nothing.
+    [[ $next == "$now" ]] && exit 0
+    session_set action "$next"
+    session_relaunch action
+    ;;
+
+  scope | mode)
+    # Bound to a bare SHIFT and ALT tap. Same relaunch trick as `;`, but these
+    # change what the overlay IS, so the run loop re-reads both every pass
+    # rather than resolving them once at startup.
+    #
+    # A modifier release also ends a combo like `:` (SHIFT + SEMICOLON).
+    # Hyprland may or may not suppress the release bind in that case, so do not
+    # rely on it: any other bind of ours firing a moment ago means this release
+    # finished a chord and is not a tap.
+    session_recent_bind "$(setting switch.tap_debounce_ms 400)" && exit 0
+    # No overlay, nothing to switch.
+    session_has "$verb" || exit 0
+    if [[ $verb == scope ]]; then
+      [[ $(session_get scope) == monitor ]] && next="window" || next="monitor"
+    else
+      [[ $(session_get mode) == grid ]] && next="hints" || next="grid"
+    fi
+    session_set "$verb" "$next"
+    session_relaunch geometry
+    ;;
+
+  workspace)
+    # Bound to the digits and to LEFT/RIGHT. Omarchy's Hyprland uses the Lua
+    # config parser, so a dispatch is Lua: the bare `hyprctl dispatch workspace
+    # 5` form does not parse at all. hl.dsp.focus takes an absolute id or a
+    # signed relative step, which is every move these keys need.
+    session_stamp_bind
+    require_monitor_scope
+    dispatch_focus "workspace=\"${1:?workspace needs a value}\""
+    session_relaunch geometry
+    ;;
+
+  monitor)
+    session_stamp_bind
+    require_monitor_scope
+    # One monitor means there is nowhere to go, and a relaunch that lands
+    # exactly where it started is a flicker for nothing.
+    (($(hyprctl -j monitors | jq -r 'length') > 1)) || exit 0
+    dispatch_focus "monitor=\"${1:?monitor needs a value}\""
+    session_relaunch geometry
+    ;;
+
+  stop)
+    # Escape hatch: close any overlay that is up, including one left behind by
+    # a crash. Safe to run when nothing is running.
+    pkill -x wl-kbptr >/dev/null 2>&1 || true
+    hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+    session_end
+    ;;
+
+  *) die "unknown verb '$verb'; try --help" ;;
+esac
+
+exit 0

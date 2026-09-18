@@ -13,11 +13,14 @@ set -uo pipefail
 # Omarchy ever changes it, or to chain something else.
 DEFAULT_ACTION="${MOUSENOW_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
 
-pkill -x wl-kbptr >/dev/null 2>&1 || true
+# The ordinary way out, which also clears the session state a crashed run
+# would otherwise leave behind.
+imthemousenow-steer stop >/dev/null 2>&1 || true
 
-# The overlay's submap is normally reset by the wrapper's own exit trap, but a
-# panic key exists precisely for the times that did not happen. A submap left
-# active would make `;` do nothing everywhere.
+# ...and again by hand, because a panic key exists precisely for the times the
+# ordinary way did not work. Both are idempotent. The submap matters most: one
+# left active would make `;` do nothing everywhere.
+pkill -x wl-kbptr >/dev/null 2>&1 || true
 hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
 
 if command -v "${DEFAULT_ACTION%% *}" >/dev/null 2>&1; then

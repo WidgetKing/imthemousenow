@@ -95,7 +95,7 @@ for item in bin config.default.toml hypr; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-regions imthemousenow-panic imthemousenow-config; do
+for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
