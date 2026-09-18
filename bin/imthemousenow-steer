@@ -94,7 +94,7 @@ case "$verb" in
     # Hyprland may or may not suppress the release bind in that case, so do not
     # rely on it: any other bind of ours firing a moment ago means this release
     # finished a chord and is not a tap.
-    session_recent_bind "$(setting switch.tap_debounce_ms 400)" && exit 0
+    session_recent_bind "$(setting switch.tap_debounce_ms)" && exit 0
     # No overlay, nothing to switch.
     session_has "$verb" || exit 0
     if [[ $verb == scope ]]; then

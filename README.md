@@ -235,7 +235,12 @@ imthemousenow-config check      # validate every layer
 imthemousenow-config path       # where each layer lives
 imthemousenow-config compile    # write the wl-kbptr config, print its path
 imthemousenow-config modes      # every MODE, from every layer
+imthemousenow-config env        # every setting, as shell assignments
 ```
+
+`env` is how the shell reads its settings: one call at startup, evalled, and
+every lookup after that is a variable. It used to be a process per lookup, each
+one re-parsing all three layers.
 
 Compilation is cached in `$XDG_RUNTIME_DIR` and redone only when a layer
 changes, so it costs nothing per keypress. The compiled file is a build
@@ -275,7 +280,12 @@ instead, which needs no OpenCV and is exact where detection is heuristic.
 ## Layout
 
 ```
-bin/imthemousenow           the four choices -> wl-kbptr flags; the whole CLI
+bin/imthemousenow           the four choices -> wl-kbptr flags; launches and
+                            keeps up one overlay
+bin/imthemousenow-steer     what the overlay's own keys run: action, scope,
+                            mode, workspace, monitor, stop
+bin/imthemousenow-session.sh  the state those two share, one run at a time
+bin/imthemousenow-lib.sh    settings, notifications, errors
 bin/imthemousenow-config    config superset -> compiled wl-kbptr config
 bin/imthemousenow-regions   window rects for hints without OpenCV
 bin/imthemousenow-panic     Ctrl+Alt+Delete escape hatch
@@ -283,6 +293,7 @@ config.default.toml         shipped defaults and MODEs
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
 hypr/imthemousenow.lua      keybindings + layer rules
 hooks/{theme-set,font-set,post-update}
+tests/                      run them directly; no framework
 pkg/{PKGBUILD,source.toml}  from-source build
 install.sh / uninstall.sh
 ```

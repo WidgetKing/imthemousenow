@@ -14,6 +14,7 @@ Subcommands:
   mode <name>         the MODE's fields, as key<TAB>value
   modes               every MODE name and description
   get <dotted.key>    one [imthemousenow] setting, e.g. continuous.guard_ms
+  env                 every setting and mode as MOUSENOW_CFG_* shell assignments
   check               parse every layer and report problems
   path                where each layer lives
 """
@@ -21,6 +22,7 @@ Subcommands:
 from __future__ import annotations
 
 import os
+import shlex
 import sys
 import tomllib
 from pathlib import Path
@@ -118,6 +120,18 @@ def settings() -> dict:
     return deep_merge(merged, user)
 
 
+def axis_values(merged: dict) -> dict:
+    """What each of the four axes may be. The shell validates its own flags
+    against this and `check` validates the config against it, so the vocabulary
+    is declared once rather than once per language."""
+    return {
+        "mode": sorted(merged.get("mode", {})),
+        "scope": ["window", "monitor"],
+        "action": ["left-click", "right-click", "move", "drag"],
+        "lifetime": ["single", "continuous"],
+    }
+
+
 def ini_value(value) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -204,12 +218,7 @@ def cmd_check(args):
         problems.append("general.home_row_keys has duplicate characters")
 
     defaults = merged.get("imthemousenow", {}).get("defaults", {})
-    for field, valid in (
-        ("mode", set(merged.get("mode", {}))),
-        ("scope", {"window", "monitor"}),
-        ("action", {"left-click", "right-click", "move", "drag"}),
-        ("lifetime", {"single", "continuous"}),
-    ):
+    for field, valid in axis_values(merged).items():
         value = defaults.get(field)
         if value is not None and value not in valid:
             problems.append(f"[imthemousenow.defaults].{field} = '{value}' is not one of {sorted(valid)}")
@@ -223,6 +232,42 @@ def cmd_check(args):
     if problems:
         sys.exit(1)
     print(f"ok: {len(merged.get('mode', {}))} modes, compiles to {compile_config(force=True)}")
+
+
+# One `MOUSENOW_CFG_*=value` line per setting, for a shell to eval once instead
+# of launching this program per lookup. A dotted key becomes the variable name:
+# `continuous.guard_ms` -> MOUSENOW_CFG_CONTINUOUS_GUARD_MS. Modes come too, as
+# MOUSENOW_CFG_MODE_<NAME>_<FIELD>, because the run loop re-reads them on every
+# pass and that was the most expensive lookup of the lot.
+def env_name(path: str) -> str:
+    return "MOUSENOW_CFG_" + path.replace(".", "_").replace("-", "_").upper()
+
+
+def flatten(node: dict, prefix: str = "") -> dict:
+    out = {}
+    for key, value in node.items():
+        path = f"{prefix}{key}"
+        if isinstance(value, dict):
+            out.update(flatten(value, f"{path}."))
+        else:
+            out[path] = ini_value(value)
+    return out
+
+
+def cmd_env(args):
+    merged = settings()
+    if not DEFAULTS.is_file():
+        die(f"missing shipped defaults: {DEFAULTS}")
+
+    flat = flatten(merged.get("imthemousenow", {}))
+    for name, mode in merged.get("mode", {}).items():
+        flat.update(flatten(mode, f"mode.{name}."))
+
+    for field, valid in axis_values(merged).items():
+        flat[f"valid.{field}"] = " ".join(valid)
+
+    for path, value in sorted(flat.items()):
+        print(f"{env_name(path)}={shlex.quote(value)}")
 
 
 def cmd_path(args):
@@ -241,6 +286,7 @@ COMMANDS = {
     "mode": cmd_mode,
     "modes": cmd_modes,
     "get": cmd_get,
+    "env": cmd_env,
     "check": cmd_check,
     "path": cmd_path,
 }

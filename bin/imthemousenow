@@ -32,8 +32,9 @@ STEER_CMD="$LIB_DIR/imthemousenow-steer"
 SUBMAP="imthemousenow"
 
 list_modes() {
-  "$CONFIG_CMD" modes | while IFS=$'\t' read -r name description; do
-    printf "              %-8s %s\n" "$name" "$description"
+  local name
+  for name in $(setting valid.mode); do
+    printf "              %-8s %s\n" "$name" "$(setting "mode.$name.description")"
   done
 }
 
@@ -171,14 +172,16 @@ EOF
     esac
   done
 
-  [[ -n $mode ]] || mode="$(setting defaults.mode hints)"
-  [[ -n $scope ]] || scope="$(setting defaults.scope window)"
-  [[ -n $action ]] || action="$(setting defaults.action left-click)"
-  [[ -n $lifetime ]] || lifetime="$(setting defaults.lifetime single)"
+  [[ -n $mode ]] || mode="$(setting defaults.mode)"
+  [[ -n $scope ]] || scope="$(setting defaults.scope)"
+  [[ -n $action ]] || action="$(setting defaults.action)"
+  [[ -n $lifetime ]] || lifetime="$(setting defaults.lifetime)"
 
-  expect_one_of "$scope" scope window monitor
-  expect_one_of "$action" action left-click right-click move drag
-  expect_one_of "$lifetime" lifetime single continuous
+  # What each axis may be is the config's to say, not this script's: the same
+  # lists are what `imthemousenow-config check` validates the config against.
+  expect_one_of "$scope" scope $(setting valid.scope)
+  expect_one_of "$action" action $(setting valid.action)
+  expect_one_of "$lifetime" lifetime $(setting valid.lifetime)
 
   # The ACTION the chords asked for. `;` switches away from it and back.
   local base_action="$action"
@@ -199,14 +202,10 @@ EOF
   # overlay the same way the arrows move it between workspaces.
   local chain="" refine="" source="" options="" opencv_cached=""
   resolve_mode() {
-    chain="" refine="" source="" options=""
-    while IFS=$'\t' read -r key value; do
-      case "$key" in
-        chain) chain="$value" ;;
-        refine) refine="$value" ;;
-        source) source="$value" ;;
-      esac
-    done < <("$CONFIG_CMD" mode "$mode" 2>/dev/null)
+    chain="$(setting "mode.$mode.chain")"
+    refine="$(setting "mode.$mode.refine")"
+    source="$(setting "mode.$mode.source")"
+    options=""
 
     [[ -n $chain ]] || die "unknown mode '$mode'; try --list"
 
@@ -240,7 +239,7 @@ EOF
   # the overlay is up, so the flags are rebuilt for every launch.
   local compiled font=""
   compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
-  if [[ $(setting theme_font true) == true ]]; then
+  if [[ $(setting theme_font) == true ]]; then
     command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
   fi
 
@@ -291,7 +290,7 @@ EOF
     # you are in -- that is the whole reason the relaunch is worth its flicker.
     if [[ $act != "$base_action" ]]; then
       local tint
-      tint="$(setting "action.${act}.color" "")"
+      tint="$(setting "action.${act}.color")"
       if [[ -n $tint ]]; then
         args+=(-o "mode_tile.label_select_color=${tint}ff")
         args+=(-o "mode_tile.selectable_border_color=${tint}aa")
@@ -334,7 +333,7 @@ EOF
   # binding twice used to lock the session out. A non-blocking flock means the
   # second press is a no-op instead. The lock is held by this script, so it is
   # released however the process dies; no stale lock can wedge it.
-  if [[ $(setting single_instance true) == true ]]; then
+  if [[ $(setting single_instance) == true ]]; then
     exec 9>"$LOCK_FILE"
     if ! flock -n 9; then
       exit 0
@@ -382,12 +381,12 @@ EOF
   local status=0 passes=0 quick_exits=0 started elapsed
   local current_action="$base_action"
   local guard_ms max_quick max_passes
-  guard_ms="$(setting continuous.guard_ms 200)"
-  max_quick="$(setting continuous.max_quick_exits 5)"
-  max_passes="$(setting continuous.max_passes 0)"
+  guard_ms="$(setting continuous.guard_ms)"
+  max_quick="$(setting continuous.max_quick_exits)"
+  max_passes="$(setting continuous.max_passes)"
 
   local settle_ms
-  settle_ms="$(setting switch.settle_ms 80)"
+  settle_ms="$(setting switch.settle_ms)"
 
   while :; do
     ensure_submap_binds
