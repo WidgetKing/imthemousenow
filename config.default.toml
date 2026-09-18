@@ -47,6 +47,21 @@ settle_ms = 80
 # overlay key is treated as the tail of that chord, not a tap.
 tap_debounce_ms = 400
 
+# EXPERIMENTAL. An overlay normally takes keyboard focus, and that is what
+# closes a context menu or a browser extension popup the moment it appears --
+# the compositor drops the popup's grab and tells the client it is done. Turn
+# this on and the overlay asks for no keyboard focus at all: the keys come from
+# compositor bindings instead, relayed through a file wl-kbptr reads, and
+# whatever popup you opened is still there to aim at.
+#
+# The cost is that every key the overlay uses must be a binding: they live in
+# their own submap, and anything not bound there is swallowed rather than
+# reaching the window underneath. Needs the wl-kbptr built by this plugin's
+# install.sh (pkg/0002-read-keys-from-a-channel-*.patch); with a stock wl-kbptr
+# this is ignored and the overlay behaves as it always did.
+[imthemousenow.popups]
+keep_open = false
+
 # `-` `=` `_` `+` resize the window the overlay is drawn over, the way SUPER +
 # those keys resize the focused window outside it. This is the step, in pixels,
 # and 100 is what Omarchy's own unmodified binding uses.

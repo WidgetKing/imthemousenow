@@ -27,8 +27,52 @@
 -- slide makes the labels unreadable for the first frames.
 hl.layer_rule({ match = { namespace = "wl-kbptr" }, no_anim = true, animation = "none" })
 
--- Must match SUBMAP in bin/imthemousenow.
+-- Must match SUBMAP and SUBMAP_POPUPS in bin/imthemousenow.
 SUBMAP_NAME = "imthemousenow"
+
+-- EXPERIMENTAL, off unless popups.keep_open is on. The same overlay, with its
+-- keys arriving from here instead of from the keyboard.
+--
+-- Asking for keyboard focus is exactly what closes a context menu or a browser
+-- extension popup: the compositor drops the popup's grab the moment a layer
+-- surface with any keyboard interactivity maps, and the client is told the
+-- popup is done. So in this submap the overlay asks for none, and every key it
+-- needs is a binding here, appended to a file it reads. The keys never reach
+-- the window underneath, which keeps its focus and its popup throughout.
+SUBMAP_POPUPS = "imthemousenow-popups"
+
+-- Must match SESSION_DIR in bin/imthemousenow-session.sh.
+KEY_CHANNEL = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/imthemousenow/keys"
+
+-- The keys the overlay itself reads: wl-kbptr's label symbols, plus the three
+-- it treats as controls. Bash re-asserts the missing ones by name, so this
+-- list is mirrored in bin/imthemousenow -- keep them in step.
+RELAY_KEYS = { "comma", "Escape", "BackSpace", "Return" }
+for byte = string.byte("a"), string.byte("z") do
+  table.insert(RELAY_KEYS, string.char(byte))
+end
+
+-- Append one keysym name for wl-kbptr to pick up. Opened per press: a handle
+-- kept open across the overlay's life would have to be closed on every way an
+-- overlay can end, and a missed close is a compositor holding a file open
+-- forever. A failed open is a dropped keystroke, never an error dialog.
+function imthemousenow_relay_key(name)
+  local file = io.open(KEY_CHANNEL, "a")
+  if file then
+    file:write(name .. "\n")
+    file:close()
+  end
+end
+
+-- One relay bind, callable on its own: bin/imthemousenow re-asserts binds
+-- Hyprland has dropped, and it can only do that through a name it can call.
+function imthemousenow_relay_bind(name)
+  hl.bind(name, function()
+    imthemousenow_relay_key(name)
+  end, {
+    description = "Pointer: type " .. name .. " into the overlay",
+  })
+end
 
 -- ACTION is switched from inside the overlay, and `;` is the key that opened
 -- it. wl-kbptr holds the keyboard, so this cannot be a key wl-kbptr sees: it
@@ -43,7 +87,8 @@ SUBMAP_NAME = "imthemousenow"
 -- and it is rebuilt around where things ended up -- what they move depends on
 -- what the overlay is drawn over, monitor or window. wl-kbptr labels never use
 -- digits or arrows, so nothing is taken away from it.
-hl.define_submap(SUBMAP_NAME, function()
+-- Everything an overlay binds whatever its submap: both of them get these.
+local function overlay_binds()
   hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow-steer action right-click"), {
     description = "Pointer: switch to a right click",
   })
@@ -142,6 +187,29 @@ hl.define_submap(SUBMAP_NAME, function()
     description = "Pointer: next monitor, or move the window down",
   })
 
+end
+
+hl.define_submap(SUBMAP_NAME, overlay_binds)
+
+hl.define_submap(SUBMAP_POPUPS, function()
+  overlay_binds()
+
+  for _, name in ipairs(RELAY_KEYS) do
+    imthemousenow_relay_bind(name)
+  end
+
+  -- Everything else. With no keyboard focus anywhere near the overlay, a key
+  -- that is not bound here goes to the window underneath -- so a mistyped
+  -- label would type into the page it is drawn over. Swallowing the rest
+  -- makes the overlay as opaque to the keyboard as it looks.
+  --
+  -- "catchall" is the whole key string, not a modifier on one: Hyprland
+  -- matches it with no modifiers held, and `CTRL + catchall` does not parse.
+  -- So a plain key is swallowed and a chord is not -- CTRL + T still opens a
+  -- tab in the browser underneath. Measured, not assumed.
+  hl.bind("catchall", hl.dsp.exec_cmd("true"), {
+    description = "Pointer: swallow keys the overlay does not use",
+  })
 end)
 
 local chords = {
@@ -181,8 +249,10 @@ o.bind("CTRL + ALT + DELETE", "Close all windows", "imthemousenow-panic")
 -- the hl.unbind above: that removes the binding from every submap, this one
 -- included, whatever order they were defined in. `hl.define_submap` appends to
 -- a submap that already exists.
-hl.define_submap(SUBMAP_NAME, function()
-  hl.bind("CTRL + ALT + DELETE", hl.dsp.exec_cmd("imthemousenow-panic"), {
-    description = "Pointer: close the overlay and all windows",
-  })
-end)
+for _, submap in ipairs({ SUBMAP_NAME, SUBMAP_POPUPS }) do
+  hl.define_submap(submap, function()
+    hl.bind("CTRL + ALT + DELETE", hl.dsp.exec_cmd("imthemousenow-panic"), {
+      description = "Pointer: close the overlay and all windows",
+    })
+  end)
+end

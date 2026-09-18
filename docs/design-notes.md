@@ -152,3 +152,63 @@ overlay's lifetime and lets every other key through to wl-kbptr, so `;` keeps
 its ordinary meaning at all other times. The risk is a submap left active,
 which would make `;` do nothing system-wide -- so it is reset from the
 wrapper's EXIT/INT/TERM/HUP trap, from `--stop`, and from the panic key.
+
+## Keeping popups open (experimental, `popups.keep_open`)
+
+The overlay used to be unusable for the one thing people most want to aim at:
+a context menu, or a browser extension popup. Opening the overlay closed them.
+
+It is not the click, and it is not the application noticing it lost focus. It
+is the compositor, and the chain was read in Hyprland 0.56.2 and then measured:
+
+1. wl-kbptr asks for keyboard interactivity on its layer surface
+   (`src/main.c`, `set_keyboard_interactivity`).
+2. `src/desktop/view/LayerSurface.cpp` computes `GRABSFOCUS` on map -- true for
+   `EXCLUSIVE` *and* for `ON_DEMAND`, false only for `NONE` -- and when set it
+   calls `g_pSeatManager->setGrab(nullptr)`.
+3. Dropping that seat grab ends the xdg-popup grab, and
+   `CXDGShellProtocol::onPopupDestroy` sends `xdg_popup.popup_done` to every
+   grabbed popup. The client then tears its menu down, correctly.
+
+Measured, not assumed: a wl-kbptr built with `NONE` leaves a Brave context menu
+standing under the labels, and the same build with the stock value closes it
+the instant it maps. `ON_DEMAND` is not a way out; the code above treats it
+exactly like `EXCLUSIVE` at map time.
+
+So an overlay that wants popups to survive cannot take keyboard focus at all,
+and then it cannot be typed at either -- which is the whole feature. The way
+out is that Hyprland keybindings fire regardless of who has focus, which is
+already how `;`, `F5`, `Tab` and the arrows reach us while wl-kbptr holds the
+keyboard. In this mode *every* key the overlay needs is a binding:
+
+- `hypr/imthemousenow.lua` defines a second submap, `imthemousenow-popups`,
+  with the ordinary overlay binds plus one relay bind per label key, plus
+  `Escape`, `BackSpace` and `Return`.
+- Each relay bind appends its keysym name to `$XDG_RUNTIME_DIR/imthemousenow/keys`.
+- `pkg/0002-read-keys-from-a-channel-*.patch` teaches wl-kbptr to take
+  `WL_KBPTR_KEY_CHANNEL`: with it set, the layer surface asks for no keyboard
+  interactivity and the keys come from that file instead, through the same
+  `mode_handle_key()` a real keypress goes through.
+
+Three things this rests on, each checked on this machine rather than assumed:
+
+- **A Lua function is a valid dispatcher** (`hl.bind(key, function() ... end)`),
+  and `io` is available inside Hyprland's Lua runtime. So a keypress is a
+  write from the compositor's own thread -- no process spawn per key, and no
+  way for two fast keystrokes to arrive out of order, which is exactly what a
+  two-character label cannot survive. `exec_cmd` per key would risk both.
+- **A plain file, not a fifo.** Opening a fifo that has no reader blocks the
+  opener, and the opener here is the compositor: a wedged Hyprland is a far
+  worse failure than a dropped keystroke. wl-kbptr truncates the file when it
+  starts (so a previous overlay's keys cannot be replayed into this one) and
+  watches it with inotify.
+- **`catchall` is the whole key string**, `hl.bind("catchall", ...)`, and it
+  only matches with no modifiers held (`CTRL + catchall` does not parse). So
+  plain keys the overlay does not use are swallowed -- verified: `/` no longer
+  reaches GitHub's search box -- but chords are not: `CTRL + T` still opens a
+  tab in the window underneath. That is the known hole in this mode.
+
+Off by default, and it needs the patched wl-kbptr: `bin/imthemousenow` looks
+for the environment variable's name inside the installed binary and stays on
+the ordinary submap when it is not there, because relay binds with nothing
+reading them would be a keyboard that does nothing at all.

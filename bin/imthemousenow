@@ -30,6 +30,13 @@ LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
 STEER_CMD="$LIB_DIR/imthemousenow-steer"
 [[ -x $STEER_CMD ]] || STEER_CMD="imthemousenow-steer"
 SUBMAP="imthemousenow"
+# EXPERIMENTAL, chosen by popups.keep_open: the same overlay with its keys
+# coming from compositor bindings, so it never takes keyboard focus and the
+# popup it is drawn over lives on. See hypr/imthemousenow.lua.
+SUBMAP_POPUPS="imthemousenow-popups"
+KEY_CHANNEL="$SESSION_DIR/keys"
+# Mirrors RELAY_KEYS in hypr/imthemousenow.lua; keep them in step.
+RELAY_KEYS=(comma Escape BackSpace Return {a..z})
 
 list_modes() {
   local name
@@ -40,6 +47,18 @@ list_modes() {
 
 has_opencv() {
   wl-kbptr --version 2>&1 | grep -qi opencv
+}
+
+# Whether the installed wl-kbptr is one that can be fed keys through a file.
+# It is not a flag or a version -- the patch reads an environment variable --
+# so the binary is asked the only way it can answer: the name is in it or it
+# is not. A stock wl-kbptr would ignore the variable, take keyboard focus as
+# usual, and leave every label key bound to a relay it never reads; better to
+# stay on the ordinary submap than to hand over a keyboard nothing listens to.
+has_key_channel() {
+  local binary
+  binary="$(command -v wl-kbptr)" || return 1
+  grep -qa WL_KBPTR_KEY_CHANNEL "$binary"
 }
 
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
@@ -86,6 +105,17 @@ ensure_submap_binds() {
   local present body="" entry bind key cmd description
   present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
     '[.[] | select(.submap == $s) | .key] | join(" ")' 2>/dev/null || true)"
+  # The relay binds are the whole keyboard in popup-safe mode, so a dropped
+  # one is a label that cannot be typed. They are re-asserted by name through
+  # the function hypr/imthemousenow.lua exposes, rather than rebuilt here.
+  if [[ $SUBMAP == "$SUBMAP_POPUPS" ]]; then
+    local relay
+    for relay in "${RELAY_KEYS[@]}"; do
+      [[ " $present " == *" $relay "* ]] && continue
+      body+="imthemousenow_relay_bind(\"$relay\")"$'\n'
+    done
+  fi
+
   for entry in "${SUBMAP_KEYS[@]}"; do
     bind="${entry%%:*}"
     entry="${entry#*:}"
@@ -370,6 +400,17 @@ EOF
     if ! flock -n 9; then
       exit 0
     fi
+  fi
+
+  # Popup-safe mode is decided once, here, and shows up as two things: the
+  # submap that carries the relay binds, and the channel wl-kbptr reads them
+  # from. Both or neither -- an overlay listening to a channel nobody writes
+  # is a keyboard that does nothing, and relay binds with no reader are keys
+  # that vanish.
+  if [[ $(setting popups.keep_open) == true ]] && has_key_channel; then
+    SUBMAP="$SUBMAP_POPUPS"
+    mkdir -p "$SESSION_DIR"
+    export WL_KBPTR_KEY_CHANNEL="$KEY_CHANNEL"
   fi
 
   mkdir -p "$STATE_DIR"

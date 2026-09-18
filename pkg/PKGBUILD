@@ -14,8 +14,9 @@ conflicts=(wl-kbptr wl-kbptr-git)
 source=(
   "wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT}"
   0001-destroy-pending-frame-callback-before-teardown.patch
+  0002-read-keys-from-a-channel-instead-of-the-keyboard.patch
 )
-sha256sums=('SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)
@@ -27,6 +28,13 @@ prepare() {
   # Present at upstream HEAD as of 2026-09-18; drop this once it lands there.
   patch -d wl-kbptr -Np1 \
     -i "$srcdir/0001-destroy-pending-frame-callback-before-teardown.patch"
+
+  # Ours, and not headed upstream as-is: taking keyboard focus is what makes
+  # the compositor dismiss an xdg-popup, so an overlay that wants a context
+  # menu or an extension popup to survive must be fed its keys by the
+  # compositor instead. See docs/design-notes.md, "Keeping popups open".
+  patch -d wl-kbptr -Np1 \
+    -i "$srcdir/0002-read-keys-from-a-channel-instead-of-the-keyboard.patch"
 }
 
 build() {
