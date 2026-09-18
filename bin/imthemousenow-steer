@@ -26,24 +26,88 @@ Usage: imthemousenow-steer <verb> [value]
   action <a>     switch ACTION to left-click|right-click|move, or back
   scope          flip SCOPE between window and monitor
   mode           flip MODE between hints and grid
+  arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window
+  digit <1-9>    in monitor scope, go to that workspace; in window scope, send
+                 the window there
+  swap           pick another window and swap the focused one with it
+  swap-commit    finish that swap with whatever the picker landed on
+  swap-cancel    abandon that swap, putting the overlay back as it was
   workspace <n>  go to workspace n, or step by ±n
   monitor <±n>   step the overlay to another monitor
+  refresh        rebuild the overlay against the screen as it is now
   stop           close any overlay that is up
 
 These are what the overlay's own keys run. Bound in hypr/imthemousenow.lua.
 EOF
 }
 
-# hl.dsp.focus({ $1 }), reporting a refusal instead of swallowing it. Hyprland
-# answers a dispatch it could not parse with "error: ..." on stdout and still
-# exits 0, so the exit status is not the thing to test.
-dispatch_focus() {
+# One Hyprland dispatch, reporting a refusal instead of swallowing it.
+# Hyprland answers a dispatch it could not parse with "error: ..." on stdout
+# and still exits 0, so the exit status is not the thing to test.
+#   $1  the Lua dispatcher call
+#   $2  what to say it could not do
+dispatch_checked() {
   local reply
-  reply="$(hyprctl dispatch "hl.dsp.focus({$1})" 2>&1)"
+  reply="$(hyprctl dispatch "$1" 2>&1)"
   if [[ $reply == error:* ]]; then
-    notify "Could not move the overlay: ${reply#error: }"
+    notify "Could not $2: ${reply#error: }"
     return 1
   fi
+}
+
+# Move the view the overlay is drawn over: hl.dsp.focus({ $1 }).
+dispatch_focus() {
+  dispatch_checked "hl.dsp.focus({$1})" "move the overlay"
+}
+
+# Move the window the overlay is drawn over: hl.dsp.window.move({ $1 }).
+# `direction` is Hyprland's movewindow, which moves a tiled window through the
+# layout and a floating one across the screen -- not swapwindow, which needs
+# something to swap with and refuses when there is nothing there.
+dispatch_window() {
+  # An empty workspace has nothing to move, and window scope has nothing to
+  # draw over either; the overlay fell back to the monitor. Do nothing rather
+  # than move whatever Hyprland last considered active.
+  [[ $(hyprctl -j activewindow | jq -r '.address // "null"') != null ]] || exit 0
+  dispatch_checked "hl.dsp.window.move({$1})" "move the window"
+}
+
+# A swap starts from the window the overlay is drawn over, so monitor scope has
+# no origin to offer -- the mirror image of require_monitor_scope.
+require_window_scope() {
+  [[ $(session_get scope) == window ]] || exit 0
+}
+
+# Every window a swap may land on: what the picker labels, and what the pointer
+# is looked up in afterwards. These two must agree exactly or the pointer names
+# a window that was never offered, so this is imthemousenow-regions' filter --
+# on screen on the focused monitor, scratchpad included only while it is up --
+# in layout coordinates, which is what the pointer is in.
+swap_candidates() {
+  local mon ws special
+  read -r mon ws special < <(hyprctl -j monitors | jq -r '
+    .[] | select(.focused) | [.id, .activeWorkspace.id, .specialWorkspace.id] | @tsv')
+  hyprctl -j clients | jq --argjson mon "$mon" --argjson ws "$ws" --argjson special "$special" '
+    [ .[]
+      | select(.monitor == $mon)
+      | select(.hidden == false)
+      | select(.mapped == true)
+      | select(.workspace.id == $ws or ($special != 0 and .workspace.id == $special))
+      | select(.size[0] > 8 and .size[1] > 8)
+    ]'
+}
+
+# Put back the mode, scope and action the picker borrowed, and forget the swap.
+# Both endings do this and nothing else may depend on the order, so it is one
+# function rather than two copies that drift.
+swap_restore_axes() {
+  local rmode rscope raction
+  read -r rmode rscope raction <<<"$(session_get swap-restore)"
+  session_clear swap-from
+  session_clear swap-restore
+  session_set mode "$rmode"
+  session_set scope "$rscope"
+  session_set action "$raction"
 }
 
 # Moving the view under the overlay is meaningless in window scope -- the
@@ -103,6 +167,111 @@ case "$verb" in
       [[ $(session_get mode) == grid ]] && next="hints" || next="grid"
     fi
     session_set "$verb" "$next"
+    session_relaunch geometry
+    ;;
+
+  swap)
+    # Bound to Tab, in window scope: swap the window the overlay is drawn over
+    # with another one, chosen the same way anything else here is chosen -- a
+    # labelled overlay. There is no "pick a window" primitive to call, so the
+    # picker IS an overlay: mode `windows` labels one region per window, ACTION
+    # `move` lands the pointer on the one you pick without clicking it, and
+    # `swap-commit` reads the pointer back. The axes it borrows are put back
+    # when it commits, so the swap is a detour rather than a new state.
+    require_window_scope
+    origin="$(hyprctl -j activewindow | jq -r '.address // ""')"
+    # Nothing focused, or nothing to swap with: an overlay that can only be
+    # cancelled is worse than a key that did nothing.
+    [[ -n $origin ]] || exit 0
+    (($(swap_candidates | jq -r 'length') > 1)) || exit 0
+    session_stamp_bind
+    session_set swap-from "$origin"
+    session_set swap-restore "$(session_get mode) $(session_get scope) $(session_get action)"
+    session_set mode windows
+    session_set scope monitor
+    session_set action move
+    session_relaunch geometry
+    ;;
+
+  swap-commit)
+    # Run by the run loop, not by a key: it is the half of `swap` that can only
+    # happen once the picker has been used. Whatever else it does, it must put
+    # the borrowed axes back, so a failed swap leaves the overlay where it was
+    # rather than stranded in the picker.
+    session_has swap-from || exit 0
+    origin="$(session_get swap-from)"
+    swap_restore_axes
+
+    # Which window the pointer landed on. The pointer is the answer because
+    # ACTION move is what put it there; wl-kbptr does not report the region it
+    # chose. Topmost first, so overlapping windows resolve the way they look.
+    read -r cx cy < <(hyprctl -j cursorpos | jq -r '[.x, .y] | @tsv')
+    target="$(swap_candidates | jq -r --argjson x "$cx" --argjson y "$cy" '
+      [ .[]
+        | select(.at[0] <= $x and $x < .at[0] + .size[0])
+        | select(.at[1] <= $y and $y < .at[1] + .size[1])
+      ]
+      | sort_by(.focusHistoryID)
+      | .[0].address // ""
+    ')"
+    # Cancelled, landed on the desktop, or landed back on the window it started
+    # from: the axes are already restored, so there is nothing left to do.
+    [[ -n $target && $target != "$origin" ]] || exit 0
+
+    # swap acts on the active window, and the pointer may have taken the focus
+    # with it, so say which window is swapping rather than assuming.
+    dispatch_checked "hl.dsp.focus({window=\"address:$origin\"})" "find the window to swap" || exit 0
+    dispatch_checked "hl.dsp.window.swap({target=\"address:$target\"})" "swap the windows" || exit 0
+    ;;
+
+  swap-cancel)
+    # Escape out of the picker. The pointer is wherever it already was, which
+    # names a window as convincingly as a real pick does and means nothing at
+    # all -- so a cancelled swap must never reach swap-commit. It restores the
+    # axes and stops there.
+    session_has swap-from || exit 0
+    swap_restore_axes
+    ;;
+
+  refresh)
+    # Bound to F5. Everything the overlay draws is measured once, when it
+    # launches: the window geometry, and in hints mode the regions detected in
+    # that frame. Anything that moves afterwards -- a page that scrolled, a
+    # window that resized, a dialog that opened -- leaves the labels pointing
+    # at where things used to be. This is the reload: same MODE, SCOPE and
+    # ACTION, measured again. The loop recomputes geometry and regions before
+    # every launch, so asking for a relaunch is the whole implementation.
+    session_stamp_bind
+    session_relaunch refresh
+    ;;
+
+  arrow | digit)
+    # The digits and the arrow keys mean "the thing on the other side of this
+    # key", and what that is depends on what the overlay is drawn over. In
+    # monitor scope the overlay is the whole screen, so they move the screen
+    # underneath it -- another workspace, another monitor. In window scope the
+    # overlay IS one window, and moving the view would be moving away from the
+    # thing being aimed at, so the same keys move that window instead: exactly
+    # what SUPER + an arrow and SUPER + SHIFT + a digit do outside the overlay.
+    # Either way the overlay is rebuilt around where things ended up.
+    value="${1:?$verb needs a value}"
+    session_stamp_bind
+    if [[ $(session_get scope) == window ]]; then
+      if [[ $verb == arrow ]]; then
+        dispatch_window "direction=\"$value\"" || exit 0
+      else
+        dispatch_window "workspace=\"$value\"" || exit 0
+      fi
+    else
+      case "$verb:$value" in
+        arrow:l) dispatch_focus "workspace=\"-1\"" || exit 0 ;;
+        arrow:r) dispatch_focus "workspace=\"+1\"" || exit 0 ;;
+        arrow:u) dispatch_focus "monitor=\"-1\"" || exit 0 ;;
+        arrow:d) dispatch_focus "monitor=\"+1\"" || exit 0 ;;
+        digit:*) dispatch_focus "workspace=\"$value\"" || exit 0 ;;
+        *) die "unknown $verb '$value'" ;;
+      esac
+    fi
     session_relaunch geometry
     ;;
 

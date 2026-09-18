@@ -15,11 +15,14 @@
 #   session_active                          true while a run is live
 #   session_end                             forget the run entirely
 #
+#   session_clear <field>                   forget one field
+#
 #   session_relaunch <reason>               ask the run loop to rebuild the overlay
 #   session_take_relaunch                   consume that request; prints the reason
 #   session_stamp_bind / session_recent_bind <ms>   chord-vs-tap debouncing
 #
-# Fields: mode, scope, action, base-action, switch, last-bind.
+# Fields: mode, scope, action, base-action, switch, last-bind, swap-from,
+# swap-restore.
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 
@@ -33,6 +36,9 @@ _session_default() {
     action | base-action) echo left-click ;;
     last-bind) echo 0 ;;
     switch) echo "" ;;
+    # The window a swap started from, and the mode/scope/action to put back
+    # when it finishes. Both empty unless a swap is in flight.
+    swap-from | swap-restore) echo "" ;;
     *) die "no such session field '$1'" ;;
   esac
 }
@@ -47,6 +53,14 @@ session_set() {
   mkdir -p "$SESSION_DIR"
   _session_default "$1" >/dev/null
   echo "$2" >"$SESSION_DIR/$1"
+}
+
+# Forget one field, so session_has reads false for it again. Writing an empty
+# value is the same thing -- session_has tests for a non-empty file -- but a
+# caller that means "this is over" should not have to know that.
+session_clear() {
+  _session_default "$1" >/dev/null
+  rm -f "$SESSION_DIR/$1"
 }
 
 # Distinguishes "no overlay" from "an overlay whose scope happens to be the
@@ -69,14 +83,14 @@ session_begin() {
   session_set scope "$2"
   session_set action "$3"
   session_set base-action "$3"
-  rm -f "$SESSION_DIR/switch" "$SESSION_DIR/last-bind"
+  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore}
 }
 
 # Every field goes, action included: a run that is over must leave nothing a
 # later one could read back. Teardown lived in two hand-written lists before
 # this and they had already drifted apart.
 session_end() {
-  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind}
+  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore}
 }
 
 # Ask the run loop to tear the overlay down and put it back up. $1 says why,

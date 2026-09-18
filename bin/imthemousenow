@@ -66,15 +66,19 @@ expect_one_of() {
 # a bind re-asserted while present is DUPLICATED rather than replaced, so only
 # the missing ones may be sent.
 #
-# The panic key is in here for a different reason: it must be present, and the
-# cost of checking is the same jq call the arrows already need.
+# The panic key and F5 are in here for a different reason: both must be
+# present, and the cost of checking is the same jq call the arrows already
+# need. A bind that is already there is skipped, so listing one that does
+# survive costs nothing.
 # key:command:description -- the description keeps a re-asserted bind looking
 # the same as the one hypr/imthemousenow.lua registered at startup.
 SUBMAP_KEYS=(
-  "LEFT:imthemousenow-steer workspace -1:Pointer: move the overlay to the previous workspace"
-  "RIGHT:imthemousenow-steer workspace +1:Pointer: move the overlay to the next workspace"
-  "UP:imthemousenow-steer monitor -1:Pointer: move the overlay to the previous monitor"
-  "DOWN:imthemousenow-steer monitor +1:Pointer: move the overlay to the next monitor"
+  "LEFT:imthemousenow-steer arrow l:Pointer: previous workspace, or move the window left"
+  "RIGHT:imthemousenow-steer arrow r:Pointer: next workspace, or move the window right"
+  "UP:imthemousenow-steer arrow u:Pointer: previous monitor, or move the window up"
+  "DOWN:imthemousenow-steer arrow d:Pointer: next monitor, or move the window down"
+  "TAB:imthemousenow-steer swap:Pointer: swap this window with one you pick"
+  "F5:imthemousenow-steer refresh:Pointer: rebuild the overlay against the screen as it is now"
   "CTRL + ALT + DELETE:imthemousenow-panic:Pointer: close the overlay and all windows"
 )
 
@@ -129,14 +133,33 @@ Two keys switch ACTION for the whole overlay, at any point before you commit:
 Either is a one-off: after it lands, ACTION returns to what the chord asked
 for, even in a continuous lifetime.
 
-In --scope monitor the overlay covers a whole monitor, so it can also move:
+  F5   rebuild the overlay against the screen as it is now
+  Tab  in --scope window: swap this window with one you pick
+
+An overlay is measured once, when it opens. Press F5 when the screen has moved
+underneath it -- a page scrolled, a window resized, a dialog opened -- and the
+labels are re-derived from what is on screen now.
+
+Tab opens a picker with one label per window (that is --mode windows, which you
+can also ask for directly). Picking one swaps it with the window the overlay is
+on, and the overlay comes back on that window in its new place.
+
+The digits and the arrows move what is under the overlay, and what that is
+depends on SCOPE. In --scope monitor the overlay is a whole screen, so they
+move the screen:
 
   1..9          switch to that workspace
   Left / Right  previous / next workspace on this monitor
   Up / Down     move the overlay to the previous / next monitor
 
-The overlay is rebuilt where you land, so you keep aiming without leaving it.
-These keys do nothing in --scope window, where the overlay follows one window.
+In --scope window the overlay is one window, so they move that window --
+the same thing SUPER + an arrow and SUPER + SHIFT + a digit do outside it:
+
+  1..9          send the window to that workspace, and follow it there
+  arrows        move the window left / right / up / down
+
+Either way the overlay is rebuilt around where things ended up, so you keep
+aiming without leaving it.
 
 Options:
   --list        List modes, one per line.
@@ -303,6 +326,15 @@ EOF
     local opt
     for opt in $opts; do args+=(-o "$opt"); done
 
+    # Per-MODE opacity, which is arithmetic on the theme's own colours rather
+    # than colours of its own -- so it is computed where the layers are merged
+    # and arrives here as override lines. Before config.local, because a colour
+    # written out by hand is a decision and should not be scaled by a number
+    # meant for the ones it replaced.
+    while IFS= read -r line; do
+      [[ -n $line ]] && args+=(-o "$line")
+    done < <("$CONFIG_CMD" opacity "$mode" 2>/dev/null || true)
+
     # User overrides last: one `section.key=value` per line.
     if [[ -f $USER_DIR/config.local ]]; then
       while IFS= read -r line; do
@@ -413,8 +445,31 @@ EOF
     fi
 
     # Anything but a completed selection -- Escape (cancellation_status_code),
-    # a bad config, a compositor error -- ends the run.
-    ((status == 0)) || break
+    # a bad config, a compositor error -- ends the run. Unless the overlay that
+    # was cancelled is the swap picker: Tab is a detour, so Escape abandons the
+    # detour and puts you back in the overlay you pressed it in. Escape there
+    # ends the run, as it always did. Cancelling must not go through
+    # swap-commit -- the pointer never moved, so it names a window by accident.
+    if ((status != 0)); then
+      if session_has swap-from; then
+        "$PLUGIN_DIR/bin/imthemousenow-steer" swap-cancel || true
+        current_action="$(session_get action)"
+        continue
+      fi
+      break
+    fi
+
+    # A picker pass is not a click: the pointer was moved onto a window in
+    # order to name it. Commit the swap, which also puts back the axes the
+    # picker borrowed, and put the overlay back on the window it started from
+    # -- now somewhere else. Like a switch, it does not count as a pass, so a
+    # single lifetime survives its own detour.
+    if session_has swap-from; then
+      "$PLUGIN_DIR/bin/imthemousenow-steer" swap-commit || true
+      current_action="$(session_get action)"
+      sleep "$(awk "BEGIN{print $settle_ms/1000}")"
+      continue
+    fi
 
     passes=$((passes + 1))
 

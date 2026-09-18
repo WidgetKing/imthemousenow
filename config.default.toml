@@ -47,6 +47,17 @@ settle_ms = 80
 # overlay key is treated as the tail of that chord, not a tap.
 tap_debounce_ms = 400
 
+# How much of the screen an overlay hides, per MODE. 1 is the colours the theme
+# renders; below that the dimming and the label backgrounds get more
+# transparent, above it more solid (alpha is clamped at fully opaque). Only
+# backgrounds scale: labels, borders and the bisect pointer keep the theme's
+# alpha, so turning an overlay down makes it see-through, never unreadable.
+#
+# `default` applies to any MODE without an entry of its own, so `windows` can
+# follow `hints` or not, as you like.
+[imthemousenow.opacity]
+default = 0.8
+
 [imthemousenow.continuous]
 # Continuous reopens the overlay after each completed selection. A pass that
 # "succeeds" faster than this is treated as a misfire; this many in a row stops
@@ -75,6 +86,15 @@ chain = "floating"
 # Narrowing down afterwards would ask you to aim at something you just named.
 refine = ""
 source = "auto"
+
+# The picker a swap opens: one label per window, and nothing to narrow down --
+# a window is already a target. Reachable on its own (`--mode windows`), which
+# is also how you aim at a window the detector keeps missing.
+[mode.windows]
+description = "Label each window, then pick one"
+chain = "floating"
+refine = ""
+source = "windows"
 
 # --- wl-kbptr passthrough ----------------------------------------------------
 # Colours are not set here: they come from the Omarchy theme template. Anything

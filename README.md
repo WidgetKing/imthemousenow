@@ -15,7 +15,7 @@ names to memorise and no special cases — any combination is valid.
 
 | | Options | |
 | --- | --- | --- |
-| **MODE** | `hints` · `grid` | how targets are presented |
+| **MODE** | `hints` · `grid` · `windows` | how targets are presented |
 | **SCOPE** | `window` · `monitor` | where the overlay is drawn |
 | **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land (`;` switches it live) |
 | **LIFETIME** | `single` · `continuous` | one selection, or until Escape |
@@ -25,12 +25,15 @@ has OpenCV, open window rectangles when it does not. Typing a hint's label
 clicks it, because the hint already identifies the target. `grid` labels a grid
 of cells covering the area, then halves the chosen cell with the home row until
 the pointer is exactly where you want it — slower, but it never misses a target,
-because it does not try to guess where the targets are.
+because it does not try to guess where the targets are. `windows` labels whole
+windows, one label each — what `Tab` opens to pick a window to swap with, and
+useful on its own when a whole window is the thing you are aiming at.
 
 **SCOPE** — `window` confines the overlay to the focused window, so the labels
 stay short and you aren't offered the rest of the desktop. `monitor` covers the
-whole focused screen, and can then be steered: the digits and the arrow keys
-move it between workspaces and monitors without closing it.
+whole focused screen. Either way the digits and the arrow keys steer without
+closing the overlay: they move the screen under a `monitor` overlay, and the
+window under a `window` one.
 
 **ACTION** — what the pointer does on arrival. `move` places the pointer and
 leaves it there, clicking nothing. `drag` is not implemented yet. This is the
@@ -112,11 +115,49 @@ keyboard. You will see a flicker, and anything you had already typed is
 discarded — the trade for being able to decide *after* seeing the overlay
 rather than before.
 
-### Moving a monitor-scope overlay
+### Refreshing an overlay: `F5`
 
-When SCOPE is `monitor`, what you want to aim at is often not on this
-workspace. These keys move the view underneath the overlay, which is then
-rebuilt where you land, so you never have to close it to go there:
+An overlay is measured once, when it opens — the window's geometry, and in
+`hints` mode the regions found in one frame of the framebuffer. The screen does
+not hold still for that: a page scrolls, a window resizes, a dialog opens, and
+the labels go on naming where things used to be. `F5` rebuilds the overlay
+against the screen as it is now, keeping MODE, SCOPE and ACTION. It costs the
+same flicker as `;`, and anything you had already typed is discarded.
+
+### Swapping two windows: `Tab`
+
+In `window` SCOPE, `Tab` swaps the window the overlay is on with another one —
+and the other one is chosen the way everything else here is chosen, by naming
+it. `Tab` opens a picker with one label per window on screen; pick one and the
+two windows exchange places, with the overlay coming back on the window you
+started from, now where the other one was.
+
+The picker is an ordinary overlay — `--mode windows`, which you can also ask
+for directly when the detector keeps missing something and a whole window is
+the target you want. It is tinted, like `;` and `:` are, because it is not the
+overlay you opened. Escape leaves it without swapping anything, and so does
+picking the window you started from.
+
+Escape in the picker returns you to the overlay you pressed `Tab` in, rather
+than ending the run — it abandons the detour, not the session. Escape there
+closes the overlay as it always has.
+
+The picker labels what is on screen on this monitor: its active workspace, plus
+the scratchpad when the scratchpad is up. Windows sitting on other workspaces
+of the same monitor keep their geometry but are not on screen, so labelling
+them would be labelling nothing — and drawing them over the windows you can see
+is what makes a picker unreadable.
+
+Nothing happens in `monitor` SCOPE, where the overlay is not drawn over any one
+window, or when there is only one window to pick.
+
+### Moving what is under the overlay
+
+The digits and the arrow keys move the world underneath the overlay, which is
+then rebuilt around where things ended up — so you never have to close it to go
+there. What they move depends on SCOPE.
+
+When SCOPE is `monitor`, the overlay is a whole screen, so they move the screen:
 
 | Key | Does |
 | --- | --- |
@@ -124,10 +165,21 @@ rebuilt where you land, so you never have to close it to go there:
 | `←` / `→` | previous / next workspace on this monitor |
 | `↑` / `↓` | previous / next monitor, left to right, wrapping |
 
-They cost the same flicker as `;`, for the same reason, and anything you had
-already typed is discarded. `↑` / `↓` do nothing at all with one monitor. In
-`window` SCOPE none of them do anything: that overlay is tied to one window,
-and a workspace away there is nothing for it to follow.
+When SCOPE is `window`, the overlay is one window, and moving the view would be
+moving away from the thing you are aiming at — so the same keys move that
+window instead, exactly as they do outside the overlay:
+
+| Key | Does | Same as |
+| --- | --- | --- |
+| `1` … `9` | send the window to that workspace, and follow it there | `SUPER + SHIFT + n` |
+| `←` `→` `↑` `↓` | move the window within the workspace | `SUPER + arrow` |
+
+Tiled windows move through the layout, floating ones across the screen. With no
+window to move — an empty workspace — the keys do nothing.
+
+All of them cost the same flicker as `;`, for the same reason, and anything you
+had already typed is discarded. In `monitor` SCOPE, `↑` / `↓` do nothing at all
+with one monitor.
 
 `;` reaches us rather than wl-kbptr because it is a compositor binding inside a
 Hyprland submap that exists only while the overlay is up. Everywhere else, and
@@ -207,6 +259,15 @@ scope = "window"
 action = "left-click"
 lifetime = "single"
 
+# How much of the screen each MODE hides, as a multiplier on the alpha the
+# theme gave it. Backgrounds only -- labels and borders keep their alpha, so an
+# overlay turned down is see-through, not unreadable. `default` covers any MODE
+# without a line of its own.
+[imthemousenow.opacity]
+default = 1.0
+hints = 0.6               # lighter dimming when labelling clickable things
+grid = 1.0
+
 [imthemousenow.continuous]
 guard_ms = 200            # a "success" faster than this is a misfire
 max_quick_exits = 5       # this many in a row stops a runaway burst
@@ -257,6 +318,37 @@ derives it from your keymap. If you do set it, it must be **exactly 11
 characters** or wl-kbptr rejects the entire config, and every chord silently
 does nothing. `imthemousenow-config check` catches that before you find out the
 hard way.
+
+### Opacity, per MODE
+
+wl-kbptr has no opacity setting — opacity is the alpha on each colour, and each
+MODE draws with different ones. `[imthemousenow.opacity]` is one number per MODE
+over the top of that:
+
+```toml
+[imthemousenow.opacity]
+hints = 0.6     # see more of the page through the hints
+grid = 1.2      # dim harder while aiming at a grid
+default = 1.0   # any MODE without a line of its own
+```
+
+1.0 is the theme's own colours; below that the overlay gets more transparent,
+above it more solid, clamped at fully opaque. It scales the *backgrounds* only
+— the dim over everything unselectable, and the fill behind each label or
+bisect area. Labels, borders and the pointer keep the alpha the theme gave them,
+so an overlay you turned right down is see-through rather than unreadable.
+
+The arithmetic happens on whatever colours are in effect, theme included, and
+arrives at wl-kbptr as per-run `-o` overrides — which is also what lets `hints`
+and `windows` differ even though both draw with `[mode_floating]`. A colour you
+set by hand in `config.local` is applied after, and is never scaled.
+
+See what a MODE actually resolves to:
+
+```bash
+imthemousenow-config opacity hints    # the override lines it will pass
+imthemousenow --mode hints --dry-run  # the whole wl-kbptr command
+```
 
 ## OpenCV 5
 

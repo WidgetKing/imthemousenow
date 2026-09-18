@@ -14,6 +14,7 @@ Subcommands:
   mode <name>         the MODE's fields, as key<TAB>value
   modes               every MODE name and description
   get <dotted.key>    one [imthemousenow] setting, e.g. continuous.guard_ms
+  opacity <mode>      that MODE's opacity as section.key=value override lines
   env                 every setting and mode as MOUSENOW_CFG_* shell assignments
   check               parse every layer and report problems
   path                where each layer lives
@@ -132,6 +133,84 @@ def axis_values(merged: dict) -> dict:
     }
 
 
+# The colours that decide how much of the screen an overlay hides: the dim over
+# everything unselectable, and the fill behind each label or area. Labels,
+# borders and pointers are deliberately not in here -- an overlay you can see
+# through is the point, an overlay you cannot read is not -- so they keep the
+# alpha the theme gave them however far this is turned down.
+BG_COLOR_KEYS = (
+    "unselectable_bg_color",
+    "selectable_bg_color",
+    "bg_color",
+    "area_bg_color",
+    "even_area_bg_color",
+    "odd_area_bg_color",
+)
+
+
+def parse_color(value: str):
+    """`#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` -> (rgb hex, alpha 0-255).
+    wl-kbptr accepts all four and its own defaults use the short forms, so a
+    config that has never been through the theme template still scales."""
+    text = str(value).strip().lstrip("#")
+    if len(text) in (3, 4):
+        text = "".join(c * 2 for c in text)
+    if len(text) == 6:
+        text += "ff"
+    if len(text) != 8:
+        return None
+    try:
+        int(text, 16)
+    except ValueError:
+        return None
+    return text[:6], int(text[6:], 16)
+
+
+def mode_sections(merged: dict, name: str) -> list[str]:
+    """The wl-kbptr sections one MODE draws with. A MODE is a chain of wl-kbptr
+    modes plus an optional refine step, so its sections are those and nothing
+    else -- which is what lets `hints` and `grid` be turned down separately
+    even though they are compiled from one file."""
+    mode = merged.get("mode", {}).get(name)
+    if mode is None:
+        die(f"unknown mode '{name}'")
+    steps = [s.strip() for s in str(mode.get("chain", "")).split(",")]
+    steps += [s.strip() for s in str(mode.get("refine", "")).split(",")]
+    return [f"mode_{step}" for step in steps if step]
+
+
+def opacity_overrides(merged: dict, name: str) -> list[str]:
+    """`section.key=#rrggbbaa` lines for one MODE, or nothing when its opacity
+    is 1 (or unset). Emitted as -o flags at launch rather than written into the
+    compiled config: `hints` and `windows` share [mode_floating], so the same
+    section needs different alphas depending on which MODE is running."""
+    factors = merged.get("imthemousenow", {}).get("opacity", {})
+    factor = factors.get(name, factors.get("default", 1))
+    try:
+        factor = float(factor)
+    except (TypeError, ValueError):
+        die(f"[imthemousenow.opacity].{name} = '{factor}' is not a number")
+    if factor < 0:
+        die(f"[imthemousenow.opacity].{name} = {factor} is negative")
+    if factor == 1:
+        return []
+    lines = []
+    for section in mode_sections(merged, name):
+        body = merged.get(section, {})
+        if not isinstance(body, dict):
+            continue
+        for key in BG_COLOR_KEYS:
+            if key not in body:
+                continue
+            parsed = parse_color(body[key])
+            if parsed is None:
+                continue
+            rgb, alpha = parsed
+            scaled = max(0, min(255, round(alpha * factor)))
+            lines.append(f"{section}.{key}=#{rgb}{scaled:02x}")
+    return lines
+
+
 def ini_value(value) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -198,6 +277,13 @@ def cmd_get(args):
     print(ini_value(node))
 
 
+def cmd_opacity(args):
+    if not args:
+        die("opacity needs a mode name")
+    for line in opacity_overrides(settings(), args[0]):
+        print(line)
+
+
 def cmd_check(args):
     problems = []
     if not DEFAULTS.is_file():
@@ -211,6 +297,16 @@ def cmd_check(args):
 
     # 11 exactly, or wl-kbptr rejects the entire config and every chord looks
     # like a dead keybinding. Cheap to check here; expensive to discover live.
+    # A bad opacity is a number that is not one, or a MODE that does not exist:
+    # both silently do nothing at launch, where the -o flags are built.
+    for name, factor in merged.get("imthemousenow", {}).get("opacity", {}).items():
+        if not isinstance(factor, (int, float)) or isinstance(factor, bool):
+            problems.append(f"[imthemousenow.opacity].{name} = '{factor}' is not a number")
+        elif factor < 0:
+            problems.append(f"[imthemousenow.opacity].{name} = {factor} is negative")
+        elif name != "default" and name not in merged.get("mode", {}):
+            problems.append(f"[imthemousenow.opacity].{name} is not a MODE; try one of {sorted(merged.get('mode', {}))}")
+
     keys = merged.get("general", {}).get("home_row_keys", "")
     if keys and len(keys) != 11:
         problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")
@@ -286,6 +382,7 @@ COMMANDS = {
     "mode": cmd_mode,
     "modes": cmd_modes,
     "get": cmd_get,
+    "opacity": cmd_opacity,
     "env": cmd_env,
     "check": cmd_check,
     "path": cmd_path,

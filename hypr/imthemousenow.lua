@@ -37,13 +37,12 @@ SUBMAP_NAME = "imthemousenow"
 -- it exits -- so `;` keeps its ordinary meaning everywhere else. Keys with no
 -- binding here, including every label and Escape, pass through untouched.
 --
--- The same reasoning gives a monitor-scope overlay its own navigation. When
--- the overlay covers a whole monitor, the thing you want to aim at is often
--- on another workspace or another screen, and leaving the overlay to go there
--- costs you the overlay. These keys move the view underneath it instead and
--- the overlay is rebuilt where you land. wl-kbptr labels never use digits or
--- arrows, so nothing is taken away from it. In window scope the commands
--- return without doing anything: the overlay is tied to one window there.
+-- The same reasoning gives the overlay its own navigation. The thing you want
+-- is often not where the overlay is, and leaving the overlay to go there costs
+-- you the overlay. The digits and the arrows move the world under it instead,
+-- and it is rebuilt around where things ended up -- what they move depends on
+-- what the overlay is drawn over, monitor or window. wl-kbptr labels never use
+-- digits or arrows, so nothing is taken away from it.
 hl.define_submap(SUBMAP_NAME, function()
   hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow-steer action right-click"), {
     description = "Pointer: switch to a right click",
@@ -54,9 +53,14 @@ hl.define_submap(SUBMAP_NAME, function()
     description = "Pointer: switch to move without clicking",
   })
 
+  -- The digits and the arrows are read by SCOPE, not fixed to one dispatcher:
+  -- see the `arrow`/`digit` verbs in imthemousenow-steer. Over a whole monitor
+  -- they move the view under the overlay; over a window they move that window,
+  -- which is what SUPER + an arrow and SUPER + SHIFT + a digit do outside the
+  -- overlay. Both keep you aiming at the thing you opened the overlay for.
   for workspace = 1, 9 do
-    hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow-steer workspace " .. workspace), {
-      description = "Pointer: move the overlay to workspace " .. workspace,
+    hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow-steer digit " .. workspace), {
+      description = "Pointer: go to workspace " .. workspace .. ", or send the window there",
     })
   end
 
@@ -88,17 +92,34 @@ hl.define_submap(SUBMAP_NAME, function()
     })
   end
 
-  hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow-steer workspace -1"), {
-    description = "Pointer: move the overlay to the previous workspace",
+  -- An overlay is measured once, when it opens: the window's geometry, and in
+  -- hints mode the regions detected in one frame of the framebuffer. The
+  -- screen does not hold still for that -- a page scrolls, a window resizes, a
+  -- dialog opens -- and then the labels name things that have moved. F5 is
+  -- the reload it looks like: the same overlay, measured again.
+  -- Swapping two windows needs a second window named, and naming things on
+  -- screen is what this tool already does -- so Tab opens a picker overlay
+  -- rather than inventing a chord per direction. Window scope only: the swap
+  -- starts from the window the overlay is drawn over.
+  hl.bind("TAB", hl.dsp.exec_cmd("imthemousenow-steer swap"), {
+    description = "Pointer: swap this window with one you pick",
   })
-  hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow-steer workspace +1"), {
-    description = "Pointer: move the overlay to the next workspace",
+
+  hl.bind("F5", hl.dsp.exec_cmd("imthemousenow-steer refresh"), {
+    description = "Pointer: rebuild the overlay against the screen as it is now",
   })
-  hl.bind("UP", hl.dsp.exec_cmd("imthemousenow-steer monitor -1"), {
-    description = "Pointer: move the overlay to the previous monitor",
+
+  hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow-steer arrow l"), {
+    description = "Pointer: previous workspace, or move the window left",
   })
-  hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow-steer monitor +1"), {
-    description = "Pointer: move the overlay to the next monitor",
+  hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow-steer arrow r"), {
+    description = "Pointer: next workspace, or move the window right",
+  })
+  hl.bind("UP", hl.dsp.exec_cmd("imthemousenow-steer arrow u"), {
+    description = "Pointer: previous monitor, or move the window up",
+  })
+  hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow-steer arrow d"), {
+    description = "Pointer: next monitor, or move the window down",
   })
 
 end)

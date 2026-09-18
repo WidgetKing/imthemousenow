@@ -70,6 +70,21 @@ when parsing that file -- treating `#` as an inline comment blanks the palette.
   always passes `-O <focused monitor>`.
 - **AT-SPI region source** is not implemented; `imthemousenow-regions` has a
   `--source` switch with only `windows` behind it so far.
+- **A right click cannot be followed up inside a continuous lifetime.** The
+  overlay is a `zwlr_layer_surface_v1` with `set_keyboard_interactivity`
+  exclusive (its clicks go through `zwlr_virtual_pointer_v1`, which is why the
+  click itself needs no focus). Taking keyboard focus takes it *from* the
+  window under it, and Chromium, GTK and Firefox all tear a context menu down
+  on focus-out; the compositor invalidates the xdg_popup grab as well. So the
+  continuous loop's own relaunch kills the menu the click just opened: click,
+  wl-kbptr exits, focus returns, the menu opens, the next pass grabs the
+  keyboard, the menu is gone. There is no state where the overlay is up *and*
+  a menu is open, so hint-clicking a menu entry is not reachable by any flag
+  or layer rule -- the fix has to be to stop relaunching, e.g. pausing the
+  loop after a right click and letting the menu be driven by the keyboard
+  until a key asks for the overlay back. Not implemented; the pause costs a
+  keypress per right click and that trade has not been accepted yet.
+
 - **Menu entry**: `~/.config/omarchy/extensions/omarchy-menu.jsonc` is a single
   user-owned file, so `install.sh` deliberately does not edit it. Add a Pointer
   submenu by hand if you want one.

@@ -20,17 +20,26 @@ while (($#)); do
   esac
 done
 
-# Focused monitor origin: regions must be output-relative.
-read -r mon_x mon_y mon_id < <(hyprctl -j monitors | jq -r '.[] | select(.focused) | [.x, .y, .id] | @tsv')
+# Focused monitor origin: regions must be output-relative. Its workspaces come
+# along because "on this monitor" is not the same as "on screen": every window
+# on every workspace of a monitor keeps its geometry, so a label per window on
+# the monitor labels windows you cannot see, on top of the ones you can.
+read -r mon_x mon_y mon_id mon_ws mon_special < <(hyprctl -j monitors | jq -r '
+  .[] | select(.focused) | [.x, .y, .id, .activeWorkspace.id, .specialWorkspace.id] | @tsv')
 
-# Windows on the focused monitor's active workspace, topmost first.
+# Windows on screen on the focused monitor, topmost first. That is its active
+# workspace, plus its special workspace when one is open -- a scratchpad that
+# is up is as clickable as anything else, and one that is not is not there at
+# all. `specialWorkspace.id` is 0 when none is open; special ids are negative,
+# so it can never match a real workspace by accident.
 windows() {
-  hyprctl -j clients | jq -r --argjson mon "$mon_id" --argjson mx "$mon_x" --argjson my "$mon_y" '
+  hyprctl -j clients | jq -r --argjson mon "$mon_id" --argjson mx "$mon_x" --argjson my "$mon_y" \
+    --argjson ws "$mon_ws" --argjson special "$mon_special" '
     [ .[]
       | select(.monitor == $mon)
       | select(.hidden == false)
       | select(.mapped == true)
-      | select(.workspace.id > 0)
+      | select(.workspace.id == $ws or ($special != 0 and .workspace.id == $special))
       | select(.size[0] > 8 and .size[1] > 8)
     ]
     | sort_by(-.focusHistoryID)
