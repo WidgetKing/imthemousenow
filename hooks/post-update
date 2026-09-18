@@ -13,13 +13,7 @@ notify() {
 }
 
 # Only act on installs this plugin actually made.
-[[ -f "$STATE_DIR/installed" ]] || # 4. The panic key chains to an Omarchy command; a rename upstream would turn
-#    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
-if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
-  notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/imthemousenow.lua."
-fi
-
-exit 0
+[[ -f "$STATE_DIR/installed" ]] || exit 0
 command -v wl-kbptr >/dev/null 2>&1 || exit 0
 
 # 1. A soname bump (opencv 5 -> 6, cairo, ...) breaks the binary silently.
@@ -39,9 +33,17 @@ if [[ -f "$STATE_DIR/commit" ]] && command -v curl >/dev/null 2>&1; then
     grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
   if [[ -n ${latest:-} && $latest != "$(cat "$STATE_DIR/release-seen" 2>/dev/null || echo)" ]]; then
     echo "$latest" >"$STATE_DIR/release-seen"
+    # `|| true`: a release that IS the pinned one makes this list fail, and
+    # under `set -e` that would take the checks below it with it.
     [[ $latest != v0.4.1 ]] &&
-      notify "wl-kbptr $latest was released. Set mode = \"release\" in pkg/source.toml and re-run install.sh."
+      notify "wl-kbptr $latest was released. Set mode = \"release\" in pkg/source.toml and re-run install.sh." || true
   fi
+fi
+
+# 4. The panic key chains to an Omarchy command; a rename upstream would turn
+#    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
+if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
+  notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/imthemousenow.lua."
 fi
 
 exit 0
