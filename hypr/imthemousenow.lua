@@ -100,6 +100,7 @@ hl.define_submap(SUBMAP_NAME, function()
   hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow-steer monitor +1"), {
     description = "Pointer: move the overlay to the next monitor",
   })
+
 end)
 
 local chords = {
@@ -125,8 +126,22 @@ end
 
 -- Panic key. Ctrl+Alt+Delete is what people try when the screen stops
 -- responding, so it doubles as the guaranteed way out of a stuck overlay:
--- Hyprland keybindings still fire while wl-kbptr holds the keyboard.
+-- Hyprland keybindings still fire while wl-kbptr holds the keyboard. This is
+-- the global bind; the submap above needs its own copy, because a submap
+-- shadows these.
 -- imthemousenow-panic closes the overlay and then runs Omarchy's own action
 -- for this key, so the default behaviour is preserved, not replaced.
 hl.unbind("CTRL + ALT + DELETE")
 o.bind("CTRL + ALT + DELETE", "Close all windows", "imthemousenow-panic")
+
+-- And the same key inside the submap, because an active submap shadows the
+-- global binds -- only its own fire, so without this the guaranteed way out of
+-- a stuck overlay is the one thing an overlay takes away. It has to come after
+-- the hl.unbind above: that removes the binding from every submap, this one
+-- included, whatever order they were defined in. `hl.define_submap` appends to
+-- a submap that already exists.
+hl.define_submap(SUBMAP_NAME, function()
+  hl.bind("CTRL + ALT + DELETE", hl.dsp.exec_cmd("imthemousenow-panic"), {
+    description = "Pointer: close the overlay and all windows",
+  })
+end)

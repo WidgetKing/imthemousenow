@@ -57,33 +57,39 @@ expect_one_of() {
   die "unknown $label '$value'; expected one of: $*"
 }
 
-# Arrow-key binds in our submap do not survive an overlay: when wl-kbptr exits,
+# Some of our submap binds do not survive an overlay: when wl-kbptr exits,
 # Hyprland drops exactly the LEFT/RIGHT/UP/DOWN binds -- reproducibly, with
 # wl-kbptr launched by hand and no submap involved, while SEMICOLON and the
 # digits in the same submap survive untouched. So they are re-asserted before
 # every launch. `hl.define_submap` appends to a submap that already exists, and
 # a bind re-asserted while present is DUPLICATED rather than replaced, so only
 # the missing ones may be sent.
+#
+# The panic key is in here for a different reason: it must be present, and the
+# cost of checking is the same jq call the arrows already need.
 # key:command:description -- the description keeps a re-asserted bind looking
 # the same as the one hypr/imthemousenow.lua registered at startup.
-ARROW_KEYS=(
-  "LEFT:workspace -1:Pointer: move the overlay to the previous workspace"
-  "RIGHT:workspace +1:Pointer: move the overlay to the next workspace"
-  "UP:monitor -1:Pointer: move the overlay to the previous monitor"
-  "DOWN:monitor +1:Pointer: move the overlay to the next monitor"
+SUBMAP_KEYS=(
+  "LEFT:imthemousenow-steer workspace -1:Pointer: move the overlay to the previous workspace"
+  "RIGHT:imthemousenow-steer workspace +1:Pointer: move the overlay to the next workspace"
+  "UP:imthemousenow-steer monitor -1:Pointer: move the overlay to the previous monitor"
+  "DOWN:imthemousenow-steer monitor +1:Pointer: move the overlay to the next monitor"
+  "CTRL + ALT + DELETE:imthemousenow-panic:Pointer: close the overlay and all windows"
 )
 
-ensure_arrow_binds() {
-  local present body="" entry key cmd description
+ensure_submap_binds() {
+  local present body="" entry bind key cmd description
   present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
     '[.[] | select(.submap == $s) | .key] | join(" ")' 2>/dev/null || true)"
-  for entry in "${ARROW_KEYS[@]}"; do
-    key="${entry%%:*}"
+  for entry in "${SUBMAP_KEYS[@]}"; do
+    bind="${entry%%:*}"
     entry="${entry#*:}"
     cmd="${entry%%:*}"
     description="${entry#*:}"
+    # hyprctl reports the key alone; the bind we send carries its modifiers.
+    key="${bind##* }"
     [[ " $present " == *" $key "* ]] && continue
-    body+="hl.bind(\"$key\", hl.dsp.exec_cmd(\"imthemousenow-steer $cmd\"),"
+    body+="hl.bind(\"$bind\", hl.dsp.exec_cmd(\"$cmd\"),"
     body+=" { description = \"$description\" })"$'\n'
   done
   [[ -n $body ]] || return 0
@@ -384,7 +390,7 @@ EOF
   settle_ms="$(setting switch.settle_ms 80)"
 
   while :; do
-    ensure_arrow_binds
+    ensure_submap_binds
     # SHIFT and ALT can have rewritten either of these since the last pass.
     scope="$(session_get scope)"
     mode="$(session_get mode)"
