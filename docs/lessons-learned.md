@@ -48,6 +48,16 @@ a test that passes for the wrong reason is worse than none.
   indistinguishable from a completed click. We set it to 1; continuous lifetime
   depends on it.
 
+- **Picking a theme-following accent: survey, do not eyeball.** Omarchy themes
+  collapse semantic colour names freely, so a hue that reads as distinct in one
+  theme is the accent in another. Parse every `/usr/share/omarchy/themes/*/
+  colors.toml` and count the themes where a candidate lands on, or within ~15
+  degrees of hue of, the colours already in use. For the ACTION tints the count
+  of problem themes was: magenta 4, cyan 7, yellow 8, green 9 -- which is why
+  right-click is `red` and move is `magenta`. `vantablack` and `white` are
+  monochrome and no choice helps there. `{{ <key>_strip }}` works for any key
+  in `colors.toml`, not just the ones existing templates happen to use.
+
 ## Omarchy / Hyprland facts
 
 - **Omarchy's Hyprland config uses the Lua parser**, and this changes the tools
@@ -58,9 +68,61 @@ a test that passes for the wrong reason is worse than none.
     and `o` in scope. It returns only `ok`, so to read anything back, write to
     a file from Lua and read the file.
   - Dispatch is `hyprctl dispatch 'hl.dsp.submap("name")'`. The bare
-    `hyprctl dispatch submap name` form fails to parse.
+    `hyprctl dispatch submap name` form fails to parse. This applies to EVERY
+    dispatcher, not just submap: `hyprctl dispatch workspace 5` is a parse
+    error, not a workspace switch.
+  - A dispatch Hyprland could not parse prints `error: ...` and **still exits
+    0**, so `|| true` on a dispatch hides the failure completely. Test the
+    output for an `error:` prefix, not the exit status.
+  - The dispatcher set is curated and does not match Hyprland's own names.
+    `hl.dsp.workspace` is a *table* (`change_id`, `move`, `rename`,
+    `swap_monitors`, `toggle_special`), not the workspace switcher. Switching
+    is `hl.dsp.focus`, which takes `direction`, `monitor`, `win` or
+    `workspace`; `monitor` and `workspace` each accept an absolute name/id or
+    a signed relative step, so `{workspace="5"}`, `{workspace="+1"}` and
+    `{monitor="-1"}` are all it takes. Passing a wrong key is the fastest way
+    to enumerate the accepted ones -- the error lists them.
+  - To discover the API, dump it from `hyprctl eval` into a file
+    (`for k in pairs(hl.dsp) do ... end`, write with `io.open`), since eval
+    itself only ever returns `ok`.
   - Key names are keysyms: `SEMICOLON`, not `;`, which is rejected.
   - The dispatcher is `hl.dsp.exec_cmd`, not `hl.dsp.exec`.
+- **Arrow-key submap binds do not survive an overlay.** When wl-kbptr exits,
+  Hyprland silently drops exactly the `LEFT`/`RIGHT`/`UP`/`DOWN` binds of our
+  submap; `SEMICOLON` and the nine digit binds beside them are untouched. It
+  reproduces with wl-kbptr launched by hand, no submap entered and no wrapper
+  involved, so it is the client's keyboard grab going away, not anything this
+  plugin does. Entering and resetting the submap by hand never drops them, and
+  registration order makes no difference. The workaround is
+  `ensure_arrow_binds` in the wrapper: re-assert them before every launch.
+  - `hl.define_submap` on an existing submap **appends** to it, so a partial
+    body is the right way to re-add a few binds.
+  - A bind re-asserted while it is still present is **duplicated**, not
+    replaced, and duplicates accumulate. Always diff against
+    `hyprctl -j binds` and send only what is missing.
+- **A bare modifier tap is bindable, but the modifier must be in its own
+  modmask**: `hl.bind("SHIFT + Shift_L", ..., { release = true, non_consuming =
+  true })`. A bare `hl.bind("Shift_L", ...)` registers fine, shows up in
+  `hyprctl binds` with `modmask=0`, and never fires -- at the moment Shift_L is
+  released SHIFT is still held, so nothing matches. Same shape as Hyprland's
+  own `bindr = SUPER, SUPER_L`. `release` is what makes it a tap; there is no
+  `hl.bindr`. `non_consuming` is not optional -- without it SHIFT stops working
+  as a modifier while the submap is active and `:` becomes unreachable. Bind
+  both `_L` and `_R`. Unlike the arrows, these survive an overlay exit.
+  - **To settle a question like that, bind every candidate at once.** Register
+    the variants side by side as log-only probes writing distinct lines to one
+    file, have a human tap the key once, and read which line appears. One
+    keypress answers what any amount of bind-syntax guessing will not.
+  - Hyprland does **not** feed synthesised keys (`hl.dsp.send_key_state`) back
+    through the bind system, so a tap bind cannot be tested from a script. Only
+    a human pressing the key proves it fires.
+  - A modifier release is also how a chord ends, so a release bind fires on the
+    tail of one -- `:` is SHIFT + SEMICOLON, and its SHIFT release reaches the
+    tap bind. Two guards, because a time window alone is not enough: stamp
+    every other bind and ignore a tap within `switch.tap_debounce_ms`, AND
+    ignore a tap while a relaunch is still pending, which covers a SHIFT held
+    longer than the window. Have the modifier binds *not* stamp, or two taps in
+    a row debounce each other.
 - **Hyprland keybindings still fire while wl-kbptr holds the keyboard grab.**
   This is the cause of the old double-instance lockout, and also what makes
   both the panic key and the `;` submap possible at all.

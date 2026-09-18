@@ -21,6 +21,10 @@ LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
 RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 ACTION_FILE="$RUNTIME_DIR/action"
 SWITCH_FILE="$RUNTIME_DIR/switch"
+SCOPE_FILE="$RUNTIME_DIR/scope"
+BASE_ACTION_FILE="$RUNTIME_DIR/base-action"
+MODE_FILE="$RUNTIME_DIR/mode"
+BIND_STAMP_FILE="$RUNTIME_DIR/last-bind"
 SUBMAP="imthemousenow"
 CONFIG_CMD="$PLUGIN_DIR/bin/imthemousenow-config"
 [[ -x $CONFIG_CMD ]] || CONFIG_CMD="imthemousenow-config"
@@ -72,6 +76,84 @@ expect_one_of() {
   die "unknown $label '$value'; expected one of: $*"
 }
 
+# True when another of our submap binds fired within the debounce window, which
+# means a modifier release is the tail of a chord rather than a tap of its own.
+recent_bind() {
+  local stamp now window
+  # A relaunch already in flight means a chord fired and the overlay has not
+  # come back yet -- the SHIFT being released is that chord's, however long it
+  # was held. This is what catches `:` when the debounce window has passed.
+  [[ -f $SWITCH_FILE ]] && return 0
+  [[ -f $BIND_STAMP_FILE ]] || return 1
+  window="$(setting switch.tap_debounce_ms 400)"
+  stamp="$(cat "$BIND_STAMP_FILE" 2>/dev/null || echo 0)"
+  now=$(($(date +%s%N) / 1000000))
+  ((now - stamp < window))
+}
+
+# Record that one of our submap binds just fired, for recent_bind to find. Only
+# the non-modifier binds stamp: two SHIFT taps in a row are a toggle and a
+# toggle back, which must not debounce each other.
+stamp_bind() {
+  mkdir -p "$RUNTIME_DIR"
+  echo $(($(date +%s%N) / 1000000)) >"$BIND_STAMP_FILE"
+}
+
+# Ask the run loop to tear the overlay down and put it back up. $1 says why,
+# which is all the loop needs to know whether the world moved under it.
+request_relaunch() {
+  mkdir -p "$RUNTIME_DIR"
+  echo "$1" >"$SWITCH_FILE"
+  pkill -x wl-kbptr >/dev/null 2>&1 || true
+}
+
+# hl.dsp.focus({ $1 }), reporting a refusal instead of swallowing it. Hyprland
+# answers a dispatch it could not parse with "error: ..." on stdout and still
+# exits 0, so the exit status is not the thing to test.
+dispatch_focus() {
+  local reply
+  reply="$(hyprctl dispatch "hl.dsp.focus({$1})" 2>&1)"
+  if [[ $reply == error:* ]]; then
+    notify "Could not move the overlay: ${reply#error: }"
+    return 1
+  fi
+}
+
+# Arrow-key binds in our submap do not survive an overlay: when wl-kbptr exits,
+# Hyprland drops exactly the LEFT/RIGHT/UP/DOWN binds -- reproducibly, with
+# wl-kbptr launched by hand and no submap involved, while SEMICOLON and the
+# digits in the same submap survive untouched. So they are re-asserted before
+# every launch. `hl.define_submap` appends to a submap that already exists, and
+# a bind re-asserted while present is DUPLICATED rather than replaced, so only
+# the missing ones may be sent.
+# key:flag:description -- the description keeps a re-asserted bind looking the
+# same as the one hypr/imthemousenow.lua registered at startup.
+ARROW_KEYS=(
+  "LEFT:--workspace-step -1:Pointer: move the overlay to the previous workspace"
+  "RIGHT:--workspace-step +1:Pointer: move the overlay to the next workspace"
+  "UP:--monitor-step -1:Pointer: move the overlay to the previous monitor"
+  "DOWN:--monitor-step +1:Pointer: move the overlay to the next monitor"
+)
+
+ensure_arrow_binds() {
+  local present body="" entry key cmd description
+  present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
+    '[.[] | select(.submap == $s) | .key] | join(" ")' 2>/dev/null || true)"
+  for entry in "${ARROW_KEYS[@]}"; do
+    key="${entry%%:*}"
+    entry="${entry#*:}"
+    cmd="${entry%%:*}"
+    description="${entry#*:}"
+    [[ " $present " == *" $key "* ]] && continue
+    body+="hl.bind(\"$key\", hl.dsp.exec_cmd(\"imthemousenow $cmd\"),"
+    body+=" { description = \"$description\" })"$'\n'
+  done
+  [[ -n $body ]] || return 0
+  hyprctl eval "hl.define_submap(\"$SUBMAP\", function()
+$body
+end)" >/dev/null 2>&1 || true
+}
+
 main() {
   local mode="" scope="" action="" lifetime="" dry_run=0 extra_opts=()
 
@@ -94,6 +176,23 @@ Inside the overlay, at the narrowing-down step, the home row picks a sub-area
 and three keys commit it:  g = left click,  ; = right click,  b = middle click.
 So a right click is always one keypress away, whatever --action says.
 
+Two keys switch ACTION for the whole overlay, at any point before you commit:
+
+  ;   right click, tinted red      press again to go back
+  :   move (no click), tinted      press again to go back
+
+Either is a one-off: after it lands, ACTION returns to what the chord asked
+for, even in a continuous lifetime.
+
+In --scope monitor the overlay covers a whole monitor, so it can also move:
+
+  1..9          switch to that workspace
+  Left / Right  previous / next workspace on this monitor
+  Up / Down     move the overlay to the previous / next monitor
+
+The overlay is rebuilt where you land, so you keep aiming without leaving it.
+These keys do nothing in --scope window, where the overlay follows one window.
+
 Options:
   --list        List modes, one per line.
   -n, --dry-run Print the wl-kbptr command that would run, then exit.
@@ -108,22 +207,86 @@ EOF
         # behind by a crash. Safe to run when nothing is running.
         pkill -x wl-kbptr >/dev/null 2>&1 || true
         hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+        rm -f "$SWITCH_FILE" "$SCOPE_FILE" "$MODE_FILE" "$BASE_ACTION_FILE" "$BIND_STAMP_FILE"
         exit 0
         ;;
-      --switch-action)
-        # Bound to `;` inside the overlay's submap, so it only exists while an
-        # overlay is up. wl-kbptr has the keyboard and cannot be reconfigured
-        # once running, so switching ACTION means tearing the overlay down and
-        # putting it back up: we record the new action, drop a flag the
-        # waiting run loop will find, and kill the overlay. The loop relaunches
-        # rather than exits, because the flag is there.
+      --switch-action | --switch-action=*)
+        # Bound to `;` (right-click) and `:` (move) inside the overlay's
+        # submap, so they only exist while an overlay is up. wl-kbptr has the
+        # keyboard and cannot be reconfigured once running, so switching ACTION
+        # means tearing the overlay down and putting it back up: we record the
+        # new action, drop a flag the waiting run loop will find, and kill the
+        # overlay. The loop relaunches rather than exits, because the flag is
+        # there.
         mkdir -p "$RUNTIME_DIR"
-        local now next
+        local target="${1#*=}" now base next
+        [[ $target == "$1" ]] && target="${2:-right-click}"
         now="$(cat "$ACTION_FILE" 2>/dev/null || echo left-click)"
-        [[ $now == right-click ]] && next="left-click" || next="right-click"
+        base="$(cat "$BASE_ACTION_FILE" 2>/dev/null || echo left-click)"
+        # Pressing the same key again goes back to what the chord asked for,
+        # so `;` and `:` are each their own undo rather than needing one.
+        [[ $now == "$target" ]] && next="$base" || next="$target"
+        # Already there: relaunching would cost a flicker and change nothing.
+        stamp_bind
+        [[ $next == "$now" ]] && exit 0
         echo "$next" >"$ACTION_FILE"
-        : >"$SWITCH_FILE"
-        pkill -x wl-kbptr >/dev/null 2>&1 || true
+        request_relaunch action
+        exit 0
+        ;;
+      --workspace | --workspace=* | --workspace-step | --workspace-step=* | --monitor-step | --monitor-step=*)
+        # Bound to the digits and the arrow keys inside the overlay's submap.
+        # Same trick as --switch-action: the compositor owns the key, we move
+        # the view under the overlay and ask the run loop to put it back up
+        # where we landed. Meaningless in window scope -- the overlay is tied
+        # to one window there -- so it is a no-op rather than a surprise.
+        local flag="$1" value="${1#*=}"
+        [[ $value == "$flag" ]] && { value="${2:-}"; shift; }
+        shift
+        stamp_bind
+        [[ $(cat "$SCOPE_FILE" 2>/dev/null) == monitor ]] || exit 0
+        # Omarchy's Hyprland uses the Lua config parser, so a dispatch is Lua:
+        # the bare `hyprctl dispatch workspace 5` form does not parse at all.
+        # hl.dsp.focus takes an absolute id or a signed relative step for both
+        # workspace and monitor, which is every move these keys need.
+        case "${flag%%=*}" in
+          --workspace | --workspace-step) dispatch_focus "workspace=\"$value\"" ;;
+          --monitor-step)
+            # One monitor means there is nowhere to go, and a relaunch that
+            # lands exactly where it started is a flicker for nothing.
+            (($(hyprctl -j monitors | jq -r 'length') > 1)) || exit 0
+            dispatch_focus "monitor=\"$value\""
+            ;;
+        esac
+        request_relaunch geometry
+        exit 0
+        ;;
+      --switch-scope | --switch-mode)
+        # Bound to a bare SHIFT and ALT tap inside the overlay's submap. Same
+        # relaunch trick as `;`, but these two change what the overlay IS, so
+        # the run loop re-reads MODE and SCOPE from these files every pass
+        # rather than resolving them once at startup.
+        mkdir -p "$RUNTIME_DIR"
+        # A modifier release also ends a combo like `:` (SHIFT + SEMICOLON).
+        # Hyprland may or may not suppress the release bind in that case, so
+        # do not rely on it: any other bind of ours firing a moment ago means
+        # this release finished a chord and is not a tap.
+        if recent_bind; then
+          exit 0
+        fi
+        local file current next
+        if [[ $1 == --switch-scope ]]; then
+          file="$SCOPE_FILE"
+          current="$(cat "$file" 2>/dev/null || echo window)"
+          [[ $current == monitor ]] && next="window" || next="monitor"
+        else
+          file="$MODE_FILE"
+          current="$(cat "$file" 2>/dev/null || echo hints)"
+          [[ $current == grid ]] && next="hints" || next="grid"
+        fi
+        # No overlay, no state file, nothing to switch.
+        [[ -s $file ]] || exit 0
+        echo "$next" >"$file"
+        request_relaunch geometry
         exit 0
         ;;
       --mode) mode="${2:-}"; [[ -n $mode ]] || die "--mode needs a value"; shift 2 ;;
@@ -170,36 +333,45 @@ EOF
   command -v hyprctl >/dev/null 2>&1 || die "hyprctl is required"
 
   # --- mode -----------------------------------------------------------------
-  local chain="" refine="" source=""
-  while IFS=$'\t' read -r key value; do
-    case "$key" in
-      chain) chain="$value" ;;
-      refine) refine="$value" ;;
-      source) source="$value" ;;
-    esac
-  done < <("$CONFIG_CMD" mode "$mode" 2>/dev/null)
+  # Resolved per pass, not once, because ALT toggles MODE from inside the
+  # overlay the same way the arrows move it between workspaces.
+  local chain="" refine="" source="" options="" opencv_cached=""
+  resolve_mode() {
+    chain="" refine="" source="" options=""
+    while IFS=$'\t' read -r key value; do
+      case "$key" in
+        chain) chain="$value" ;;
+        refine) refine="$value" ;;
+        source) source="$value" ;;
+      esac
+    done < <("$CONFIG_CMD" mode "$mode" 2>/dev/null)
 
-  [[ -n $chain ]] || die "unknown mode '$mode'; try --list"
+    [[ -n $chain ]] || die "unknown mode '$mode'; try --list"
 
-  local options=""
-
-  # hints: OpenCV detection when the build has it, window rectangles when it
-  # does not. The fallback is not a lesser mode -- it is exact where detection
-  # is heuristic -- so it degrades silently rather than refusing to run.
-  if [[ -n $source ]]; then
-    if [[ $source == auto ]]; then
-      if ((dry_run == 0)) && ! has_opencv; then
-        source="windows"
-      else
-        source="detect"
+    # hints: OpenCV detection when the build has it, window rectangles when it
+    # does not. The fallback is not a lesser mode -- it is exact where detection
+    # is heuristic -- so it degrades silently rather than refusing to run.
+    if [[ -n $source ]]; then
+      if [[ $source == auto ]]; then
+        # wl-kbptr --version costs a process; the answer cannot change while
+        # we are running, so it is asked once however many passes happen.
+        if [[ -z $opencv_cached ]]; then
+          if ((dry_run == 0)) && ! has_opencv; then
+            opencv_cached="windows"
+          else
+            opencv_cached="detect"
+          fi
+        fi
+        source="$opencv_cached"
       fi
+      case "$source" in
+        detect) options="mode_floating.source=detect" ;;
+        windows) options="mode_floating.source=stdin" ;;
+        *) die "unknown source '$source' for mode '$mode'" ;;
+      esac
     fi
-    case "$source" in
-      detect) options="mode_floating.source=detect" ;;
-      windows) options="mode_floating.source=stdin" ;;
-      *) die "unknown source '$source' for mode '$mode'" ;;
-    esac
-  fi
+  }
+  resolve_mode
 
   # --- command --------------------------------------------------------------
   # Geometry is settled once; ACTION is not, because `;` can switch it while
@@ -210,21 +382,27 @@ EOF
     command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
   fi
 
-  local mon_name mon_x mon_y mon_w mon_h
-  IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
+  # Where to draw. Recomputed before every launch, not once: in monitor scope
+  # the overlay's own keys move it between workspaces and monitors, and a
+  # continuous lifetime outlives windows that move, open or close.
+  local mon_name mon_x mon_y mon_w mon_h restrict=""
+  compute_geometry() {
+    IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
 
-  local restrict=""
-  if [[ $scope == window ]]; then
-    local win
-    win="$(hyprctl -j activewindow)"
-    if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
-      local wx wy ww wh
-      read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
-      restrict="${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))"
+    restrict=""
+    if [[ $scope == window ]]; then
+      local win
+      win="$(hyprctl -j activewindow)"
+      if [[ $(jq -r '.at // "null"' <<<"$win") != null ]]; then
+        local wx wy ww wh
+        read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
+        restrict="${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))"
+      fi
+      # No focused window (an empty workspace) falls through to the monitor,
+      # which is what you wanted anyway: there is nothing else to aim at.
     fi
-    # No focused window (an empty workspace) falls through to the monitor,
-    # which is what you wanted anyway: there is nothing else to aim at.
-  fi
+  }
+  compute_geometry
 
   # Fills `args` for one launch in ACTION $1.
   args=()
@@ -304,6 +482,12 @@ EOF
   mkdir -p "$STATE_DIR" "$RUNTIME_DIR"
   rm -f "$SWITCH_FILE"
   echo "$base_action" >"$ACTION_FILE"
+  echo "$base_action" >"$BASE_ACTION_FILE"
+  # The submap's keys exist for every overlay; these files are what they act
+  # on, and what the run loop re-reads each pass.
+  echo "$scope" >"$SCOPE_FILE"
+  echo "$mode" >"$MODE_FILE"
+  rm -f "$BIND_STAMP_FILE"
 
   # `;` must reach us, not wl-kbptr, and must mean nothing at all when no
   # overlay is up. A submap is exactly that: it is entered for the lifetime of
@@ -312,6 +496,7 @@ EOF
   # `;` dead system-wide, so it is reset however this process dies.
   submap_off() {
     hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
+    rm -f "$SCOPE_FILE" "$MODE_FILE" "$BASE_ACTION_FILE" "$BIND_STAMP_FILE"
   }
   trap submap_off EXIT INT TERM HUP
   hyprctl dispatch "hl.dsp.submap(\"$SUBMAP\")" >/dev/null 2>&1 || true
@@ -344,7 +529,16 @@ EOF
   max_quick="$(setting continuous.max_quick_exits 5)"
   max_passes="$(setting continuous.max_passes 0)"
 
+  local settle_ms
+  settle_ms="$(setting switch.settle_ms 80)"
+
   while :; do
+    ensure_arrow_binds
+    # SHIFT and ALT can have rewritten either of these since the last pass.
+    scope="$(cat "$SCOPE_FILE" 2>/dev/null || echo "$scope")"
+    mode="$(cat "$MODE_FILE" 2>/dev/null || echo "$mode")"
+    resolve_mode
+    compute_geometry
     build_args "$current_action"
     started=$(date +%s%N)
     status=0
@@ -354,8 +548,13 @@ EOF
     # exited with says nothing; put the overlay back up in the new ACTION
     # without counting a pass.
     if [[ -f $SWITCH_FILE ]]; then
+      local reason
+      reason="$(cat "$SWITCH_FILE" 2>/dev/null || echo action)"
       rm -f "$SWITCH_FILE"
       current_action="$(cat "$ACTION_FILE" 2>/dev/null || echo "$base_action")"
+      # A workspace or monitor change is not instant: relaunching before the
+      # compositor has settled measures the geometry we just left.
+      [[ $reason == geometry ]] && sleep "$(awk "BEGIN{print $settle_ms/1000}")"
       continue
     fi
 

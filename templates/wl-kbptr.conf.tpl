@@ -78,3 +78,12 @@ button=left
 # that reads as "normal" versus "careful".
 [imthemousenow.action.right-click]
 color=#{{ red_strip }}
+
+# `magenta` for move, by the same survey that picked red. Across all 22 shipped
+# themes it is the hue that least often collapses into accent (the untinted
+# overlay) or red (the right-click tint): 4 themes where it reads close to one
+# of them, against 7 for cyan, 8 for yellow and 9 for green. It is also the
+# right meaning -- move clicks nothing, so it should not borrow red's "careful"
+# or the accent's "this is the normal thing".
+[imthemousenow.action.move]
+color=#{{ magenta_strip }}

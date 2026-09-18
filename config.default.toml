@@ -37,6 +37,16 @@ scope = "window"
 action = "left-click"
 lifetime = "single"
 
+# Switching ACTION, workspace or monitor from inside the overlay tears it down
+# and puts it back up. A workspace or monitor change needs the compositor to
+# settle first, or the new overlay measures the screen we just left.
+[imthemousenow.switch]
+settle_ms = 80
+# A bare SHIFT or ALT tap toggles SCOPE or MODE, but a modifier release also
+# ends a chord like `:` (SHIFT + SEMICOLON). A tap this soon after any other
+# overlay key is treated as the tail of that chord, not a tap.
+tap_debounce_ms = 400
+
 [imthemousenow.continuous]
 # Continuous reopens the overlay after each completed selection. A pass that
 # "succeeds" faster than this is treated as a misfire; this many in a row stops

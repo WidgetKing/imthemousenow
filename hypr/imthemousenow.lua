@@ -15,9 +15,13 @@
 --   ALT    flips MODE      hints  -> grid
 --   CTRL   flips LIFETIME  single -> continuous
 --
+-- SHIFT and ALT keep those meanings inside the overlay: tapped on their own,
+-- they flip the same axis again, so the overlay you are looking at can become
+-- the one you meant without closing it.
+--
 -- They compose, so you never memorise eight bindings: you memorise one, plus
 -- what each modifier means. ACTION is not on a modifier because it is decided
--- after you can see the overlay, not before: `;` switches it.
+-- after you can see the overlay, not before: `;` and `:` switch it.
 
 -- The overlay is a layer-shell surface that must appear instantly: a fade or
 -- slide makes the labels unreadable for the first frames.
@@ -32,9 +36,69 @@ SUBMAP_NAME = "imthemousenow"
 -- lifetime -- imthemousenow enters it on launch and resets it on exit, however
 -- it exits -- so `;` keeps its ordinary meaning everywhere else. Keys with no
 -- binding here, including every label and Escape, pass through untouched.
+--
+-- The same reasoning gives a monitor-scope overlay its own navigation. When
+-- the overlay covers a whole monitor, the thing you want to aim at is often
+-- on another workspace or another screen, and leaving the overlay to go there
+-- costs you the overlay. These keys move the view underneath it instead and
+-- the overlay is rebuilt where you land. wl-kbptr labels never use digits or
+-- arrows, so nothing is taken away from it. In window scope the commands
+-- return without doing anything: the overlay is tied to one window there.
 hl.define_submap(SUBMAP_NAME, function()
-  hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action"), {
-    description = "Pointer: switch between left and right click",
+  hl.bind("SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action right-click"), {
+    description = "Pointer: switch to a right click",
+  })
+  -- `:` is the same key with SHIFT, which keeps the two ACTION switches on one
+  -- physical key: `;` to click differently, `:` to not click at all.
+  hl.bind("SHIFT + SEMICOLON", hl.dsp.exec_cmd("imthemousenow --switch-action move"), {
+    description = "Pointer: switch to move without clicking",
+  })
+
+  for workspace = 1, 9 do
+    hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow --workspace " .. workspace), {
+      description = "Pointer: move the overlay to workspace " .. workspace,
+    })
+  end
+
+  -- A bare SHIFT or ALT tap flips the axis its chord modifier flips, which is
+  -- the same thing it means outside the overlay: SHIFT is SCOPE, ALT is MODE.
+  --
+  -- The modifier must appear in its OWN bind, as `SHIFT + Shift_L` rather than
+  -- a bare `Shift_L`: at the moment Shift_L is released, SHIFT is still held,
+  -- so a modmask of 0 matches nothing. This was measured, not assumed -- bare
+  -- and mods-included binds were registered side by side and only the
+  -- mods-included ones ever fired. It is the same shape as Hyprland's own
+  -- `bindr = SUPER, SUPER_L` idiom.
+  --
+  -- `release` makes it a tap rather than a press, and `non_consuming` is what
+  -- keeps SHIFT working as a modifier -- without it `:` would be unreachable.
+  -- Both sides of the keyboard, because neither is the "real" one.
+  for _, key in ipairs({ "Shift_L", "Shift_R" }) do
+    hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow --switch-scope"), {
+      release = true,
+      non_consuming = true,
+      description = "Pointer: switch between window and monitor scope",
+    })
+  end
+  for _, key in ipairs({ "Alt_L", "Alt_R" }) do
+    hl.bind("ALT + " .. key, hl.dsp.exec_cmd("imthemousenow --switch-mode"), {
+      release = true,
+      non_consuming = true,
+      description = "Pointer: switch between hints and grid",
+    })
+  end
+
+  hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow --workspace-step -1"), {
+    description = "Pointer: move the overlay to the previous workspace",
+  })
+  hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow --workspace-step +1"), {
+    description = "Pointer: move the overlay to the next workspace",
+  })
+  hl.bind("UP", hl.dsp.exec_cmd("imthemousenow --monitor-step -1"), {
+    description = "Pointer: move the overlay to the previous monitor",
+  })
+  hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow --monitor-step +1"), {
+    description = "Pointer: move the overlay to the next monitor",
   })
 end)
 

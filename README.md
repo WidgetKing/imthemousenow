@@ -29,13 +29,14 @@ because it does not try to guess where the targets are.
 
 **SCOPE** — `window` confines the overlay to the focused window, so the labels
 stay short and you aren't offered the rest of the desktop. `monitor` covers the
-whole focused screen.
+whole focused screen, and can then be steered: the digits and the arrow keys
+move it between workspaces and monitors without closing it.
 
 **ACTION** — what the pointer does on arrival. `move` places the pointer and
 leaves it there, clicking nothing. `drag` is not implemented yet. This is the
-one axis you do not have to decide up front: `;` switches it while the overlay
-is on screen, which is the only moment you can actually see what you are
-aiming at.
+one axis you do not have to decide up front: `;` and `:` switch it while the
+overlay is on screen, which is the only moment you can actually see what you
+are aiming at.
 
 **LIFETIME** — `single` clicks once and gets out of the way. `continuous`
 reopens after every click, so a burst of clicking is one invocation; Escape
@@ -72,16 +73,38 @@ In `hints`, type a label and it clicks. In `grid`, type a label to pick a cell,
 then the home row (`a s d f` / `j k l m`) halves it until the pointer is where
 you want it; `g`, `h` and `b` commit with a left, right or middle click.
 
-**`;` switches ACTION**, in either mode, at any point before you commit:
+**`;` and `:` switch ACTION**, in either mode, at any point before you commit:
 
 ```
-;   left click  <->  right click        the overlay turns red for right click
-;   again                               back to left click
+;   right click        the overlay turns red
+:   move, no click     the overlay turns magenta
 ```
 
-It is a one-off: after the click lands, the overlay returns to whatever ACTION
-the chord asked for, even in a continuous lifetime. So a right click costs one
-extra keypress and never changes what the next click does.
+Both are toggles — press the same key again to go back — and both are one-offs:
+after the pointer lands, the overlay returns to whatever ACTION the chord asked
+for, even in a continuous lifetime. So a right click or a bare move costs one
+extra keypress and neither changes what the next click does.
+
+**SHIFT and ALT retune the overlay**, tapped on their own with nothing else
+held. They flip the same axis they flip in the chords, so there is nothing new
+to remember:
+
+```
+SHIFT   SCOPE   window  <->  monitor
+ALT     MODE    hints   <->  grid
+```
+
+That is the whole point of the modifiers being one-axis-each: the overlay in
+front of you can become the one you meant without closing it and re-chording.
+Tapping either again flips back. A tap within 400ms of any other overlay key is
+ignored, because releasing SHIFT is also how a chord like `:` ends
+(`switch.tap_debounce_ms`).
+
+They are the same physical key, which is the point: `;` to click differently,
+`:` to not click at all. The tint is what tells you which one you are in, so
+the colours follow the Omarchy theme rather than being fixed — `red` and
+`magenta`, chosen because across all 22 shipped themes those are the hues least
+likely to collapse into the accent the untinted overlay already uses.
 
 The overlay is torn down and relaunched to do this, because wl-kbptr takes its
 configuration at startup and cannot be reconfigured while it holds the
@@ -89,11 +112,29 @@ keyboard. You will see a flicker, and anything you had already typed is
 discarded — the trade for being able to decide *after* seeing the overlay
 rather than before.
 
+### Moving a monitor-scope overlay
+
+When SCOPE is `monitor`, what you want to aim at is often not on this
+workspace. These keys move the view underneath the overlay, which is then
+rebuilt where you land, so you never have to close it to go there:
+
+| Key | Does |
+| --- | --- |
+| `1` … `9` | switch to that workspace |
+| `←` / `→` | previous / next workspace on this monitor |
+| `↑` / `↓` | previous / next monitor, left to right, wrapping |
+
+They cost the same flicker as `;`, for the same reason, and anything you had
+already typed is discarded. `↑` / `↓` do nothing at all with one monitor. In
+`window` SCOPE none of them do anything: that overlay is tied to one window,
+and a workspace away there is nothing for it to follow.
+
 `;` reaches us rather than wl-kbptr because it is a compositor binding inside a
 Hyprland submap that exists only while the overlay is up. Everywhere else, and
 at every other moment, `;` is an ordinary semicolon. The submap is reset
 however the overlay exits, including a crash, and `CTRL + ALT + DELETE` resets
-it too.
+it too. The digits and arrows live in that same submap, so they too are
+ordinary keys the moment the overlay is gone.
 
 ## Install
 
