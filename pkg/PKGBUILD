@@ -11,12 +11,23 @@ depends=(wayland libxkbcommon cairo)
 makedepends=(git meson ninja wayland-protocols)
 provides=(wl-kbptr)
 conflicts=(wl-kbptr wl-kbptr-git)
-source=("wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT}")
-sha256sums=('SKIP')
+source=(
+  "wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT}"
+  0001-destroy-pending-frame-callback-before-teardown.patch
+)
+sha256sums=('SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)
 fi
+
+prepare() {
+  # Upstream use-after-free on exit: a frame callback left armed across the
+  # teardown roundtrip segfaults in wl_surface_attach() and eats the click.
+  # Present at upstream HEAD as of 2026-09-18; drop this once it lands there.
+  patch -d wl-kbptr -Np1 \
+    -i "$srcdir/0001-destroy-pending-frame-callback-before-teardown.patch"
+}
 
 build() {
   local opencv=disabled

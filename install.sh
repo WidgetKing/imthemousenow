@@ -68,7 +68,7 @@ if ((build)); then
 
     build_dir="$(mktemp -d)"
     trap 'rm -rf "$build_dir"' EXIT
-    cp "$REPO/pkg/PKGBUILD" "$build_dir/"
+    cp "$REPO/pkg/PKGBUILD" "$REPO"/pkg/*.patch "$build_dir/"
     (
       cd "$build_dir"
       MOUSENOW_COMMIT="$SRC_COMMIT" \
