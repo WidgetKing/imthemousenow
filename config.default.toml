@@ -47,6 +47,12 @@ settle_ms = 80
 # overlay key is treated as the tail of that chord, not a tap.
 tap_debounce_ms = 400
 
+# `-` `=` `_` `+` resize the window the overlay is drawn over, the way SUPER +
+# those keys resize the focused window outside it. This is the step, in pixels,
+# and 100 is what Omarchy's own unmodified binding uses.
+[imthemousenow.resize]
+step = 100
+
 # How much of the screen an overlay hides, per MODE. 1 is the colours the theme
 # renders; below that the dimming and the label backgrounds get more
 # transparent, above it more solid (alpha is clamped at fully opaque). Only

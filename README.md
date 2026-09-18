@@ -177,6 +177,23 @@ window instead, exactly as they do outside the overlay:
 Tiled windows move through the layout, floating ones across the screen. With no
 window to move — an empty workspace — the keys do nothing.
 
+### Resizing the window: `-` `=` `_` `+`
+
+In `window` SCOPE, the four keys Omarchy already resizes with resize the window
+the overlay is drawn over, in the same directions and by the same 100px step:
+
+| Key | Does | Same as |
+| --- | --- | --- |
+| `-` | expand the window left | `SUPER + -` |
+| `=` | shrink the window left | `SUPER + =` |
+| `_` | shrink the window up | `SUPER + _` |
+| `+` | expand the window down | `SUPER + +` |
+
+The step is `resize.step` in the config. Nothing happens in `monitor` SCOPE,
+where the overlay is not drawn over any one window, or with no window to
+resize. Like everything else that changes the world under the overlay, each
+press costs the flicker of a rebuild and discards anything you had typed.
+
 All of them cost the same flicker as `;`, for the same reason, and anything you
 had already typed is discarded. In `monitor` SCOPE, `↑` / `↓` do nothing at all
 with one monitor.

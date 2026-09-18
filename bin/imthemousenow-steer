@@ -29,6 +29,7 @@ Usage: imthemousenow-steer <verb> [value]
   arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window
   digit <1-9>    in monitor scope, go to that workspace; in window scope, send
                  the window there
+  resize <l|r|u|d>  in window scope, resize the window the overlay is on
   swap           pick another window and swap the focused one with it
   swap-commit    finish that swap with whatever the picker landed on
   swap-cancel    abandon that swap, putting the overlay back as it was
@@ -70,6 +71,13 @@ dispatch_window() {
   # than move whatever Hyprland last considered active.
   [[ $(hyprctl -j activewindow | jq -r '.address // "null"') != null ]] || exit 0
   dispatch_checked "hl.dsp.window.move({$1})" "move the window"
+}
+
+# Resize the window the overlay is drawn over: hl.dsp.window.resize({ $1 }).
+# Same guard as dispatch_window -- with no window there is nothing to resize.
+dispatch_window_resize() {
+  [[ $(hyprctl -j activewindow | jq -r '.address // "null"') != null ]] || exit 0
+  dispatch_checked "hl.dsp.window.resize({$1})" "resize the window"
 }
 
 # A swap starts from the window the overlay is drawn over, so monitor scope has
@@ -167,6 +175,33 @@ case "$verb" in
       [[ $(session_get mode) == grid ]] && next="hints" || next="grid"
     fi
     session_set "$verb" "$next"
+    session_relaunch geometry
+    ;;
+
+  resize)
+    # Bound to `-` `=` `_` `+`, which is where Omarchy already keeps resizing:
+    # SUPER + those four keys resize the focused window, and inside the overlay
+    # the same four keys do the same thing to the window the overlay is drawn
+    # over, including the directions -- `-` and `=` grow and shrink on the
+    # horizontal edge, `_` and `+` on the vertical one. Window scope only: over
+    # a whole monitor there is no one window the overlay is about, the way
+    # there is none for Tab.
+    #
+    # `_` and `+` are SHIFT chords, and releasing that SHIFT is also a SCOPE
+    # tap -- session_stamp_bind is what tells the tap it was the tail of a
+    # chord, exactly as it does for `:`.
+    value="${1:?resize needs a direction}"
+    step="$(setting resize.step)"
+    session_stamp_bind
+    require_window_scope
+    case "$value" in
+      l) delta="x=-$step, y=0" ;;
+      r) delta="x=$step, y=0" ;;
+      u) delta="x=0, y=-$step" ;;
+      d) delta="x=0, y=$step" ;;
+      *) die "unknown resize direction '$value'" ;;
+    esac
+    dispatch_window_resize "$delta, relative=true" || exit 0
     session_relaunch geometry
     ;;
 

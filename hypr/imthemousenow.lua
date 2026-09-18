@@ -109,6 +109,26 @@ hl.define_submap(SUBMAP_NAME, function()
     description = "Pointer: rebuild the overlay against the screen as it is now",
   })
 
+  -- `-` `=` `_` `+` resize the window the overlay is drawn over -- the same
+  -- four keys, the same directions and the same 100px step as SUPER + them
+  -- outside the overlay, so nothing new is learned to use them here. They are
+  -- keycodes rather than keysyms for the same reason Omarchy's own bindings
+  -- are: code:20 and code:21 are that pair of keys on any keymap, whatever
+  -- they print. Window scope only; imthemousenow-steer makes it a no-op over a
+  -- monitor.
+  hl.bind("code:20", hl.dsp.exec_cmd("imthemousenow-steer resize l"), {
+    description = "Pointer: expand the window left",
+  })
+  hl.bind("code:21", hl.dsp.exec_cmd("imthemousenow-steer resize r"), {
+    description = "Pointer: shrink the window left",
+  })
+  hl.bind("SHIFT + code:20", hl.dsp.exec_cmd("imthemousenow-steer resize u"), {
+    description = "Pointer: shrink the window up",
+  })
+  hl.bind("SHIFT + code:21", hl.dsp.exec_cmd("imthemousenow-steer resize d"), {
+    description = "Pointer: expand the window down",
+  })
+
   hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow-steer arrow l"), {
     description = "Pointer: previous workspace, or move the window left",
   })
