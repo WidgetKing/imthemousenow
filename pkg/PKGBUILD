@@ -1,7 +1,10 @@
-# Built by imthemousenow's install.sh, which exports KBPTR_* from pkg/source.toml.
+# Built by imthemousenow's install.sh, which exports MOUSENOW_* from pkg/source.toml.
 # pacman owns the binary, so uninstalling is `pacman -Rns wl-kbptr-omarchy`.
 pkgname=wl-kbptr-omarchy
-pkgver="${MOUSENOW_PKGVER:-0.4.1.r0854a51}"
+# The patch set is part of the version, because it is part of the binary: two
+# builds of the same upstream commit with different patches are different
+# programs, and `pacman -Q` has to be able to tell them apart. See pkg/patch-stamp.
+pkgver="${MOUSENOW_PKGVER:-0.4.1.r${MOUSENOW_COMMIT:0:7}}.$("$startdir/patch-stamp" "$startdir")"
 pkgrel=1
 pkgdesc="Control the mouse pointer with the keyboard on Wayland (Omarchy build)"
 arch=(x86_64 aarch64)
@@ -16,6 +19,10 @@ source=(
   0001-destroy-pending-frame-callback-before-teardown.patch
   0002-read-keys-from-a-channel-instead-of-the-keyboard.patch
 )
+# Every patch is listed above and applied below in that order; adding one is a
+# single line here. Each patch's own header says what it does and whether it is
+# headed upstream (0001 is a bug fix and should land there; 0002 is ours).
+# One entry per source, so a new patch needs a 'SKIP' here too or makepkg refuses.
 sha256sums=('SKIP' 'SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
@@ -23,18 +30,11 @@ if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
 fi
 
 prepare() {
-  # Upstream use-after-free on exit: a frame callback left armed across the
-  # teardown roundtrip segfaults in wl_surface_attach() and eats the click.
-  # Present at upstream HEAD as of 2026-09-18; drop this once it lands there.
-  patch -d wl-kbptr -Np1 \
-    -i "$srcdir/0001-destroy-pending-frame-callback-before-teardown.patch"
-
-  # Ours, and not headed upstream as-is: taking keyboard focus is what makes
-  # the compositor dismiss an xdg-popup, so an overlay that wants a context
-  # menu or an extension popup to survive must be fed its keys by the
-  # compositor instead. See docs/design-notes.md, "Keeping popups open".
-  patch -d wl-kbptr -Np1 \
-    -i "$srcdir/0002-read-keys-from-a-channel-instead-of-the-keyboard.patch"
+  local p
+  for p in "${source[@]}"; do
+    [[ $p == *.patch ]] || continue
+    patch -d wl-kbptr -Np1 -i "$srcdir/$p"
+  done
 }
 
 build() {

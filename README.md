@@ -406,8 +406,19 @@ release yet.
 So `pkg/source.toml` pins that commit and `install.sh` builds it with
 `makepkg`, which means pacman owns the binary (`wl-kbptr-omarchy`, which
 `provides`/`conflicts` with `wl-kbptr`, so it swaps cleanly with the AUR
-package later). When upstream tags a release, set `mode = "release"`, or
-`mode = "aur"` once the AUR catches up, and re-run `install.sh`.
+package later). There is no mode that tracks the latest release: the patches in
+`pkg/` are written against one upstream tree, so moving the pin is a change to
+this repo — rebase the patches, test, bump `commit` — and never something that
+happens on your machine during an update. `mode = "aur"` is there for when the
+AUR catches up and you want the unpatched upstream package instead.
+
+The patch set is part of the built version: `pkg/patch-stamp` hashes `pkg/*.patch`
+into a `pN.<hash>` component, so `pacman -Q wl-kbptr-omarchy` reports which
+patches a binary was built with, and `install.sh` rebuilds when that hash moves
+even though the pinned commit has not. It also skips the build when the recorded
+build is the one already installed, so re-running after a bash edit is cheap;
+`--rebuild` forces it, and `--no-build` warns when the installed binary was
+built from different patches than this checkout carries.
 
 The fix is a **build** fix. One reporter on #99 says floating mode still dims
 the screen without drawing labels under OpenCV 5 — so `hints` degrades cleanly:
@@ -442,3 +453,19 @@ this machine and where the implementation departs from the original plan, and
 [docs/lessons-learned.md](docs/lessons-learned.md) for what it cost to find out
 — wl-kbptr internals, Hyprland's Lua config surface, and which decisions here
 are load-bearing.
+
+## Licence
+
+Copyright (C) 2026 Tristan Ward.
+
+imthemousenow is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE) for the full text.
+
+GPL rather than something permissive because `pkg/*.patch` modifies
+[wl-kbptr](https://github.com/moverest/wl-kbptr), which is GPL-3.0-or-later —
+so those patches are a derivative work and carry its terms regardless. The rest
+of the plugin is licensed the same way to keep one licence across the tree.
+The `wl-kbptr-omarchy` package built by `install.sh` ships upstream's own
+LICENSE, as its PKGBUILD has always done.

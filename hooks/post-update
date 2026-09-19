@@ -26,8 +26,10 @@ if [[ -f $HYPR_ENTRY ]] && ! grep -q "$MARKER" "$HYPR_ENTRY"; then
   notify "wl-kbptr keybindings are no longer loaded from hyprland.lua. Re-run install.sh."
 fi
 
-# 3. Tell the user when upstream finally tags the OpenCV 5 fix, so the build
-#    can move from a pinned commit to a release (or back to the AUR).
+# 3. Say when upstream tags a release. This is news, not an instruction: the
+#    pin in pkg/source.toml only moves in a commit to this repo, after the
+#    patches in pkg/ have been rebased onto the new tree and tested. So tell
+#    the user a release exists and leave the move to the maintainer.
 if [[ -f "$STATE_DIR/commit" ]] && command -v curl >/dev/null 2>&1; then
   latest="$(curl -fsSL --max-time 5 https://api.github.com/repos/moverest/wl-kbptr/releases/latest 2>/dev/null |
     grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
@@ -36,7 +38,7 @@ if [[ -f "$STATE_DIR/commit" ]] && command -v curl >/dev/null 2>&1; then
     # `|| true`: a release that IS the pinned one makes this list fail, and
     # under `set -e` that would take the checks below it with it.
     [[ $latest != v0.4.1 ]] &&
-      notify "wl-kbptr $latest was released. Set mode = \"release\" in pkg/source.toml and re-run install.sh." || true
+      notify "wl-kbptr $latest was released. imthemousenow stays on its pinned, patched build until that release is tested against pkg/*.patch." || true
   fi
 fi
 

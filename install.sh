@@ -4,6 +4,7 @@
 #   ./install.sh            copy this checkout into place
 #   ./install.sh --dev      symlink it instead, so edits here are live
 #   ./install.sh --no-build skip building wl-kbptr (wire up integration only)
+#   ./install.sh --rebuild  rebuild wl-kbptr even if this build is already installed
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 set -euo pipefail
 
@@ -18,13 +19,14 @@ HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
 REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
 
-dev=0 build=1 lite=0
+dev=0 build=1 lite=0 rebuild=0
 while (($#)); do
   case "$1" in
     --dev) dev=1 ;;
     --no-build) build=0 ;;
+    --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
-    -h | --help) sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h | --help) sed -n '2,11p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -43,6 +45,14 @@ link_or_copy() {
 mkdir -p "$PLUGIN_DIR" "$BIN_DIR" "$USER_DIR" "$STATE_DIR" "$THEMED_DIR"
 
 # --- 1. wl-kbptr itself -------------------------------------------------------
+# What identifies a build: the upstream commit, the patch set applied to it, and
+# whether OpenCV is in. Change any one of those and the installed binary is a
+# different program, so all three are recorded and compared. The patch set is
+# the reason this is not just the commit -- a new patch against an unmoved pin
+# is the normal way this repo changes wl-kbptr, and it has to force a rebuild.
+build_id() { printf '%s %s opencv=%s\n' "$1" "$2" "$3"; }
+PATCH_STAMP="$("$REPO/pkg/patch-stamp" "$REPO/pkg")"
+
 if ((build)); then
   eval "$(awk -F'=' '
     /^[[:space:]]*(mode|commit|opencv)[[:space:]]*=/ {
@@ -55,27 +65,54 @@ if ((build)); then
   if [[ ${SRC_MODE:-commit} == aur ]]; then
     say "Installing wl-kbptr from the AUR"
     warn "The AUR package is 0.4.1, which does not build against opencv 5."
+    warn "It is also unpatched: the popup fix in pkg/*.patch is not in it."
     omarchy pkg aur add wl-kbptr
+    build_id aur - "${SRC_OPENCV:-true}" >"$STATE_DIR/build-id"
   else
-    say "Building wl-kbptr at ${SRC_COMMIT:0:9} (opencv=${SRC_OPENCV})"
-    for dep in git meson ninja; do
-      command -v "$dep" >/dev/null 2>&1 || missing+=" $dep"
-    done
-    if [[ -n ${missing:-} ]]; then
-      say "Installing build dependencies:$missing"
-      omarchy pkg add $missing
+    [[ -n ${SRC_COMMIT:-} ]] || { warn "pkg/source.toml has no commit to build"; exit 1; }
+    want="$(build_id "$SRC_COMMIT" "$PATCH_STAMP" "$SRC_OPENCV")"
+    have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
+
+    # Re-running install.sh after editing the bash or the Lua is the common
+    # case, and it should not cost a compile. Skipping is only safe when the
+    # binary that build id describes is still there and still links.
+    skip=0
+    if ((rebuild == 0)) && [[ $want == "$have" ]] &&
+      pacman -Qq wl-kbptr-omarchy >/dev/null 2>&1 &&
+      command -v wl-kbptr >/dev/null 2>&1 &&
+      ! ldd "$(command -v wl-kbptr)" 2>/dev/null | grep -q "not found"; then
+      skip=1
     fi
 
-    build_dir="$(mktemp -d)"
-    trap 'rm -rf "$build_dir"' EXIT
-    cp "$REPO/pkg/PKGBUILD" "$REPO"/pkg/*.patch "$build_dir/"
-    (
-      cd "$build_dir"
-      MOUSENOW_COMMIT="$SRC_COMMIT" \
-        MOUSENOW_OPENCV="$([[ $SRC_OPENCV == true ]] && echo 1 || echo 0)" \
-        makepkg -si --noconfirm
-    )
-    echo "$SRC_COMMIT" >"$STATE_DIR/commit"
+    if ((skip)); then
+      say "wl-kbptr ${SRC_COMMIT:0:9} ($PATCH_STAMP) is already installed; skipping the build (--rebuild forces it)"
+    else
+      say "Building wl-kbptr at ${SRC_COMMIT:0:9} with $PATCH_STAMP (opencv=${SRC_OPENCV})"
+      for dep in git meson ninja; do
+        command -v "$dep" >/dev/null 2>&1 || missing+=" $dep"
+      done
+      if [[ -n ${missing:-} ]]; then
+        say "Installing build dependencies:$missing"
+        omarchy pkg add $missing
+      fi
+
+      build_dir="$(mktemp -d)"
+      trap 'rm -rf "$build_dir"' EXIT
+      # patch-stamp goes along: PKGBUILD calls it to build pkgver, and it must
+      # see the same patches makepkg is about to apply, not this checkout's.
+      cp "$REPO/pkg/PKGBUILD" "$REPO/pkg/patch-stamp" "$REPO"/pkg/*.patch "$build_dir/"
+      (
+        cd "$build_dir"
+        MOUSENOW_COMMIT="$SRC_COMMIT" \
+          MOUSENOW_OPENCV="$([[ $SRC_OPENCV == true ]] && echo 1 || echo 0)" \
+          makepkg -si --noconfirm
+      )
+      # After the build, not before: a failed build must leave the id of what
+      # is actually installed, or the next run would skip a build that never
+      # happened.
+      echo "$want" >"$STATE_DIR/build-id"
+      echo "$SRC_COMMIT" >"$STATE_DIR/commit"
+    fi
   fi
   touch "$STATE_DIR/installed"
 
@@ -83,6 +120,16 @@ if ((build)); then
   if [[ ${SRC_OPENCV:-true} == true ]] && ! wl-kbptr --version 2>&1 | grep -qi opencv; then
     warn "This build has no OpenCV support; hints will label windows instead of detecting targets."
     warn "Re-run with --lite to make that the intended configuration."
+  fi
+else
+  # --no-build with a stale binary is how the wrapper ends up newer than the
+  # thing it drives -- and a wl-kbptr option the installed build does not know
+  # makes it reject the whole config file, so every chord silently dies. Say so
+  # here rather than leaving it to be discovered at the first keypress.
+  have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
+  if [[ -n $have && $have != *" $PATCH_STAMP "* ]]; then
+    warn "Installed wl-kbptr was built from a different patch set ($have)."
+    warn "This checkout is at $PATCH_STAMP. Re-run without --no-build to rebuild."
   fi
 fi
 
