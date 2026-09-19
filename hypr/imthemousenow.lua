@@ -50,10 +50,16 @@ SUBMAP_POPUPS = "imthemousenow-popups"
 -- Must match SESSION_DIR in bin/imthemousenow-session.sh.
 KEY_CHANNEL = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/imthemousenow/keys"
 
--- The keys the overlay itself reads: wl-kbptr's label symbols, plus the three
--- it treats as controls. Bash re-asserts the missing ones by name, so this
--- list is mirrored in bin/imthemousenow -- keep them in step.
-RELAY_KEYS = { "comma", "Escape", "BackSpace", "Return" }
+-- The keys the overlay itself reads: wl-kbptr's label symbols, plus the four it
+-- treats as controls. Bash re-asserts the missing ones by name, so this list is
+-- mirrored in bin/imthemousenow -- keep them in step.
+--
+-- `space` commits a bisect area exactly as `Return` does, and it is the key a
+-- hand already resting on the home row reaches first. wl-kbptr has always
+-- accepted both (`mode_bisect.c`, XKB_KEY_Return and XKB_KEY_space fall through
+-- to the same case); it never saw the second one here, because in popup-safe
+-- mode a key that is not relayed is a key the overlay is not told about.
+RELAY_KEYS = { "comma", "Escape", "BackSpace", "Return", "space" }
 for byte = string.byte("a"), string.byte("z") do
   table.insert(RELAY_KEYS, string.char(byte))
 end

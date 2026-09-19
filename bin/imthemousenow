@@ -36,7 +36,7 @@ SUBMAP="imthemousenow"
 SUBMAP_POPUPS="imthemousenow-popups"
 KEY_CHANNEL="$SESSION_DIR/keys"
 # Mirrors RELAY_KEYS in hypr/imthemousenow.lua; keep them in step.
-RELAY_KEYS=(comma Escape BackSpace Return {a..z})
+RELAY_KEYS=(comma Escape BackSpace Return space {a..z})
 
 list_modes() {
   local name
