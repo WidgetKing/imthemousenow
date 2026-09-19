@@ -36,13 +36,6 @@ setup() {
     >"$WORK/home/.config/hypr/hyprland.lua"
 }
 
-# What the GitHub API reports, for the release check.
-release_stub() {
-  echo abc123 >"$WORK/home/.local/state/imthemousenow/commit"
-  printf '#!/bin/bash\necho %s\n' "'  \"tag_name\": \"$1\",'" >"$WORK/stub/curl"
-  chmod +x "$WORK/stub/curl"
-}
-
 # check <label> <break-it> <substring expected in a notification>...
 check() {
   local label="$1" break_it="$2"
@@ -75,24 +68,24 @@ not_our_install() { rm "$WORK/home/.local/state/imthemousenow/installed"; }
 no_wl_kbptr()    { rm "$WORK/stub/wl-kbptr"; }
 soname_bump()    { printf '#!/bin/bash\necho "libopencv.so => not found"\n' >"$WORK/stub/ldd"; chmod +x "$WORK/stub/ldd"; }
 include_lost()   { echo 'nothing here' >"$WORK/home/.config/hypr/hyprland.lua"; }
-new_release()    { release_stub v0.9.9; }
-pinned_release() { release_stub v0.4.1; rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
 panic_gone()     { rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
-everything()     { soname_bump; include_lost; release_stub v0.9.9; rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
+everything()     { soname_bump; include_lost; rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
 
 check "a healthy system says nothing"      nothing
 check "not our install: says nothing"      not_our_install
 check "no wl-kbptr: says nothing"          no_wl_kbptr
 check "1. soname bump"                     soname_bump    "broke after a library update"
 check "2. hyprland.lua include lost"       include_lost   "no longer loaded from hyprland.lua"
-check "3. a new upstream release"          new_release    "v0.9.9 was released"
-# The pinned release is not news -- but it must not stop the check below it,
-# which is what `set -e` and a bare `&&` list used to do.
-check "3b. release is the pinned one"      pinned_release "Ctrl+Alt+Delete no longer finds"
-check "4. panic command gone"              panic_gone     "Ctrl+Alt+Delete no longer finds"
-check "all four at once"                   everything \
+check "3. panic command gone"              panic_gone     "Ctrl+Alt+Delete no longer finds"
+check "all three at once"                  everything \
   "broke after a library update" "no longer loaded from hyprland.lua" \
-  "v0.9.9 was released" "Ctrl+Alt+Delete no longer finds"
+  "Ctrl+Alt+Delete no longer finds"
+
+# The hook talks to nothing outside this machine. A stubbed PATH with no curl
+# in it is how that is asserted: if a check ever reaches for the network again,
+# it has to add the tool here first, and that is the moment to ask why.
+[[ ! -e "$WORK/stub/curl" ]] ||
+  { echo "FAIL  the hook makes no network call -- something put curl on the stub PATH"; failures=$((failures + 1)); }
 
 echo
 if ((failures)); then

@@ -26,23 +26,7 @@ if [[ -f $HYPR_ENTRY ]] && ! grep -q "$MARKER" "$HYPR_ENTRY"; then
   notify "wl-kbptr keybindings are no longer loaded from hyprland.lua. Re-run install.sh."
 fi
 
-# 3. Say when upstream tags a release. This is news, not an instruction: the
-#    pin in pkg/source.toml only moves in a commit to this repo, after the
-#    patches in pkg/ have been rebased onto the new tree and tested. So tell
-#    the user a release exists and leave the move to the maintainer.
-if [[ -f "$STATE_DIR/commit" ]] && command -v curl >/dev/null 2>&1; then
-  latest="$(curl -fsSL --max-time 5 https://api.github.com/repos/moverest/wl-kbptr/releases/latest 2>/dev/null |
-    grep -m1 '"tag_name"' | cut -d'"' -f4 || true)"
-  if [[ -n ${latest:-} && $latest != "$(cat "$STATE_DIR/release-seen" 2>/dev/null || echo)" ]]; then
-    echo "$latest" >"$STATE_DIR/release-seen"
-    # `|| true`: a release that IS the pinned one makes this list fail, and
-    # under `set -e` that would take the checks below it with it.
-    [[ $latest != v0.4.1 ]] &&
-      notify "wl-kbptr $latest was released. imthemousenow stays on its pinned, patched build until that release is tested against pkg/*.patch." || true
-  fi
-fi
-
-# 4. The panic key chains to an Omarchy command; a rename upstream would turn
+# 3. The panic key chains to an Omarchy command; a rename upstream would turn
 #    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
 if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
   notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/imthemousenow.lua."

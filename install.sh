@@ -112,10 +112,16 @@ if ((build)); then
       # is actually installed, or the next run would skip a build that never
       # happened.
       echo "$want" >"$STATE_DIR/build-id"
-      echo "$SRC_COMMIT" >"$STATE_DIR/commit"
     fi
   fi
   touch "$STATE_DIR/installed"
+
+  # Left behind by the upstream-release check, which this plugin no longer
+  # does: it asked GitHub after every system update whether wl-kbptr had
+  # tagged a release, which is the maintainer's business and not news the
+  # person using it can act on. Clear the files it kept rather than leave
+  # state nothing reads.
+  rm -f "$STATE_DIR/commit" "$STATE_DIR/release-seen"
 
   # Verify what we actually got, and fall back rather than ship a broken mode.
   if [[ ${SRC_OPENCV:-true} == true ]] && ! wl-kbptr --version 2>&1 | grep -qi opencv; then

@@ -1,4 +1,5 @@
 # imthemousenow
+[I'm the captain now meme with a semi-colon][./docs/meme.jpeg]
 
 **Drive the mouse pointer from the keyboard on [Omarchy](https://omarchy.org).**
 
@@ -85,17 +86,14 @@ consumed by wl-kbptr locally to place the pointer; the plugin's own state
 `$XDG_RUNTIME_DIR` and is deleted when the overlay closes, and everything there
 is a mode name, a window address or a screen coordinate.
 
-**One network request exists, and this is it.** After an Omarchy system update,
-the `post-update` hook asks `api.github.com` — unauthenticated, no query of its
-own, five-second timeout — whether wl-kbptr has tagged a newer release, purely
-so it can tell you one exists. It sends nothing about you beyond what any HTTP
-request reveals to the host it contacts, and it is skipped entirely if `curl`
-is not installed. Delete
-`~/.config/omarchy/hooks/post-update.d/imthemousenow.hook` if you would rather
-it never ran.
+**Once installed, it never talks to the network.** Nothing here polls, phones
+home or checks for updates — not even its own. The `post-update` hook runs
+locally after an Omarchy update and only looks at your machine: whether the
+binary still links, whether the Hyprland include is still there, whether the
+key it chains to still exists.
 
-Installing and updating fetch source over the network in the obvious way —
-`git clone` of wl-kbptr, and pacman for dependencies.
+The install is the one thing that uses the network, in the obvious way: `git
+clone` of wl-kbptr's source, and pacman for the packages it needs to build.
 
 ## Security
 
