@@ -139,19 +139,3 @@ machine and where the implementation departs from the plan;
 [docs/lessons-learned.md](docs/lessons-learned.md) is what it cost to find that
 out. Read the one that matches the thing you are about to change — several
 decisions here look arbitrary and are not.
-
-## Licence
-
-Copyright (C) 2026 Tristan Ward.
-
-imthemousenow is free software: you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version. See [LICENSE](LICENSE) for the full text.
-
-GPL rather than something permissive because `pkg/*.patch` modifies
-[wl-kbptr](https://github.com/moverest/wl-kbptr), which is GPL-3.0-or-later —
-so those patches are a derivative work and carry its terms regardless. The rest
-of the plugin is licensed the same way to keep one licence across the tree.
-The `wl-kbptr-omarchy` package built by `install.sh` ships upstream's own
-LICENSE, as its PKGBUILD has always done.
