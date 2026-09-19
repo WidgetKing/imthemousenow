@@ -1,0 +1,282 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: t <t@e>
+Date: Sat, 19 Sep 2026 19:54:55 +0800
+Subject: [PATCH] Dim the overlay while a key is held, to see what is under it
+
+The overlay is this tool's one blind spot. It covers the very thing
+being aimed at, and the usual way a selection goes wrong is a label
+landing on top of the word that would have told you which target you
+wanted. Turning the opacity down everywhere is not the answer either --
+the labels have to stay readable to be typed.
+
+So: hold space and the whole overlay fades to general.peek_alpha,
+release it and it comes back. Nothing moves and nothing is selected, so
+the labels are where they were when the target underneath becomes
+legible. The fade is a group composited at one alpha rather than a
+scaling of every colour, because it is the overlay being faded, not one
+of its parts -- dimming, labels, borders and the bisect pointer all go
+together, and no mode has to know.
+
+Space, because it is the largest key a hand already on the home row can
+hold, and because the label alphabets never use it.
+
+Two modes already commit on space -- bisect and split, where a peek
+would fire a click instead. They say so with `takes_space` on their
+mode_interface, next to everything else they declare about keys, and
+there the peek simply does not exist. That is a real loss of the feature
+in the second half of a grid selection, and it is the right trade: a key
+that dims sometimes and clicks other times is worse than one that only
+dims where it can.
+
+Off by default (peek_alpha = 1 is "already fully drawn, nothing to do"),
+so an existing config behaves exactly as it did.
+
+The key channel gained a release: a bare keysym name is still a press,
+and a leading '-' marks the new case, so a compositor that only knows
+how to write presses keeps working and its keys are not reinterpreted.
+---
+ src/config.c      |  3 +-
+ src/config.h      |  4 +++
+ src/main.c        | 81 +++++++++++++++++++++++++++++++++++++++++++++--
+ src/mode.c        |  8 +++++
+ src/mode.h        |  8 +++++
+ src/mode_bisect.c |  3 +-
+ src/mode_split.c  |  3 +-
+ src/state.h       |  1 +
+ 8 files changed, 106 insertions(+), 5 deletions(-)
+
+diff --git a/src/config.c b/src/config.c
+index eae94b1..e5b83bd 100644
+--- a/src/config.c
++++ b/src/config.c
+@@ -362,7 +362,8 @@ static struct section_def section_defs[] = {
+         general,
+         G_FIELD(home_row_keys, "", parse_home_row_keys, free_home_row_keys),
+         G_FIELD(modes, "tile,bisect", parse_str, free_str),
+-        G_FIELD(cancellation_status_code, "0", parse_uint8, noop)
++        G_FIELD(cancellation_status_code, "0", parse_uint8, noop),
++        G_FIELD(peek_alpha, "1", parse_double, noop)
+     ),
+     SECTION(
+         mode_tile, MT_FIELD(label_color, "#fffd", parse_color, noop),
+diff --git a/src/config.h b/src/config.h
+index adf4e94..55770c4 100644
+--- a/src/config.h
++++ b/src/config.h
+@@ -11,6 +11,10 @@ struct general_config {
+     char  **home_row_keys;
+     char   *modes;
+     uint8_t cancellation_status_code;
++    // What the whole overlay fades to while the peek key is held. 1 disables
++    // the peek: the overlay is already fully drawn, so holding the key has
++    // nothing to do.
++    double peek_alpha;
+ };
+ 
+ struct relative_font_size {
+diff --git a/src/main.c b/src/main.c
+index f42bfe6..f22578e 100644
+--- a/src/main.c
++++ b/src/main.c
+@@ -51,7 +51,30 @@ static void send_frame(struct state *state) {
+     cairo_t *cairo = surface_buffer->cairo;
+     cairo_identity_matrix(cairo);
+     cairo_scale(cairo, scale_120 / 120.0, scale_120 / 120.0);
+-    mode_render(state, cairo);
++    if (state->peeking) {
++        // Peek: draw the overlay into a group and composite the whole thing at
++        // a low alpha, so what is underneath can be read through it. Done here
++        // rather than by scaling every colour because it is the *overlay* that
++        // is being faded, not one of its parts -- dimming, labels, borders and
++        // the bisect pointer all go together, and no mode has to know.
++        //
++        // Buffers are recycled, so the destination still holds the last frame
++        // drawn into it. A mode normally overwrites every pixel of it; a group
++        // composited on top does not, so it has to be cleared first or the
++        // previous frame shows through at full strength underneath.
++        cairo_save(cairo);
++        cairo_set_operator(cairo, CAIRO_OPERATOR_SOURCE);
++        cairo_set_source_rgba(cairo, 0, 0, 0, 0);
++        cairo_paint(cairo);
++        cairo_restore(cairo);
++
++        cairo_push_group(cairo);
++        mode_render(state, cairo);
++        cairo_pop_group_to_source(cairo);
++        cairo_paint_with_alpha(cairo, state->config.general.peek_alpha);
++    } else {
++        mode_render(state, cairo);
++    }
+ 
+     wl_surface_set_buffer_scale(state->wl_surface, 1);
+ 
+@@ -116,6 +139,27 @@ static void request_frame(struct state *state) {
+     wl_surface_commit(state->wl_surface);
+ }
+ 
++// Hold a key, see through the overlay. The whole surface is the plugin's one
++// blind spot: it covers the very thing being aimed at, and a label that lands
++// on top of the word you were reading is the common way a selection goes
++// wrong. Holding the key fades the overlay almost away without disturbing it,
++// so the labels stay where they are and the target underneath becomes legible.
++//
++// Refused in two cases, both of them "space already means something here":
++// a mode that commits on space (bisect, split -- where a peek would fire a
++// click instead), and peek_alpha = 1, which is how the feature is turned off.
++static void peek_set(struct state *state, bool peeking) {
++    if (state->config.general.peek_alpha >= 1 || mode_takes_space(state)) {
++        return;
++    }
++    if (state->peeking == peeking) {
++        return;
++    }
++
++    state->peeking = peeking;
++    request_frame(state);
++}
++
+ bool compute_initial_area(struct state *state, struct rect *initial_area) {
+     if (initial_area->w == -1) {
+         initial_area->x = 0;
+@@ -284,8 +328,25 @@ static void key_channel_open(struct state *state) {
+     }
+ }
+ 
+-// One line of the channel, handled exactly as a key press off a wl_keyboard.
++// One line of the channel, handled exactly as a key off a wl_keyboard.
++//
++// A bare keysym name is a press, which is every line the compositor wrote
++// before peeking existed and is why the prefix marks the new case rather than
++// both: an older imthemousenow driving a newer wl-kbptr keeps working, and its
++// keys are not silently reinterpreted.
++//
++//   space    press
++//   -space   release
++//
++// Only the keys that care about being let go are worth relaying twice, so a
++// release for anything else simply finds nothing to do.
+ static void key_channel_handle_line(struct state *state, char *line) {
++    bool pressed = true;
++    if (*line == '-') {
++        pressed = false;
++        line++;
++    }
++
+     if (*line == 0) {
+         return;
+     }
+@@ -301,6 +362,15 @@ static void key_channel_handle_line(struct state *state, char *line) {
+     }
+     xkb_keysym_to_utf8(key_sym, text, sizeof(text));
+ 
++    if (key_sym == XKB_KEY_space && !mode_takes_space(state)) {
++        peek_set(state, pressed);
++        return;
++    }
++
++    if (!pressed) {
++        return;
++    }
++
+     bool redraw = mode_handle_key(state, key_sym, text);
+     if (has_last_mode_returned(state)) {
+         state->running = false;
+@@ -352,6 +422,13 @@ static void handle_keyboard_key(
+         xkb_state_key_get_one_sym(seat->xkb_state, key_code);
+     xkb_keysym_to_utf8(key_sym, text, sizeof(text));
+ 
++    if (key_sym == XKB_KEY_space && !mode_takes_space(seat->state)) {
++        peek_set(
++            seat->state, key_state == WL_KEYBOARD_KEY_STATE_PRESSED
++        );
++        return;
++    }
++
+     if (key_state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+         bool redraw = mode_handle_key(seat->state, key_sym, text);
+         if (has_last_mode_returned(seat->state)) {
+diff --git a/src/mode.c b/src/mode.c
+index 3ccc5e7..4bc7886 100644
+--- a/src/mode.c
++++ b/src/mode.c
+@@ -127,6 +127,14 @@ bool mode_handle_key(struct state *state, xkb_keysym_t sym, char *text) {
+         state, state->mode_states[state->current_mode], sym, text
+     );
+ }
++bool mode_takes_space(struct state *state) {
++    if (has_last_mode_returned(state)) {
++        return false;
++    }
++
++    return state->mode_interfaces[state->current_mode]->takes_space;
++}
++
+ void mode_render(struct state *state, cairo_t *cairo) {
+     if (has_last_mode_returned(state)) {
+         return;
+diff --git a/src/mode.h b/src/mode.h
+index 2d84f3d..57849bc 100644
+--- a/src/mode.h
++++ b/src/mode.h
+@@ -11,6 +11,13 @@
+ 
+ struct mode_interface {
+     char *name;
++
++    // True when this mode's own key handler acts on space, which makes space
++    // unavailable as the peek key while the mode is up. Declared here rather
++    // than tested in main.c so that a mode which starts using space says so in
++    // the one place it is already saying what it does with keys.
++    bool takes_space;
++
+     void *(*enter)(struct state *, struct rect area);
+     void (*reenter)(struct state *, void *mode_state);
+     bool (*key)(struct state *, void *mode_state, xkb_keysym_t, char *text);
+@@ -31,6 +38,7 @@ bool has_last_mode_returned(struct state *);
+ bool reenter_prev_mode(struct state *);
+ void free_mode_states(struct state *);
+ bool mode_handle_key(struct state *, xkb_keysym_t, char *text);
++bool mode_takes_space(struct state *);
+ void mode_render(struct state *, cairo_t *);
+ 
+ #endif
+diff --git a/src/mode_bisect.c b/src/mode_bisect.c
+index b7c4f49..3d75576 100644
+--- a/src/mode_bisect.c
++++ b/src/mode_bisect.c
+@@ -516,7 +516,8 @@ void bisect_mode_free(void *mode_state) {
+ }
+ 
+ struct mode_interface bisect_mode_interface = {
+-    .name    = "bisect",
++    .name        = "bisect",
++    .takes_space = true,
+     .enter   = bisect_mode_enter,
+     .reenter = bisect_mode_reenter,
+     .key     = bisect_mode_key,
+diff --git a/src/mode_split.c b/src/mode_split.c
+index 498d9a1..1bb50b4 100644
+--- a/src/mode_split.c
++++ b/src/mode_split.c
+@@ -358,7 +358,8 @@ void split_mode_free(void *mode_state) {
+ }
+ 
+ struct mode_interface split_mode_interface = {
+-    .name    = "split",
++    .name        = "split",
++    .takes_space = true,
+     .enter   = split_mode_enter,
+     .reenter = split_mode_reenter,
+     .key     = split_mode_key,
+diff --git a/src/state.h b/src/state.h
+index 38a706c..b9343a6 100644
+--- a/src/state.h
++++ b/src/state.h
+@@ -138,6 +138,7 @@ struct state {
+     void                          *mode_states[MAX_NUM_MODES];
+     int                            current_mode;
+     enum click                     click;
++    bool                           peeking;
+ };
+ 
+ #endif

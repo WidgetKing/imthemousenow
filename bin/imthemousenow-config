@@ -14,6 +14,8 @@ Subcommands:
   mode <name>         the MODE's fields, as key<TAB>value
   modes               every MODE name and description
   get <dotted.key>    one [imthemousenow] setting, e.g. continuous.guard_ms
+  set <key> <value>   write one setting to the user's config.toml
+  toggle <key>        flip one true/false setting
   opacity <mode>      that MODE's opacity as section.key=value override lines
   env                 every setting and mode as MOUSENOW_CFG_* shell assignments
   check               parse every layer and report problems
@@ -268,6 +270,12 @@ def settings() -> dict:
     if theme_on:
         merged = deep_merge(merged, nest_reserved(parse_ini(THEME_CONF)))
     merged = deep_merge(merged, user)
+    # Not a setting, and not offered as one. wl-kbptr defaults this to 0, which
+    # makes a cancelled selection indistinguishable from a completed one -- the
+    # continuous lifetime reads this code to know when to stop, and every caller
+    # of wl-kbptr here tells Escape apart from a click by it. Forced after the
+    # merge so no layer, theme template included, can put it back to 0.
+    merged.setdefault("general", {})["cancellation_status_code"] = 1
     # Last, so the accent it turns is the one every layer agreed on, and so a
     # colour any layer set by hand is already in place to be left alone.
     derive_action_colors(merged)
@@ -550,6 +558,181 @@ def cmd_env(args):
         print(f"{env_name(path)}={shlex.quote(value)}")
 
 
+# --- writing a setting -------------------------------------------------------
+# The menu needs to change a setting without opening an editor, which means
+# writing to the user's config.toml rather than compiling out of it. Two rules
+# shape all of this:
+#
+#   1. The file is hand-written and full of the user's own comments. Nothing
+#      here reformats it: an existing key has its value replaced in place, a
+#      new key is appended to its section, and a new section is appended to the
+#      file. tomllib cannot write, and a round-trip through any writer that
+#      could would throw the comments away.
+#   2. A GUI cannot be trusted to have typed a valid value, and an invalid one
+#      fails late and silently -- a dead chord, a word that never appears. So
+#      every write is validated first, against the same vocabulary `check`
+#      uses, and the file is restored if it somehow lands unparsable anyway.
+
+
+def shipped() -> dict:
+    """The defaults layer alone. Type and existence come from here rather than
+    the merge, so a typo cannot be validated against a value the user's own
+    previous typo put there."""
+    return load_toml(DEFAULTS).get("imthemousenow", {})
+
+
+def settable_type(path: str):
+    """The Python type a dotted key's value must have, or None if no such key
+    is settable. A leaf the defaults do not name is allowed when its table is
+    named and has a sibling to take the type from -- that is what makes
+    `opacity.<mode>` and a new ACTION's `label` reachable without listing every
+    MODE here."""
+    parts = path.split(".")
+    node = shipped()
+    for part in parts[:-1]:
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    if not isinstance(node, dict):
+        return None
+    leaf = parts[-1]
+    if leaf in node and not isinstance(node[leaf], dict):
+        return type(node[leaf])
+    siblings = [type(v) for v in node.values() if not isinstance(v, dict)]
+    if leaf not in node and len(set(siblings)) == 1:
+        return siblings[0]
+    return None
+
+
+def settable_enum(path: str, merged: dict):
+    """The closed set of values a key accepts, or None if it is not an enum.
+    Drawn from axis_values so the four axes are declared once, not twice."""
+    axes = axis_values(merged)
+    if path.startswith("defaults."):
+        return axes.get(path.split(".", 1)[1])
+    if path == "osd.position":
+        return ["top", "center", "bottom"]
+    if path == "action.drag.drop_mode":
+        return ["same"] + axes["mode"]
+    return None
+
+
+def parse_as(text: str, want, path: str):
+    """The menu hands everything over as a string; TOML needs it typed."""
+    if want is bool:
+        if text not in ("true", "false"):
+            die(f"{path} is a true/false setting; '{text}' is neither")
+        return text == "true"
+    if want is int:
+        try:
+            return int(text)
+        except ValueError:
+            die(f"{path} is a whole number; '{text}' is not")
+    if want is float:
+        try:
+            return float(text)
+        except ValueError:
+            die(f"{path} is a number; '{text}' is not")
+    return text
+
+
+def toml_literal(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    return '"%s"' % str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
+def write_setting(path: str, value) -> None:
+    """Replace, append to a section, or append a section -- in that order, and
+    touching no other line of the file."""
+    parts = path.split(".")
+    section = ".".join(["imthemousenow"] + parts[:-1])
+    key, literal = parts[-1], toml_literal(value)
+
+    USER_DIR.mkdir(parents=True, exist_ok=True)
+    original = USER_CONF.read_text() if USER_CONF.is_file() else ""
+    lines = original.splitlines()
+
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == f"[{section}]":
+            start = index
+            break
+
+    if start is None:
+        block = ["", f"[{section}]", f"{key} = {literal}"]
+        lines = lines + block if lines else block[1:]
+    else:
+        end = len(lines)
+        for index in range(start + 1, len(lines)):
+            if lines[index].lstrip().startswith("["):
+                end = index
+                break
+        for index in range(start + 1, end):
+            stripped = lines[index].lstrip()
+            if stripped.startswith("#") or "=" not in stripped:
+                continue
+            if stripped.split("=", 1)[0].strip().strip('"') == key:
+                lines[index] = f"{key} = {literal}"
+                break
+        else:
+            # Before any trailing blank lines, so the section stays one block.
+            tail = end
+            while tail > start + 1 and not lines[tail - 1].strip():
+                tail -= 1
+            lines.insert(tail, f"{key} = {literal}")
+
+    USER_CONF.write_text("\n".join(lines) + "\n")
+    try:
+        load_toml_strict(USER_CONF)
+    except tomllib.TOMLDecodeError as exc:
+        USER_CONF.write_text(original)
+        die(f"writing {path} would have broken {USER_CONF} ({exc}); nothing was changed")
+
+
+def load_toml_strict(path: Path) -> dict:
+    """load_toml dies on a parse error; this raises, so a bad write can be
+    rolled back before anything is reported."""
+    with path.open("rb") as fh:
+        return tomllib.load(fh)
+
+
+def cmd_set(args):
+    if len(args) < 2:
+        die("set needs a key and a value, e.g. `set defaults.action move`")
+    path, text = args[0], " ".join(args[1:])
+
+    want = settable_type(path)
+    if want is None:
+        die(f"'{path}' is not a settable [imthemousenow] key")
+    merged = settings()
+    valid = settable_enum(path, merged)
+    if valid is not None and text not in valid:
+        die(f"{path} = '{text}' is not one of {sorted(valid)}")
+    value = parse_as(text, want, path)
+    if path.startswith("opacity.") and value < 0:
+        die(f"{path} = {value} is negative")
+
+    write_setting(path, value)
+    print(f"{path} = {ini_value(value)}")
+
+
+def cmd_toggle(args):
+    """One command per boolean row in the menu, so the jsonc does not have to
+    read the current value and compute its opposite in shell."""
+    if not args:
+        die("toggle needs a key")
+    path = args[0]
+    if settable_type(path) is not bool:
+        die(f"'{path}' is not a true/false setting")
+    node = settings().get("imthemousenow", {})
+    for part in path.split("."):
+        node = node.get(part, {}) if isinstance(node, dict) else {}
+    cmd_set([path, "false" if node is True else "true"])
+
+
 def cmd_path(args):
     for label, path in (
         ("defaults", DEFAULTS),
@@ -566,6 +749,8 @@ COMMANDS = {
     "mode": cmd_mode,
     "modes": cmd_modes,
     "get": cmd_get,
+    "set": cmd_set,
+    "toggle": cmd_toggle,
     "opacity": cmd_opacity,
     "env": cmd_env,
     "check": cmd_check,

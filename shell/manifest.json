@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "imthemousenow",
+  "name": "Pointer",
+  "version": "1.0.0",
+  "author": "Tristan Ward",
+  "license": "MIT",
+  "description": "Keyboard pointer control: the default chord, overlay opacity, and the action word, in the bar.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "Pointer",
+    "description": "Set what SUPER + ; does, how solid the overlay is, and what the action word says.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

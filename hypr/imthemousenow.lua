@@ -11,9 +11,14 @@
 -- label what looks clickable in the window you are already looking at, click
 -- once, get out of the way -- and each modifier flips exactly one axis:
 --
---   SHIFT  flips SCOPE     window -> monitor
---   ALT    flips MODE      hints  -> grid
---   CTRL   flips LIFETIME  single -> continuous
+--   SHIFT  flips SCOPE     window <-> monitor
+--   ALT    flips MODE      hints  <-> grid
+--   CTRL   flips LIFETIME  single <-> continuous
+--
+-- Flips, not fixed values: the bare chord is [imthemousenow.defaults], which
+-- the Pointer widget in the bar writes, and a modifier asks for the other
+-- value on its axis. Set the defaults to grid-on-monitor and SUPER + ; is
+-- that, while SUPER + ALT + ; is still "the other mode".
 --
 -- SHIFT and ALT keep those meanings inside the overlay: tapped on their own,
 -- they flip the same axis again, so the overlay you are looking at can become
@@ -54,15 +59,28 @@ KEY_CHANNEL = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/imthemousenow/keys"
 -- treats as controls. Bash re-asserts the missing ones by name, so this list is
 -- mirrored in bin/imthemousenow -- keep them in step.
 --
--- `space` commits a bisect area exactly as `Return` does, and it is the key a
--- hand already resting on the home row reaches first. wl-kbptr has always
--- accepted both (`mode_bisect.c`, XKB_KEY_Return and XKB_KEY_space fall through
--- to the same case); it never saw the second one here, because in popup-safe
--- mode a key that is not relayed is a key the overlay is not told about.
+-- `space` does two different things depending on where a selection has got to,
+-- and both of them need it relayed. In `bisect` it commits the area, exactly as
+-- `Return` does (`mode_bisect.c`, XKB_KEY_Return and XKB_KEY_space fall through
+-- to the same case) -- and it is the key a hand already resting on the home row
+-- reaches first. Everywhere else it is the peek: held down, the overlay fades
+-- so the target under it can be read. wl-kbptr decides which; this just has to
+-- deliver the key, because in popup-safe mode a key that is not relayed is a
+-- key the overlay is not told about.
 RELAY_KEYS = { "comma", "Escape", "BackSpace", "Return", "space" }
 for byte = string.byte("a"), string.byte("z") do
   table.insert(RELAY_KEYS, string.char(byte))
 end
+
+-- The keys wl-kbptr needs to know were LET GO of, not just pressed. Only
+-- `space`, and only because of the peek: holding it fades the overlay so the
+-- thing underneath can be read, which means the overlay has to be told when
+-- the hand comes off it. Every other key here is done the moment it is typed.
+--
+-- On the channel a release is the keysym name with `-` in front. A bare name
+-- is still a press, so a wl-kbptr that predates the peek reads exactly what it
+-- always did and simply never sees the release lines.
+RELAY_RELEASE_KEYS = { space = true }
 
 -- Append one keysym name for wl-kbptr to pick up. Opened per press: a handle
 -- kept open across the overlay's life would have to be closed on every way an
@@ -84,6 +102,18 @@ function imthemousenow_relay_bind(name)
   end, {
     description = "Pointer: type " .. name .. " into the overlay",
   })
+  -- Both halves come from this one function, so the re-assertion in
+  -- bin/imthemousenow -- which can only call it by name -- restores a dropped
+  -- key complete rather than press-only, which for `space` would be a peek
+  -- that never ends.
+  if RELAY_RELEASE_KEYS[name] then
+    hl.bind(name, function()
+      imthemousenow_relay_key("-" .. name)
+    end, {
+      release = true,
+      description = "Pointer: let go of " .. name .. " in the overlay",
+    })
+  end
 end
 
 -- ACTION is switched from inside the overlay, and `;` is the key that opened
@@ -243,24 +273,36 @@ hl.define_submap(SUBMAP_POPUPS, function()
   })
 end)
 
+-- The eight chords. A modifier does not name a value, it asks for the OTHER
+-- value on its axis, and the axis starts from [imthemousenow.defaults] -- so
+-- the bare chord is whatever the bar says SUPER + ; should be, and each
+-- modifier still means exactly one thing on top of it.
+--
+-- The alternative was to read the defaults here and bake them into the eight
+-- command strings. That works until the settings move somewhere a person can
+-- change them: Hyprland reads this file when it loads, so every adjustment in
+-- the bar would need a `hyprctl reload` before the keyboard agreed with the
+-- panel. --flip is resolved by bin/imthemousenow on each press instead, which
+-- costs nothing and is always current.
 local chords = {
-  -- modifiers                      scope       mode     lifetime      label
-  { "",                             "window",  "hints", "single",     "Pointer: hints" },
-  { "SHIFT + ",                     "monitor", "hints", "single",     "Pointer: hints on monitor" },
-  { "ALT + ",                       "window",  "grid",  "single",     "Pointer: grid" },
-  { "SHIFT + ALT + ",               "monitor", "grid",  "single",     "Pointer: grid on monitor" },
-  { "CTRL + ",                      "window",  "hints", "continuous", "Pointer: hints, keep going" },
-  { "CTRL + SHIFT + ",              "monitor", "hints", "continuous", "Pointer: hints on monitor, keep going" },
-  { "CTRL + ALT + ",                "window",  "grid",  "continuous", "Pointer: grid, keep going" },
-  { "CTRL + SHIFT + ALT + ",        "monitor", "grid",  "continuous", "Pointer: grid on monitor, keep going" },
+  -- modifiers                 flips                            label
+  { "",                        "",                              "Pointer: the default chord" },
+  { "SHIFT + ",                "--flip scope",                  "Pointer: the other scope" },
+  { "ALT + ",                  "--flip mode",                   "Pointer: the other mode" },
+  { "SHIFT + ALT + ",          "--flip scope --flip mode",      "Pointer: the other scope and mode" },
+  { "CTRL + ",                 "--flip lifetime",               "Pointer: the other lifetime" },
+  { "CTRL + SHIFT + ",         "--flip lifetime --flip scope",  "Pointer: the other lifetime and scope" },
+  { "CTRL + ALT + ",           "--flip lifetime --flip mode",   "Pointer: the other lifetime and mode" },
+  { "CTRL + SHIFT + ALT + ",   "--flip lifetime --flip scope --flip mode",
+                                                                "Pointer: the other lifetime, scope and mode" },
 }
 
 for _, chord in ipairs(chords) do
-  local modifiers, scope, mode, lifetime, label = table.unpack(chord)
+  local modifiers, flips, label = table.unpack(chord)
   o.bind(
     "SUPER + " .. modifiers .. "SEMICOLON",
     label,
-    ("imthemousenow --mode %s --scope %s --lifetime %s"):format(mode, scope, lifetime)
+    "imthemousenow" .. (flips ~= "" and (" " .. flips) or "")
   )
 end
 

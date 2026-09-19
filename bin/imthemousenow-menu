@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Take imthemousenow's rows back out of the Omarchy menu.
+
+Earlier versions merged a block of rows into the ONE user menu file Omarchy's
+shell reads (~/.config/omarchy/extensions/omarchy-menu.jsonc), because that
+file was the only place a plugin could put a setting the user could reach
+without an editor. The settings now live in a bar widget instead, which has
+sliders and a place to put a number -- the two things a menu row could never
+be -- so the rows are gone and this is what clears them out of an install that
+still has them.
+
+It only removes. Anything outside the markers is the user's, and is never read,
+reordered or rewritten -- not even the trailing comma, which is fixed up only
+on the lines left adjacent to the hole the block leaves behind.
+
+  remove    take the rows out, leaving the rest of the file alone
+
+install.sh runs this once on upgrade; uninstall.sh runs it too, for anyone
+going from a version that had the rows straight to no plugin at all.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+import sys
+import time
+from pathlib import Path
+
+HOME = Path.home()
+MENU = Path(os.environ.get("MOUSENOW_MENU_FILE", HOME / ".config/omarchy/extensions/omarchy-menu.jsonc"))
+
+BEGIN = "  // >>> imthemousenow (managed by install.sh; remove with uninstall.sh) >>>"
+END = "  // <<< imthemousenow <<<"
+
+
+def die(msg: str, code: int = 1):
+    print(f"imthemousenow-menu: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def strip_jsonc(text: str) -> str:
+    """JSONC for a parser that only speaks JSON: drop // comments and trailing
+    commas. Only ever used to CHECK a file, never to rewrite one -- the comments
+    it throws away are the user's."""
+    out, in_string, escaped = [], False, False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if in_string:
+            out.append(char)
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            index += 1
+            continue
+        if char == '"':
+            in_string = True
+            out.append(char)
+        elif text.startswith("//", index):
+            while index < len(text) and text[index] != "\n":
+                index += 1
+            continue
+        elif text.startswith("/*", index):
+            index = text.find("*/", index)
+            index = len(text) if index < 0 else index + 2
+            continue
+        else:
+            out.append(char)
+        index += 1
+    return re.sub(r",(\s*[}\]])", r"\1", "".join(out))
+
+
+def split_block(lines: list[str]):
+    """Where our block sits, or None. Markers only -- a row that merely looks
+    like ours is the user's, because they pasted it."""
+    try:
+        start = next(i for i, line in enumerate(lines) if line.strip() == BEGIN.strip())
+        end = next(i for i, line in enumerate(lines) if line.strip() == END.strip())
+    except StopIteration:
+        return None
+    if end < start:
+        die(f"{MENU} has our end marker before its begin marker; fix it by hand")
+    return start, end
+
+
+def write_menu(text: str, original: str) -> None:
+    """Validate before replacing anything. A menu file that does not parse is a
+    menu that does not open, and it would take the user's own rows down with
+    ours."""
+    try:
+        json.loads(strip_jsonc(text))
+    except json.JSONDecodeError as exc:
+        die(f"the result would not parse ({exc}); {MENU} was left alone")
+    if text == original:
+        return
+    MENU.with_suffix(f".jsonc.bak.{int(time.time())}").write_text(original)
+    MENU.write_text(text)
+
+
+def cmd_remove(args):
+    if not MENU.is_file():
+        return
+    original = MENU.read_text()
+    lines = original.splitlines()
+    found = split_block(lines)
+    if not found:
+        return
+    start, end = found
+    del lines[start : end + 1]
+
+    # We may have taken the last row with us, leaving the one before it without
+    # the comma it now needs -- or with one it no longer does.
+    body = [i for i, line in enumerate(lines) if line.strip() and not line.lstrip().startswith("//")]
+    for index in body:
+        if lines[index].strip() in ("{", "}"):
+            continue
+        after = strip_jsonc("\n".join(lines[index + 1 :])).strip()
+        lines[index] = lines[index].rstrip().rstrip(",") + ("" if after in ("}", "};", "") else ",")
+
+    write_menu("\n".join(lines) + "\n", original)
+    print(f"Removed the imthemousenow rows from {MENU}")
+
+
+COMMANDS = {"remove": cmd_remove}
+
+if __name__ == "__main__":
+    argv = sys.argv[1:]
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip())
+        sys.exit(0 if argv else 2)
+    if argv[0] not in COMMANDS:
+        die(f"unknown command '{argv[0]}'; this version only knows {', '.join(COMMANDS)}")
+    COMMANDS[argv[0]](argv[1:])

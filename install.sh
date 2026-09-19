@@ -12,6 +12,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_DIR="$HOME/.local/share/imthemousenow"
 BIN_DIR="$HOME/.local/bin"
 USER_DIR="$HOME/.config/omarchy/imthemousenow"
+SHELL_PLUGIN_DIR="$HOME/.config/omarchy/plugins/imthemousenow"
 STATE_DIR="$HOME/.local/state/imthemousenow"
 THEMED_DIR="$HOME/.config/omarchy/themed"
 HOOKS_DIR="$HOME/.config/omarchy/hooks"
@@ -142,7 +143,7 @@ command -v wl-kbptr >/dev/null 2>&1 ||
 # there": a file this repo has since deleted or renamed stays installed forever
 # otherwise, and the scripts resolve their siblings by path. A `presets.toml`
 # from an old version lived on that way for several releases.
-MANAGED=(bin config.default.toml hypr qml)
+MANAGED=(bin config.default.toml hypr qml shell)
 
 say "Installing plugin files ($( ((dev)) && echo symlinked || echo copied ))"
 if [[ -d $PLUGIN_DIR ]]; then
@@ -161,13 +162,21 @@ for item in "${MANAGED[@]}"; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd; do
+for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd imthemousenow-menu; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
 # The Hyprland module is required by module path, so it must live under
 # ~/.config/omarchy/plugins/imthemousenow/ regardless of where the rest goes.
-link_or_copy "$REPO/hypr" "$HOME/.config/omarchy/plugins/imthemousenow/hypr"
+# The bar widget has to be there too, and at the ROOT of it: the shell finds a
+# third-party plugin by walking ~/.config/omarchy/plugins/<id>/ for a
+# manifest.json, and takes the directory name as the id. So the two things
+# share one directory -- `hypr/` is not in the manifest and the shell ignores
+# it, and the require() path is not the shell's business.
+for item in manifest.json Panel.qml Model.js; do
+  link_or_copy "$REPO/shell/$item" "$SHELL_PLUGIN_DIR/$item"
+done
+link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 
 # --- 2b. the ACTION announcement ---------------------------------------------
 # Nothing to install: it draws through quickshell, which the `omarchy` package
@@ -191,6 +200,42 @@ if ! grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY"; then
   say "Adding the Hyprland include to hyprland.lua"
   cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
   printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
+fi
+
+# --- 5b. the bar widget -------------------------------------------------------
+# The settings used to be rows merged into the one user menu file Omarchy's
+# shell reads. A menu row can only ever be a toggle or a pick-one-of-N, so
+# opacity was three presets pretending to be a range and every real number was
+# behind "Edit Config...". The bar has sliders, so the settings live there now
+# -- in a widget beside the ones for sound, Wi-Fi and battery, which is where
+# someone looks for a setting they can see.
+#
+# Take the old rows back out first. They are still in the user's file from an
+# earlier install, and left there they would point at a menu that no longer
+# has anything to say. Only what is between our markers; the rest of that file
+# is the user's, and may be every other plugin's too.
+if [[ -x "$PLUGIN_DIR/bin/imthemousenow-menu" ]]; then
+  "$PLUGIN_DIR/bin/imthemousenow-menu" remove ||
+    warn "Could not remove the old Omarchy menu rows; run 'imthemousenow-menu remove' to see why."
+fi
+
+# The shell only re-walks the plugin directories when asked, and only puts a
+# widget on the bar when its id is in shell.json. Both are its own commands,
+# and both are no-ops on the second run. A shell that is not up yet is not an
+# error: it discovers the plugin at startup either way, and `omarchy plugin
+# enable` is the only part that has to wait.
+if command -v omarchy-shell >/dev/null 2>&1 && omarchy-shell shell ping >/dev/null 2>&1; then
+  omarchy-shell shell rescanPlugins >/dev/null 2>&1 || true
+  if ! omarchy-shell shell listPlugins 2>/dev/null | grep -q '"id"[[:space:]]*:[[:space:]]*"imthemousenow"'; then
+    warn "The shell did not pick up the bar widget; run 'omarchy-shell shell rescanPlugins'."
+  elif ! grep -q '"imthemousenow"' "$HOME/.config/omarchy/shell.json" 2>/dev/null; then
+    say "Adding the Pointer widget to the bar"
+    omarchy plugin enable imthemousenow --section right >/dev/null 2>&1 ||
+      warn "Could not add the widget to the bar; run 'omarchy plugin enable imthemousenow --section right'."
+  fi
+else
+  say "The shell is not running; the Pointer widget appears when it next starts."
+  say "Then: omarchy plugin enable imthemousenow --section right"
 fi
 
 # --- 6. apply -----------------------------------------------------------------

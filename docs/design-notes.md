@@ -21,19 +21,21 @@ the implementation differs from the original plan.
 
 ## Departures from the plan
 
-**No Quickshell plugin, for now.** Omarchy's plugin system (`omarchy plugin
-add`) is specifically a *Quickshell* plugin loader: it clones a git repo with a
-`manifest.json` into `~/.config/omarchy/plugins/<id>/` and loads QML inside the
-shell process. Its installer explicitly "never runs plugin code, install hooks,
-or sudo". Since nothing here is a shell surface yet — the pointer overlay is
-wl-kbptr's own layer-shell window, not a Quickshell one — a manifest would be
-ceremony around an empty QML file. The parts that need privilege (building a
-package) and the parts that touch config live in `install.sh` instead.
+**A Quickshell plugin, but not for the overlay.** Omarchy's plugin system
+(`omarchy plugin add`) is specifically a *Quickshell* plugin loader: it clones a
+git repo with a `manifest.json` into `~/.config/omarchy/plugins/<id>/` and loads
+QML inside the shell process. The pointer overlay is not that, and cannot be --
+it is wl-kbptr's own layer-shell window, and the parts that need privilege
+(building a package) are exactly what that installer promises never to run.
+So `install.sh` still does the build and the Hyprland wiring, and always will.
 
-This changes when the mouse-mode indicator lands: that *is* a bar widget, and
-at that point the repo gains a `manifest.json` with
-`kinds: ["bar-widget"]` and becomes installable with `omarchy plugin add` as
-well, with `install.sh` still doing the build and the Hyprland wiring.
+What *is* a shell surface is the settings: the repo ships `shell/manifest.json`
+with `kinds: ["bar-widget"]`, and the panel behind it is the whole of this
+plugin's configuration UI. The two halves share one directory --
+`~/.config/omarchy/plugins/imthemousenow/` holds both the manifest the shell
+reads and the `hypr/` module `hyprland.lua` requires by module path. Neither
+knows about the other; the shell ignores a directory that is not in a manifest,
+and Lua does not care what else is in there.
 
 **Config is layered through `-o`, not merged files.** The plan had a single
 generated config. Instead: `-c` points at the theme-rendered colours, then the
@@ -302,9 +304,91 @@ derived.
   until a key asks for the overlay back. Not implemented; the pause costs a
   keypress per right click and that trade has not been accepted yet.
 
-- **Menu entry**: `~/.config/omarchy/extensions/omarchy-menu.jsonc` is a single
-  user-owned file, so `install.sh` deliberately does not edit it. Add a Pointer
-  submenu by hand if you want one.
+- **The peek is a group, not a palette**: holding `Space` fades the whole
+  overlay to `general.peek_alpha`. The obvious implementation -- scale the alpha
+  on every colour, the way `[imthemousenow.opacity]` does -- is wrong here, and
+  for a reason worth writing down: opacity exists so a *readable* overlay can be
+  more or less intrusive, which is why it deliberately leaves labels, borders
+  and the bisect pointer at full alpha. The peek wants the opposite. It wants
+  everything out of the way, labels included, because the labels are what is
+  covering the target. So it is `cairo_push_group` around `mode_render` and one
+  `cairo_paint_with_alpha`: the overlay as a single image, faded as a whole, and
+  no mode has to know it happened.
+
+  The catch is that buffers are recycled. A mode normally overwrites every pixel
+  of the surface, so nobody clears it first; a group composited on top does not,
+  and the previous frame shows through underneath at full strength. The clear is
+  therefore part of the peek path, not an accident of it.
+
+- **The peek gives up at bisect, deliberately**: `space` already commits an area
+  there, exactly as `Return` does. The options were to move the commit key, to
+  make `space` mean different things depending on how long it is held, or to let
+  the peek not exist in the modes that have spoken for the key. The third is the
+  only one that never surprises anyone: a key that dims sometimes and clicks
+  other times is worse than one that only dims where it can. Modes say which
+  they are with `takes_space` on their `mode_interface`, next to everything else
+  they declare about keys, so a mode that starts using `space` cannot forget to
+  mention it.
+
+  This costs the feature in the second half of a `grid` selection and nothing in
+  `hints`, which has no bisect. That asymmetry is the price and it is worth
+  naming rather than hiding.
+
+- **peek_alpha is gated on the binary, not shipped in the config**: it is an
+  `[imthemousenow]` setting that `bin/imthemousenow` turns into a `-o
+  general.peek_alpha=` only after grepping the installed wl-kbptr for the
+  option name -- the same capability check `--drag` and the key channel use.
+  The obvious alternative, putting it in the `[general]` passthrough where it
+  reads more naturally, was written first and was a live footgun: wl-kbptr
+  rejects the WHOLE config file over one unrecognised option and exits before
+  drawing, so a stock build -- including `mode = "aur"` in pkg/source.toml,
+  which is unpatched by definition -- would answer every chord by doing
+  nothing at all. Caught by running the installed binary against the compiled
+  config, which is the only way it shows up: the config compiles fine, the
+  plugin's own `check` passes, and the failure is entirely at the far end.
+
+- **Releases on the key channel**: the popup-safe overlay has no keyboard, so
+  every key is a compositor binding appended to a file -- and a binding fires on
+  press. The peek is the first thing here that needs to know a key was let go,
+  so the channel grew a release: `space` is a press, `-space` is a release. The
+  prefix marks the *new* case rather than both, so a compositor that only knows
+  how to write presses keeps working and its existing lines are not
+  reinterpreted. Only `space` is relayed twice; relaying an ordinary label on
+  release as well would type it twice.
+
+- **Where the settings live**: a bar widget, not a menu entry. The first version
+  merged rows into `~/.config/omarchy/extensions/omarchy-menu.jsonc` because that
+  was the only user-reachable surface a plugin could write to -- a single
+  user-owned file, no drop-in directory (`shell/plugins/menu/Menu.qml` hardcodes
+  two paths: its own defaults and that one). It worked, and it was the wrong
+  shape: a menu row can be a toggle or a pick-one-of-N and nothing else, so
+  opacity shipped as three presets pretending to be a range and every numeric
+  constant stayed behind an "Edit Config" row.
+
+  The shell's plugin registry is the surface that fits. A `manifest.json` in
+  `~/.config/omarchy/plugins/<id>/` declaring `kinds: ["bar-widget"]` is
+  discovered without touching a file the user owns, the widget sits beside the
+  ones for sound, Wi-Fi and battery -- which is where someone looks for a
+  setting they can see -- and the panel has sliders, so the settings that are
+  really numbers are really sliders.
+
+  The panel holds no opinion about what a valid value is. It reads every merged
+  setting with one `imthemousenow-config env` on open and writes with `set` /
+  `toggle`, which validate against the same vocabulary `check` uses. That is
+  what stopped the menu rows from drifting out of step with the config, and it
+  is worth keeping for the same reason: exactly one program interprets this
+  config.
+
+  Two details the first version got wrong and this one does not. Writes are
+  queued one at a time -- two switches flipped in the same breath both rewrite
+  `config.toml`, and the second has to read what the first wrote. And a slider
+  writes on release, not on move: a drag across the track is a dozen values, and
+  writing each one is a dozen rewrites to land on the one the user meant.
+
+  `bin/imthemousenow-menu` survives, trimmed to `remove`. An install that still
+  has the rows has to be cleaned up, and only what is between the markers may
+  go: the rest of that file is the user's, and may be every other plugin's too.
+  `tests/menu-removal.sh` is about that and nothing else.
 
 ## home_row_keys, and where right-click came from
 

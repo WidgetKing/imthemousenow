@@ -19,9 +19,12 @@
 #   SCOPE     window | monitor      where the overlay is drawn
 #   ACTION    left-click | right-click | move | drag
 #   LIFETIME  single | continuous   one selection, or until Escape
+#
+# Everything above the ADVANCED divider is a preference: no wrong answers, and
+# worth a look. Everything below it is tuning, redesign, or an escape hatch --
+# correct as shipped, and explained there for the day you need it.
 
 [imthemousenow]
-single_instance = true
 # Desktop notifications for errors and refusals.
 notify = true
 # Start from the colours the Omarchy theme template renders. Turn this off to
@@ -30,6 +33,32 @@ theme_colors = true
 # Apply the current Omarchy font to every mode that draws labels.
 theme_font = true
 
+# Hold SPACE and the whole overlay fades to this, so the thing you are aiming
+# at can be read through it; let go and it comes back. Nothing moves and
+# nothing is selected, so the labels stay exactly where they were while the
+# target underneath becomes legible -- which is the point, because the usual
+# way a selection goes wrong is a label landing on top of the word that would
+# have told you which target you wanted.
+#
+# 1 turns it off: the overlay is already fully drawn, so holding SPACE has
+# nothing to do. This is not [imthemousenow.opacity] above -- that is how the
+# overlay looks the whole time it is up, and it scales the theme's colours so
+# labels stay readable at any setting. This is the opposite: the entire
+# surface, labels included, faded at once for as long as a key is held,
+# precisely so none of it is in the way.
+#
+# NOT available in the second half of a `grid` selection. Once a grid reaches
+# bisect, SPACE commits the area exactly as Return does, and it keeps that job;
+# `hints` has no bisect in it, so the peek is there throughout. A key that dims
+# sometimes and clicks other times would be worse than one that only dims where
+# it can.
+#
+# Needs the wl-kbptr this plugin's install.sh builds
+# (pkg/0005-dim-the-overlay-while-a-key-is-held.patch). On a stock build this
+# is not passed through at all -- an option it does not know would make it
+# reject the whole config -- so the setting is simply inert.
+peek_alpha = 0.1
+
 # What you get when a flag is not given. These are the base chord, SUPER + ;.
 [imthemousenow.defaults]
 mode = "hints"
@@ -37,42 +66,31 @@ scope = "window"
 action = "left-click"
 lifetime = "single"
 
+# How much of the screen an overlay hides, per MODE. 1 is the colours the theme
+# renders; below that the dimming and the label backgrounds get more
+# transparent, above it more solid (alpha is clamped at fully opaque). Only
+# backgrounds scale: labels, borders and the bisect pointer keep the theme's
+# alpha, so turning an overlay down makes it see-through, never unreadable.
+#
+# `default` applies to any MODE without an entry of its own -- see ADVANCED for
+# naming one.
+[imthemousenow.opacity]
+default = 0.8
+
 # A large word on screen naming the ACTION you just moved into. This plugin's
 # whole surface is invisible until a key is pressed, so the one thing a new user
 # cannot discover by looking is which of the four actions they are now in --
 # especially since `;` switches it from inside the overlay, where there is
 # nothing but a colour tint to say so.
-#
-# Solid first, then a fade. The solid part is when the word gets read; the fade
-# is what says "this is telling you something, not asking you for something",
-# so it can be ignored rather than dismissed.
 [imthemousenow.osd]
 enabled = true
-# Total time on screen, and how much of that total is the fade out. Half a
-# second all told: long enough to register a word you already know the shape of,
-# short enough that it is gone before you have aimed. This is a reminder of a
-# state you just chose, not a message to be read.
-ms = 500
-fade_ms = 250
-# Font size in px. Large on purpose: it is meant to be read without looking for
-# it, from wherever on screen your eyes already were.
-size = 120
 # top | center | bottom, of whatever the overlay is covering: the screen in
-# monitor scope, the focused window in window scope. A word announcing an overlay
-# confined to one window has no business in the middle of a screen that overlay
-# is not on.
-#
-# `top` by default because `center` is where hint labels and the bisect grid are,
-# and a word over the target defeats the point -- it cannot swallow a click (its
-# input region is empty) but it can hide one. In window scope `center` is more
-# defensible: the word is then inside the area you are already looking at.
+# monitor scope, the focused window in window scope. `top` by default because
+# `center` is where hint labels and the bisect grid are, and a word over the
+# target defeats the point -- it cannot swallow a click (its input region is
+# empty) but it can hide one. In window scope `center` is more defensible: the
+# word is then inside the area you are already looking at.
 position = "top"
-# Empty follows the Omarchy font, which is what Omarchy renders its own text in
-# (fontconfig's monospace, via `omarchy font current`). Name a family here to
-# override it. Omarchy's logo is not a candidate: the wordmark ships as SVG
-# outlines and ASCII art, and the one font named `omarchy` is an icon font whose
-# only glyphs are private-use marks -- it has no letters to set a word in.
-font = ""
 # Announce the ACTION a chord opens in, as well as switches made inside the
 # overlay. Off by default, and deliberately: SUPER + ; is a left click, which is
 # what a pointer does when you do not tell it otherwise, so naming it every time
@@ -81,7 +99,60 @@ font = ""
 # a choice you made rather than the default you started from. That announcement
 # comes from imthemousenow-steer, so it happens whatever this is set to.
 on_start = false
+#
+# The rest of the OSD is tuning rather than preference, and lives here only
+# because TOML will not let one table be declared in two places.
+#
+# Solid first, then a fade. The solid part is when the word gets read; the fade
+# is what says "this is telling you something, not asking you for something",
+# so it can be ignored rather than dismissed. Total time on screen, and how much
+# of that total is the fade out. Half a second all told: long enough to register
+# a word you already know the shape of, short enough that it is gone before you
+# have aimed. This is a reminder of a state you just chose, not a message to be
+# read.
+ms = 500
+fade_ms = 250
+# Font size in px. Large on purpose: it is meant to be read without looking for
+# it, from wherever on screen your eyes already were.
+size = 120
+# Empty follows the Omarchy font, which is what Omarchy renders its own text in
+# (fontconfig's monospace, via `omarchy font current`). Name a family here to
+# override it. Omarchy's logo is not a candidate: the wordmark ships as SVG
+# outlines and ASCII art, and the one font named `omarchy` is an icon font whose
+# only glyphs are private-use marks -- it has no letters to set a word in.
+font = ""
 
+# =============================================================================
+# ADVANCED
+# =============================================================================
+# Past this line nothing needs changing to use the plugin. These are tuning
+# constants, escape hatches, and the definitions of the MODEs themselves.
+
+# EXPERIMENTAL, and the one thing down here with a reason to be turned on. An
+# overlay normally takes keyboard focus, and that is what closes a context menu
+# or a browser extension popup the moment it appears -- the compositor drops the
+# popup's grab and tells the client it is done. Turn this on and the overlay
+# asks for no keyboard focus at all: the keys come from compositor bindings
+# instead, relayed through a file wl-kbptr reads, and whatever popup you opened
+# is still there to aim at.
+#
+# The cost is that every key the overlay uses must be a binding: they live in
+# their own submap, and anything not bound there is swallowed rather than
+# reaching the window underneath. Needs the wl-kbptr built by this plugin's
+# install.sh (pkg/0002-read-keys-from-a-channel-*.patch); with a stock wl-kbptr
+# this is ignored and the overlay behaves as it always did.
+[imthemousenow.popups]
+keep_open = false
+
+# --- per-MODE opacity --------------------------------------------------------
+# A MODE named here overrides [imthemousenow.opacity].default, so `windows` can
+# follow `hints` or not, as you like:
+#
+#   [imthemousenow.opacity]
+#   hints = 0.8
+#   grid = 1.0
+
+# --- the words, and drag -----------------------------------------------------
 # What the OSD says for each ACTION, and later what a two-stage action calls
 # its stages: drag announces DRAG when it takes hold and DROP when it is about
 # to let go. Upper-cased at display time, so these stay readable here.
@@ -132,6 +203,11 @@ drop_mode = "same"
 [imthemousenow.action.drop]
 label = "drop"
 
+# --- timing guards -----------------------------------------------------------
+# Not preferences. If one of these needs changing, something is wrong and the
+# fix is probably code; they are here so a misbehaving compositor can be worked
+# around without one.
+
 # Switching ACTION, workspace or monitor from inside the overlay tears it down
 # and puts it back up. A workspace or monitor change needs the compositor to
 # settle first, or the new overlay measures the screen we just left.
@@ -142,38 +218,6 @@ settle_ms = 80
 # overlay key is treated as the tail of that chord, not a tap.
 tap_debounce_ms = 400
 
-# EXPERIMENTAL. An overlay normally takes keyboard focus, and that is what
-# closes a context menu or a browser extension popup the moment it appears --
-# the compositor drops the popup's grab and tells the client it is done. Turn
-# this on and the overlay asks for no keyboard focus at all: the keys come from
-# compositor bindings instead, relayed through a file wl-kbptr reads, and
-# whatever popup you opened is still there to aim at.
-#
-# The cost is that every key the overlay uses must be a binding: they live in
-# their own submap, and anything not bound there is swallowed rather than
-# reaching the window underneath. Needs the wl-kbptr built by this plugin's
-# install.sh (pkg/0002-read-keys-from-a-channel-*.patch); with a stock wl-kbptr
-# this is ignored and the overlay behaves as it always did.
-[imthemousenow.popups]
-keep_open = false
-
-# `-` `=` `_` `+` resize the window the overlay is drawn over, the way SUPER +
-# those keys resize the focused window outside it. This is the step, in pixels,
-# and 100 is what Omarchy's own unmodified binding uses.
-[imthemousenow.resize]
-step = 100
-
-# How much of the screen an overlay hides, per MODE. 1 is the colours the theme
-# renders; below that the dimming and the label backgrounds get more
-# transparent, above it more solid (alpha is clamped at fully opaque). Only
-# backgrounds scale: labels, borders and the bisect pointer keep the theme's
-# alpha, so turning an overlay down makes it see-through, never unreadable.
-#
-# `default` applies to any MODE without an entry of its own, so `windows` can
-# follow `hints` or not, as you like.
-[imthemousenow.opacity]
-default = 0.8
-
 [imthemousenow.continuous]
 # Continuous reopens the overlay after each completed selection. A pass that
 # "succeeds" faster than this is treated as a misfire; this many in a row stops
@@ -183,7 +227,17 @@ max_quick_exits = 5
 # 0 = no limit on how many clicks one burst may make.
 max_passes = 0
 
+# `-` `=` `_` `+` resize the window the overlay is drawn over, the way SUPER +
+# those keys resize the focused window outside it. This is the step, in pixels,
+# and 100 is what Omarchy's own unmodified binding uses -- diverging from it
+# makes the overlay behave unlike the desktop around it.
+[imthemousenow.resize]
+step = 100
+
 # --- modes ------------------------------------------------------------------
+# These define what the MODEs ARE, rather than configuring them; editing one is
+# a redesign, not a preference.
+#
 # chain   : wl-kbptr mode chain, minus the trailing click (ACTION adds that)
 # refine  : appended to the chain to narrow the selection down to a point.
 #           bisect (home-row halving) or split (arrow keys), or "" for neither.
@@ -215,11 +269,11 @@ source = "windows"
 # --- wl-kbptr passthrough ----------------------------------------------------
 # Colours are not set here: they come from the Omarchy theme template. Anything
 # you put in these sections wins over the theme.
-
-[general]
-# Non-zero so a cancelled selection is distinguishable from a completed one.
-# Continuous lifetime depends on this to know when to stop.
-cancellation_status_code = 1
+#
+# `general.cancellation_status_code` is NOT here and cannot be set: wl-kbptr
+# defaults it to 0, which makes a cancelled selection indistinguishable from a
+# completed one, and continuous lifetime depends on telling them apart.
+# imthemousenow-config forces it to 1 after every layer has been merged.
 
 # home_row_keys is deliberately NOT set. Left unset, wl-kbptr derives it from
 # the active keymap (a s d f j k l m to pick bisect sub-areas, then g, h, b to

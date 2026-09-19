@@ -35,8 +35,26 @@ SUBMAP="imthemousenow"
 # popup it is drawn over lives on. See hypr/imthemousenow.lua.
 SUBMAP_POPUPS="imthemousenow-popups"
 KEY_CHANNEL="$SESSION_DIR/keys"
-# Mirrors RELAY_KEYS in hypr/imthemousenow.lua; keep them in step.
+# Mirrors RELAY_KEYS in hypr/imthemousenow.lua; keep them in step. Only the
+# names, not how each one is bound: `space` is relayed on release as well as
+# press (the peek needs to know when the hand comes off it), and that pairing
+# lives in the lua, in the function this file re-asserts binds through.
 RELAY_KEYS=(comma Escape BackSpace Return space {a..z})
+
+# The other value on an axis: what a modifier means. SCOPE and LIFETIME have
+# exactly two, so "the other" is unambiguous. MODE is the config's list and can
+# have more than two -- `windows` ships, and a user can add their own -- so it
+# is the first one that is not the one we are on, which for the pair the chords
+# are documented around (hints, grid) is still the other of the two. Falls back
+# to the value it was given when the axis somehow has only one, because a chord
+# that opens the wrong overlay is better than a chord that opens none.
+other_value() {
+  local axis="$1" current="$2" candidate
+  for candidate in $(setting "valid.$axis"); do
+    [[ $candidate == "$current" ]] || { echo "$candidate"; return; }
+  done
+  echo "$current"
+}
 
 list_modes() {
   local name
@@ -71,6 +89,19 @@ has_drag() {
   local binary
   binary="$(command -v wl-kbptr)" || return 1
   grep -qa -- --drag "$binary"
+}
+
+# Whether the installed wl-kbptr is one that can fade itself while a key is
+# held. Asked the same way the two above ask theirs, but the consequence of
+# guessing wrong is worse than either: an option wl-kbptr does not know makes
+# it reject the WHOLE config file and exit before drawing anything, so shipping
+# `general.peek_alpha` unconditionally would turn every chord into a silent
+# no-op on a stock build -- including `mode = "aur"` in pkg/source.toml, which
+# is unpatched by definition.
+has_peek() {
+  local binary
+  binary="$(command -v wl-kbptr)" || return 1
+  grep -qa peek_alpha "$binary"
 }
 
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
@@ -143,13 +174,14 @@ end)" >/dev/null 2>&1 || true
 }
 
 main() {
-  local mode="" scope="" action="" lifetime="" dry_run=0 extra_opts=()
+  local mode="" scope="" action="" lifetime="" dry_run=0 extra_opts=() flips=()
 
   while (($#)); do
     case "$1" in
       -h | --help)
         cat <<EOF
-Usage: imthemousenow [--mode M] [--scope S] [--action A] [--lifetime L] [-- <wl-kbptr args>]
+Usage: imthemousenow [--mode M] [--scope S] [--action A] [--lifetime L]
+                     [--flip AXIS]... [-- <wl-kbptr args>]
 
 Every invocation is four independent choices. Anything you leave out comes
 from [imthemousenow.defaults] in the config.
@@ -178,14 +210,21 @@ asked for, even in a continuous lifetime.
 
 A drag asks twice: once for the thing to pick up, once for where it goes. The
 first pass only moves the pointer -- nothing is pressed until both ends are
-known -- so `;`, `:`, `'` and Escape all abandon one halfway and leave nothing
+known -- so \`;\`, \`:\`, \`'\` and Escape all abandon one halfway and leave nothing
 held. The drop pass covers the monitor the drag picked up on, and the pointer
 takes action.drag.duration_ms to travel, because a client reads drag-and-drop
 out of the motion events under a held button and one jump is not enough of
 them.
 
-  F5   rebuild the overlay against the screen as it is now
-  Tab  in --scope window: swap this window with one you pick
+  F5     rebuild the overlay against the screen as it is now
+  Tab    in --scope window: swap this window with one you pick
+  Space  hold to fade the overlay and see what is under it
+
+Space is the peek. Hold it and the whole overlay fades almost away; let go and
+it comes back. Nothing moves and nothing is selected, so the labels are still
+where they were once you can read the thing you were aiming at. Not available
+in the second half of a grid selection: once it reaches bisect, Space commits
+the area the way Return does. Set peek_alpha = 1 in the config to turn it off.
 
 An overlay is measured once, when it opens. Press F5 when the screen has moved
 underneath it -- a page scrolled, a window resized, a dialog opened -- and the
@@ -213,6 +252,9 @@ Either way the overlay is rebuilt around where things ended up, so you keep
 aiming without leaving it.
 
 Options:
+  --flip AXIS   Take AXIS from the config and use the other value: mode,
+                scope or lifetime. Repeatable. This is how the chords compose
+                -- see hypr/imthemousenow.lua.
   --list        List modes, one per line.
   -n, --dry-run Print the wl-kbptr command that would run, then exit.
   -R, --repeat  Alias for --lifetime continuous.
@@ -232,6 +274,8 @@ EOF
       --scope=*) scope="${1#*=}"; shift ;;
       --action) action="${2:-}"; [[ -n $action ]] || die "--action needs a value"; shift 2 ;;
       --action=*) action="${1#*=}"; shift ;;
+      --flip) flips+=("${2:-}"); [[ -n ${2:-} ]] || die "--flip needs an axis"; shift 2 ;;
+      --flip=*) flips+=("${1#*=}"); shift ;;
       --lifetime) lifetime="${2:-}"; [[ -n $lifetime ]] || die "--lifetime needs a value"; shift 2 ;;
       --lifetime=*) lifetime="${1#*=}"; shift ;;
       -R | --repeat) lifetime="continuous"; shift ;;
@@ -250,6 +294,22 @@ EOF
   [[ -n $scope ]] || scope="$(setting defaults.scope)"
   [[ -n $action ]] || action="$(setting defaults.action)"
   [[ -n $lifetime ]] || lifetime="$(setting defaults.lifetime)"
+
+  # The chords are modifiers, and a modifier flips an axis rather than setting
+  # it: SUPER + ; is whatever [imthemousenow.defaults] says, and adding SHIFT
+  # asks for the other SCOPE -- whichever of the two that now is. Resolved here
+  # rather than baked into the keybinding, so a change made in the bar applies
+  # to the next keypress instead of waiting for a `hyprctl reload`.
+  local axis
+  for axis in ${flips+"${flips[@]}"}; do
+    case $axis in
+      mode) mode="$(other_value mode "$mode")" ;;
+      scope) scope="$(other_value scope "$scope")" ;;
+      action) action="$(other_value action "$action")" ;;
+      lifetime) lifetime="$(other_value lifetime "$lifetime")" ;;
+      *) die "--flip does not know the axis '$axis'" ;;
+    esac
+  done
 
   # What each axis may be is the config's to say, not this script's: the same
   # lists are what `imthemousenow-config check` validates the config against.
@@ -408,6 +468,15 @@ EOF
     local opt
     for opt in $opts; do args+=(-o "$opt"); done
 
+    # The peek, only if this binary knows the option. 1 is "already fully
+    # drawn", which is how wl-kbptr itself spells off, so there is nothing to
+    # pass in that case either.
+    local peek
+    peek="$(setting peek_alpha)"
+    if [[ -n $peek && $peek != 1 && $peek != 1.0 ]] && has_peek; then
+      args+=(-o "general.peek_alpha=$peek")
+    fi
+
     # Per-MODE opacity, which is arithmetic on the theme's own colours rather
     # than colours of its own -- so it is computed where the layers are merged
     # and arrives here as override lines. Before config.local, because a colour
@@ -447,11 +516,9 @@ EOF
   # binding twice used to lock the session out. A non-blocking flock means the
   # second press is a no-op instead. The lock is held by this script, so it is
   # released however the process dies; no stale lock can wedge it.
-  if [[ $(setting single_instance) == true ]]; then
-    exec 9>"$LOCK_FILE"
-    if ! flock -n 9; then
-      exit 0
-    fi
+  exec 9>"$LOCK_FILE"
+  if ! flock -n 9; then
+    exit 0
   fi
 
   # Popup-safe mode is decided once, here, and shows up as two things: the
