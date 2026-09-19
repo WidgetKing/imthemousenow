@@ -307,6 +307,19 @@ def cmd_check(args):
         elif name != "default" and name not in merged.get("mode", {}):
             problems.append(f"[imthemousenow.opacity].{name} is not a MODE; try one of {sorted(merged.get('mode', {}))}")
 
+    # The OSD's own settings fail late and quietly otherwise: a bad position or
+    # a fade longer than the whole life is a word that never appears, which
+    # looks exactly like the feature being off.
+    osd = merged.get("imthemousenow", {}).get("osd", {})
+    if osd.get("position") not in (None, "top", "center", "bottom"):
+        problems.append(f"[imthemousenow.osd].position = '{osd['position']}' is not top, center or bottom")
+    for field in ("ms", "fade_ms", "size"):
+        value = osd.get(field)
+        if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
+            problems.append(f"[imthemousenow.osd].{field} = '{value}' is not a positive whole number")
+    if isinstance(osd.get("ms"), int) and isinstance(osd.get("fade_ms"), int) and osd["fade_ms"] > osd["ms"]:
+        problems.append(f"[imthemousenow.osd].fade_ms ({osd['fade_ms']}) is longer than ms ({osd['ms']})")
+
     keys = merged.get("general", {}).get("home_row_keys", "")
     if keys and len(keys) != 11:
         problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")

@@ -154,6 +154,10 @@ case "$verb" in
     # Already there: relaunching would cost a flicker and change nothing.
     [[ $next == "$now" ]] && exit 0
     session_set action "$next"
+    # Before the relaunch, not after: the tint on the new overlay is the only
+    # other thing that says what changed, and the word should be up by the time
+    # the overlay it describes is drawn.
+    osd_action "$next"
     session_relaunch action
     ;;
 

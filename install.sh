@@ -142,7 +142,7 @@ command -v wl-kbptr >/dev/null 2>&1 ||
 # there": a file this repo has since deleted or renamed stays installed forever
 # otherwise, and the scripts resolve their siblings by path. A `presets.toml`
 # from an old version lived on that way for several releases.
-MANAGED=(bin config.default.toml hypr)
+MANAGED=(bin config.default.toml hypr qml)
 
 say "Installing plugin files ($( ((dev)) && echo symlinked || echo copied ))"
 if [[ -d $PLUGIN_DIR ]]; then
@@ -161,13 +161,21 @@ for item in "${MANAGED[@]}"; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config; do
+for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
 # The Hyprland module is required by module path, so it must live under
 # ~/.config/omarchy/plugins/imthemousenow/ regardless of where the rest goes.
 link_or_copy "$REPO/hypr" "$HOME/.config/omarchy/plugins/imthemousenow/hypr"
+
+# --- 2b. the ACTION announcement ---------------------------------------------
+# Nothing to install: it draws through quickshell, which the `omarchy` package
+# depends on directly. Checked rather than assumed, because a missing one is a
+# feature that silently never appears -- osd_action() skips when the tool cannot
+# run, so the plugin stays fully usable either way.
+"$REPO/bin/imthemousenow-osd" --self-test >/dev/null 2>&1 ||
+  warn "The ACTION announcement is unavailable (no quickshell?); set osd.enabled = false to silence this."
 
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"

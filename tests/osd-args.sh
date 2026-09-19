@@ -1,0 +1,95 @@
+#!/bin/bash
+# What does osd_action() ask the OSD to draw, and where?
+#
+# Every one of these decisions is invisible at runtime -- a wrong one draws
+# something plausible-looking -- so they are asserted here rather than discovered
+# by eye.
+#
+# Nothing is drawn: osd_action fires the OSD detached with its output discarded,
+# so the stub standing in for it appends its argv to a file instead.
+#
+#   ./tests/osd-args.sh
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+failures=0
+
+# A plugin directory that is real enough for the lib to load: the shipped
+# defaults and the config tool that reads them, plus a stub where the OSD goes.
+setup() {
+  rm -rf "$WORK/plugin" "$WORK/stub" "$WORK/args.log"
+  mkdir -p "$WORK/plugin/bin" "$WORK/stub"
+  cp "$REPO/config.default.toml" "$WORK/plugin/"
+  cp "$REPO/bin/imthemousenow-config" "$WORK/plugin/bin/"
+  printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"%s/args.log"\n' "$WORK" >"$WORK/plugin/bin/imthemousenow-osd"
+  chmod +x "$WORK/plugin/bin/imthemousenow-osd"
+}
+
+# Enough of a desktop for the lib to read: one focused monitor, one window.
+hyprctl_stub() {
+  local window="$1"
+  cat >"$WORK/stub/hyprctl" <<STUB
+#!/bin/bash
+case "\$*" in
+  *monitors*) echo '[{"name":"DP-9","x":100,"y":50,"width":1920,"height":1080,"scale":1,"focused":true}]' ;;
+  *activewindow*) echo '$window' ;;
+esac
+STUB
+  chmod +x "$WORK/stub/hyprctl"
+}
+
+# check <label> <action> <scope> <expected argv fragment>...
+# A fragment of "" asserts the argv does NOT contain the one after it.
+check() {
+  local label="$1" action="$2" scope="$3"
+  shift 3
+  local out problem=""
+  # PATH keeps the stub first but not alone: the lib needs jq and the config
+  # tool needs python.
+  PATH="$WORK/stub:$PATH" MOUSENOW_PLUGIN_DIR="$WORK/plugin" \
+    /usr/bin/bash -c "source '$REPO/bin/imthemousenow-lib.sh'; osd_action '$action' '$scope'" >/dev/null 2>&1
+  # osd_action detaches, so wait for the stub to land rather than assuming it has.
+  local waited=0
+  while [[ ! -f $WORK/args.log ]] && ((waited < 50)); do sleep 0.02; waited=$((waited + 1)); done
+  out="$(cat "$WORK/args.log" 2>/dev/null || true)"
+
+  local want negate=0
+  for want in "$@"; do
+    if [[ -z $want ]]; then negate=1; continue; fi
+    if ((negate)); then
+      [[ $out != *"$want"* ]] || problem="${problem:+$problem; }should not have passed '$want'"
+      negate=0
+    else
+      [[ $out == *"$want"* ]] || problem="${problem:+$problem; }missing '$want'"
+    fi
+  done
+
+  if [[ -n $problem ]]; then
+    echo "FAIL  $label -- $problem"
+    [[ -n $out ]] && sed 's/^/        argv: /' <<<"$out"
+    failures=$((failures + 1))
+  else
+    echo "ok    $label"
+  fi
+}
+
+# The word itself, upper-cased, and the action's own colour from the theme layer
+# -- which is absent in this fake plugin dir, so only the label is asserted here.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "the action's label, upper-cased" right-click monitor "RIGHT"
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "move is a word, not a click name" move monitor "MOVE"
+
+# The axes the config owns, which a caller must not have to repeat.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "timings and placement come from the config" left-click monitor \
+  "--ms 500" "--fade-ms 250" "--position top" "--size 120"
+
+echo
+if ((failures)); then
+  echo "$failures failing"
+  exit 1
+fi
+echo "all checks passed"

@@ -37,6 +37,61 @@ scope = "window"
 action = "left-click"
 lifetime = "single"
 
+# A large word on screen naming the ACTION you just moved into. This plugin's
+# whole surface is invisible until a key is pressed, so the one thing a new user
+# cannot discover by looking is which of the four actions they are now in --
+# especially since `;` switches it from inside the overlay, where there is
+# nothing but a colour tint to say so.
+#
+# Solid first, then a fade. The solid part is when the word gets read; the fade
+# is what says "this is telling you something, not asking you for something",
+# so it can be ignored rather than dismissed.
+[imthemousenow.osd]
+enabled = true
+# Total time on screen, and how much of that total is the fade out. Half a
+# second all told: long enough to register a word you already know the shape of,
+# short enough that it is gone before you have aimed. This is a reminder of a
+# state you just chose, not a message to be read.
+ms = 500
+fade_ms = 250
+# Font size in px. Large on purpose: it is meant to be read without looking for
+# it, from wherever on screen your eyes already were.
+size = 120
+# top | center | bottom. `top` by default because `center` is where hint labels
+# and the bisect grid are, and a word over the target defeats the point -- it
+# cannot swallow a click (its input region is empty) but it can hide one.
+position = "top"
+# Empty follows the Omarchy font, which is what Omarchy renders its own text in
+# (fontconfig's monospace, via `omarchy font current`). Name a family here to
+# override it. Omarchy's logo is not a candidate: the wordmark ships as SVG
+# outlines and ASCII art, and the one font named `omarchy` is an icon font whose
+# only glyphs are private-use marks -- it has no letters to set a word in.
+font = ""
+# Announce the ACTION a chord opens in, as well as switches made inside the
+# overlay. Off by default, and deliberately: SUPER + ; is a left click, which is
+# what a pointer does when you do not tell it otherwise, so naming it every time
+# would be noise. Switching is the case worth announcing -- and that includes
+# switching BACK to left-click with a second `;`, because by then left-click is
+# a choice you made rather than the default you started from. That announcement
+# comes from imthemousenow-steer, so it happens whatever this is set to.
+on_start = false
+
+# What the OSD says for each ACTION, and later what a two-stage action calls
+# its stages: drag announces DRAG when it takes hold and DROP when it is about
+# to let go. Upper-cased at display time, so these stay readable here.
+# Colours for these same actions come from the theme template, not from here.
+[imthemousenow.action.left-click]
+label = "left"
+
+[imthemousenow.action.right-click]
+label = "right"
+
+[imthemousenow.action.move]
+label = "move"
+
+[imthemousenow.action.drag]
+label = "drag"
+
 # Switching ACTION, workspace or monitor from inside the overlay tears it down
 # and puts it back up. A workspace or monitor change needs the compositor to
 # settle first, or the new overlay measures the screen we just left.

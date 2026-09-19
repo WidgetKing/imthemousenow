@@ -1,0 +1,95 @@
+#!/bin/bash
+# omarchy:summary=Flash one large word on screen, then fade it out
+# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom]
+#
+# Say which ACTION you just switched into, large enough to read without looking
+# for it and gone before it is in the way.
+#
+# The drawing is qml/osd.qml, run by quickshell -- which is a dependency of the
+# `omarchy` package itself, so it is present on every Omarchy machine and this
+# feature adds nothing to install. (An earlier version used gtk4-layer-shell,
+# which only arrives with applications a user may or may not have.) Quickshell
+# owns argv, so parameters are passed as environment variables.
+#
+# What that QML must get right, and why, is in docs/design-notes.md: an empty
+# input region so this cannot swallow the click it is announcing, and no
+# keyboard focus so it cannot dismiss the popup being aimed at.
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+QML="$SELF_DIR/../qml/osd.qml"
+RUNTIME="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
+PIDFILE="$RUNTIME/osd.pid"
+
+usage() {
+  sed -n '/^# Usage/,/^$/p' "$0" | sed 's/^# \?//'
+  cat <<'USAGE'
+Usage: imthemousenow-osd TEXT [options]
+
+  --ms N          total time on screen, solid plus fade (default 500)
+  --fade-ms N     how much of that is the fade out (default 250)
+  --color C       text colour, #rrggbb
+  --font NAME     font family
+  --size N        font size in px
+  --position P    top | center | bottom
+
+One at a time: starting another replaces the one on screen.
+USAGE
+}
+
+text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top"
+
+while (($#)); do
+  case "$1" in
+    -h | --help) usage; exit 0 ;;
+    # What install.sh asks: is everything this needs actually here?
+    --self-test)
+      command -v quickshell >/dev/null 2>&1 || { echo "imthemousenow-osd: quickshell is not installed" >&2; exit 1; }
+      [[ -f $QML ]] || { echo "imthemousenow-osd: missing $QML" >&2; exit 1; }
+      echo "imthemousenow-osd: ready"
+      exit 0
+      ;;
+    --ms) ms="${2:?--ms needs a value}"; shift 2 ;;
+    --fade-ms) fade_ms="${2:?--fade-ms needs a value}"; shift 2 ;;
+    --color) color="${2:?--color needs a value}"; shift 2 ;;
+    --font) font="${2:?--font needs a value}"; shift 2 ;;
+    --size) size="${2:?--size needs a value}"; shift 2 ;;
+    --position) position="${2:?--position needs a value}"; shift 2 ;;
+    -*) echo "imthemousenow-osd: unknown option $1" >&2; exit 2 ;;
+    *)
+      [[ -z $text ]] || { echo "imthemousenow-osd: only one TEXT" >&2; exit 2; }
+      text="$1"; shift
+      ;;
+  esac
+done
+
+[[ -n $text ]] || { usage >&2; exit 2; }
+case "$position" in
+  top | center | bottom) ;;
+  *) echo "imthemousenow-osd: --position is top, center or bottom" >&2; exit 2 ;;
+esac
+# Replace whatever is on screen rather than stacking on top of it: two switches
+# in quick succession are normal (`;` cycles), and two words both fading would
+# be one unreadable over the other. The runtime directory is the session's own,
+# so a reboot clears it for free.
+mkdir -p "$RUNTIME"
+# The recorded pid is checked to be one of ours before it is signalled: the file
+# outlives the process (exec leaves no trap to clean it up), so by the time it is
+# read the pid may have been recycled by something else entirely.
+if [[ -f $PIDFILE ]]; then
+  old="$(cat "$PIDFILE" 2>/dev/null || true)"
+  if [[ $old =~ ^[0-9]+$ ]] && grep -qa "osd.qml" "/proc/$old/cmdline" 2>/dev/null; then
+    kill "$old" 2>/dev/null || true
+  fi
+fi
+echo $$ >"$PIDFILE"
+
+# exec, so the pid recorded above is the process that owns the surface.
+export MOUSENOW_OSD_TEXT="$text" \
+  MOUSENOW_OSD_COLOR="$color" \
+  MOUSENOW_OSD_FONT="$font" \
+  MOUSENOW_OSD_SIZE="$size" \
+  MOUSENOW_OSD_MS="$ms" \
+  MOUSENOW_OSD_FADE_MS="$fade_ms" \
+  MOUSENOW_OSD_POSITION="$position"
+exec quickshell --no-color -p "$QML"

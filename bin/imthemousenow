@@ -418,6 +418,13 @@ EOF
   # never start half-initialised.
   session_begin "$mode" "$scope" "$base_action"
 
+  # Name the ACTION this chord opens in. Once per run, not once per pass: a
+  # continuous lifetime relaunches the overlay after every click, and a word
+  # flashing back up each time would be noise rather than a signal. Switches
+  # made inside the overlay are announced by imthemousenow-steer, where the
+  # change actually happens.
+  [[ $(setting osd.on_start) == false ]] || osd_action "$base_action"
+
   # `;` must reach us, not wl-kbptr, and must mean nothing at all when no
   # overlay is up. A submap is exactly that: it is entered for the lifetime of
   # the overlay and rebinds one key, leaving every other key to pass through.

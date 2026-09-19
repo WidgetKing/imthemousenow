@@ -59,6 +59,21 @@ is not among them, because it is chosen inside the overlay instead.
 | `ALT` | MODE → `grid` |
 | `CTRL` | LIFETIME → `continuous` |
 
+Switch ACTION inside the overlay and its name flashes up in large letters —
+solid for a quarter second, then a quarter second of fade. It is the one thing
+the overlay cannot show you: `;` changes what a landing does, and a colour tint
+is otherwise the only hint that anything changed. Switching back to `left` is
+announced too, because by then it is a choice rather than the default.
+
+`SUPER + ;` says nothing, because a left click is what a pointer does when you
+have not told it otherwise. `osd.on_start = true` names that one as well, which
+is the setting to turn on while the four actions are still new; `osd.enabled =
+false` turns the whole thing off. The word is set in the Omarchy font unless
+`osd.font` names another.
+
+It never eats a click: its input region is empty, so the pointer passes straight
+through it, and it takes no keyboard focus.
+
 | Chord | MODE | SCOPE | LIFETIME |
 | --- | --- | --- | --- |
 | `SUPER + ;` | hints | window | single |
@@ -438,6 +453,8 @@ bin/imthemousenow-lib.sh    settings, notifications, errors
 bin/imthemousenow-config    config superset -> compiled wl-kbptr config
 bin/imthemousenow-regions   window rects for hints without OpenCV
 bin/imthemousenow-panic     Ctrl+Alt+Delete escape hatch
+bin/imthemousenow-osd       the large word that names the ACTION you moved into
+qml/osd.qml                 what draws it, through quickshell
 config.default.toml         shipped defaults and MODEs
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
 hypr/imthemousenow.lua      keybindings + layer rules

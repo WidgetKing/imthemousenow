@@ -76,6 +76,12 @@ button=left
 # colour names freely (in Matte Black, blue == accent and yellow is a red), but
 # accent and red were distinct in every theme checked, and they are the pair
 # that reads as "normal" versus "careful".
+# left-click is the untinted overlay, so it has no tint to reuse -- but the OSD
+# still has to draw its word in something, and accent is what "this is the
+# normal thing" already looks like everywhere else in this overlay.
+[imthemousenow.action.left-click]
+color=#{{ accent_strip }}
+
 [imthemousenow.action.right-click]
 color=#{{ red_strip }}
 

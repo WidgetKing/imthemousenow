@@ -59,10 +59,72 @@ cannot accidentally freeze their colours. One trap worth remembering: wl-kbptr
 config values start with `#` (colours), so only a *leading* `#` is a comment
 when parsing that file -- treating `#` as an inline comment blanks the palette.
 
+## The ACTION announcement
+
+`bin/imthemousenow-osd` is a wrapper; the drawing is `qml/osd.qml`, run by
+**quickshell**. That choice is a dependency argument, not a taste one:
+`quickshell` is in the `omarchy` package's own `Depends On` list, so it is on
+every Omarchy machine and this feature costs nothing to install. An earlier
+version of this used gtk4-layer-shell, which turned out to be present here only
+because ghostty pulls it in -- and ghostty is not on every client. Anything that
+arrives with an application the user merely happens to have is not a dependency
+this plugin can take. Quickshell owns argv, so parameters are passed as
+`MOUSENOW_OSD_*` environment variables.
+
+Two constraints shaped the QML, and both are easy to get wrong:
+
+- **It must not take the pointer.** wl-kbptr clicks by warping a virtual
+  pointer and pressing, so a surface over the target that accepted pointer
+  input would swallow the click it was announcing. `mask: Region {}` is an
+  empty input region: the compositor routes pointer events as though the
+  surface were not there.
+- **It must not take the keyboard.** Keyboard focus is exactly what dismisses
+  the popup you were aiming at -- the whole subject of
+  `pkg/0002-read-keys-from-a-channel-*.patch` -- and it would also steal the
+  keys the overlay's submap is bound to. `WlrKeyboardFocus.None`. Note that
+  OmaGrid, the obvious QML reference for this, uses
+  `WlrKeyboardFocus.Exclusive`: it *is* the thing being driven, where this only
+  reports on it.
+
+`hypr/imthemousenow.lua` gives the `imthemousenow-osd` namespace the same
+`no_anim` layer rule the overlay has, and here it matters twice over: the word
+is solid for only 250ms before it starts fading, and Hyprland's own fade-in
+would spend most of that quarter second arriving on top of a fade this already
+does for itself.
+
+Solid, then fading, and the split is deliberate: the word is read during the
+solid part, and the fade is what says "this is telling you something, not
+asking you for something". It fires once per run, not once per pass, because a
+continuous lifetime relaunches the overlay after every click.
+
+**It announces switches, not starts.** `SUPER + ;` is a left click, which is
+what a pointer does unaccompanied, so naming it every time is noise; switching
+is the event worth a word, and that includes switching back to left-click with a
+second `;`, which by then is a decision rather than a default. `osd.on_start`
+turns the start announcement on for someone still learning the four actions.
+
+**Startup costs about 300ms**, measured (287-308ms to a mapped surface, against
+370-460ms for the gtk4-layer-shell version it replaced). With the defaults at
+250ms solid plus 250ms of fade, the word is on screen from roughly 0.3s to 0.8s
+after the key. If that lag ever needs to go, the answer is a pre-warmed process
+-- or a widget inside Omarchy's already-running quickshell instance, the way
+OmaGrid does it -- rather than a faster cold start.
+
+**The font is the Omarchy font, not the Omarchy logo.** There is no logo font to
+borrow: the wordmark ships as outlined SVG paths on a 15px grid
+(`/usr/share/omarchy/logo.svg`) and as block-character ASCII art (`logo.txt`),
+and the font actually named `omarchy` is an icon font whose only glyphs are
+private-use marks -- `U+E900` is the Omarchy mark itself, and there are no
+letters in it. Everywhere Omarchy sets text it uses fontconfig's monospace
+(JetBrainsMono Nerd Font, itself an `omarchy` dependency), which is what
+`osd.font = ""` follows.
+
 ## Known gaps
 
 - **Mouse mode** (sticky submap: `hjkl` movement, press/release for drag,
-  scroll, indicator pill) is not implemented. Hyprland submaps have no `o.*`
+  scroll, indicator pill) is not implemented. The announcement in
+  `bin/imthemousenow-osd` covers the "which action am I in" half of that pill,
+  but a sticky mode needs a persistent indicator rather than a fading one. Hyprland submaps have no `o.*`
   helper in Omarchy's Lua API and no in-tree precedent, so it needs its own
   investigation. Drag also needs `wlrctl` (not installed, not in the repos as a
   package on this machine) or `ydotool` (installed) with a uinput group.

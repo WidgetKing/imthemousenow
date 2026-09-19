@@ -27,6 +27,12 @@
 -- slide makes the labels unreadable for the first frames.
 hl.layer_rule({ match = { namespace = "wl-kbptr" }, no_anim = true, animation = "none" })
 
+-- The ACTION announcement, for the same reason and one more: it is solid for a
+-- quarter of a second before it starts fading, and the compositor's own fade-in
+-- would spend most of that quarter second arriving. It does its own fade, on its
+-- own schedule; Hyprland should just show it.
+hl.layer_rule({ match = { namespace = "imthemousenow-osd" }, no_anim = true, animation = "none" })
+
 -- Must match SUBMAP and SUBMAP_POPUPS in bin/imthemousenow.
 SUBMAP_NAME = "imthemousenow"
 
