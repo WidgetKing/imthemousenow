@@ -387,7 +387,7 @@ Panel {
 
           ChoiceRow {
             rowId: "action"
-            label: "Action"
+            label: "Default Action"
             options: [
               { value: "left-click", label: Model.actionLabel(root.cfg, "left-click") },
               { value: "right-click", label: Model.actionLabel(root.cfg, "right-click") },
@@ -396,9 +396,9 @@ Panel {
             ]
           }
 
-          ChoiceRow { rowId: "mode"; label: "Mode"; options: ["hints", "grid"] }
-          ChoiceRow { rowId: "scope"; label: "Scope"; options: ["window", "monitor"] }
-          ChoiceRow { rowId: "lifetime"; label: "Lifetime"; options: ["single", "continuous"] }
+          ChoiceRow { rowId: "mode"; label: "Default Mode"; options: ["hints", "grid"] }
+          ChoiceRow { rowId: "scope"; label: "Default Scope"; options: ["window", "monitor"] }
+          ChoiceRow { rowId: "lifetime"; label: "Default Lifetime"; options: ["single", "continuous"] }
 
           PanelSeparator { foreground: root.foreground }
 
@@ -479,7 +479,7 @@ Panel {
             rowId: "popups"
             visible: root.popupsSupported
             label: "Popup-safe overlay"
-            description: "Experimental: keep a context menu open under the overlay"
+            description: "Experimental: keep context menus open by re-routing keypresses"
           }
 
           PanelSeparator { foreground: root.foreground }
