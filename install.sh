@@ -137,8 +137,27 @@ command -v wl-kbptr >/dev/null 2>&1 ||
   warn "wl-kbptr is not on PATH yet -- integration installed, but nothing will launch."
 
 # --- 2. plugin files ----------------------------------------------------------
+# Everything this script owns inside PLUGIN_DIR. Named as a list rather than
+# copied item by item, because it is also the answer to "what should NOT be in
+# there": a file this repo has since deleted or renamed stays installed forever
+# otherwise, and the scripts resolve their siblings by path. A `presets.toml`
+# from an old version lived on that way for several releases.
+MANAGED=(bin config.default.toml hypr)
+
 say "Installing plugin files ($( ((dev)) && echo symlinked || echo copied ))"
-for item in bin config.default.toml hypr; do
+if [[ -d $PLUGIN_DIR ]]; then
+  for stale in "$PLUGIN_DIR"/*; do
+    [[ -e $stale || -L $stale ]] || continue
+    name="${stale##*/}"
+    for item in "${MANAGED[@]}"; do
+      [[ $name == "$item" ]] && continue 2
+    done
+    say "Removing $name, which this version no longer installs"
+    rm -rf "$stale"
+  done
+fi
+
+for item in "${MANAGED[@]}"; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
