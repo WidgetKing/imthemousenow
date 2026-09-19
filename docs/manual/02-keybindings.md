@@ -1,0 +1,55 @@
+# Keybindings
+
+`SUPER + ;` is whatever `[imthemousenow.defaults]` says — out of the box hints,
+in the window you are already looking at, one left click. Each modifier asks for
+the *other* value on exactly one axis, and they compose — so you memorise one
+binding plus what three modifiers mean, not eight bindings. ACTION is not among
+them, because it is chosen inside the overlay instead.
+
+| Modifier | Flips |
+| --- | --- |
+| `SHIFT` | SCOPE `window` ↔ `monitor` |
+| `ALT` | MODE `hints` ↔ `grid` |
+| `CTRL` | LIFETIME `single` ↔ `continuous` |
+
+The flip is resolved when you press the key, not when Hyprland loads, so the
+defaults you set in the Pointer widget apply to the next keypress. Change them
+to grid-on-monitor and `SUPER + ;` is that, while `SUPER + ALT + ;` is still
+"the other mode".
+
+Switch ACTION inside the overlay and its name flashes up in large letters —
+solid for a quarter second, then a quarter second of fade. It is the one thing
+the overlay cannot show you: `;` changes what a landing does, and a colour tint
+is otherwise the only hint that anything changed. Switching back to `left` is
+announced too, because by then it is a choice rather than the default.
+
+`SUPER + ;` says nothing, because a left click is what a pointer does when you
+have not told it otherwise. `osd.on_start = true` names that one as well, which
+is the setting to turn on while the four actions are still new; `osd.enabled =
+false` turns the whole thing off. The word is set in the Omarchy font unless
+`osd.font` names another.
+
+Where it appears follows the overlay: `osd.position` (`top`, `center`,
+`bottom`) is relative to the focused window in `window` scope and to the screen
+in `monitor` scope, so the word is always on the thing you are aiming at.
+
+It never eats a click: its input region is empty, so the pointer passes straight
+through it, and it takes no keyboard focus.
+
+With the shipped defaults (hints / window / single) the eight chords come out
+as below; set your own defaults and the whole table moves with them.
+
+| Chord | MODE | SCOPE | LIFETIME |
+| --- | --- | --- | --- |
+| `SUPER + ;` | hints | window | single |
+| `SUPER + SHIFT + ;` | hints | monitor | single |
+| `SUPER + ALT + ;` | grid | window | single |
+| `SUPER + SHIFT + ALT + ;` | grid | monitor | single |
+| `SUPER + CTRL + ;` | hints | window | continuous |
+| `SUPER + CTRL + SHIFT + ;` | hints | monitor | continuous |
+| `SUPER + CTRL + ALT + ;` | grid | window | continuous |
+| `SUPER + CTRL + SHIFT + ALT + ;` | grid | monitor | continuous |
+
+---
+
+[← The four choices](01-the-four-choices.md) · [Manual contents](README.md) · [Inside the overlay →](03-inside-the-overlay.md)
