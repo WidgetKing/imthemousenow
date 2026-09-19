@@ -1,4 +1,3 @@
-*.bak
-*.pkg.tar.zst
-pkg/src/
-pkg/pkg/
+# Screenshots kept for writing the README, not part of the plugin.
+imthemousenow.jpg
+keyboard-be-like.jpg
