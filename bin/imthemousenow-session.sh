@@ -22,7 +22,7 @@
 #   session_stamp_bind / session_recent_bind <ms>   chord-vs-tap debouncing
 #
 # Fields: mode, scope, action, base-action, switch, last-bind, swap-from,
-# swap-restore, drag-anchor, drag-restore.
+# swap-restore, drag-anchor, drag-restore, drop-monitor.
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 
@@ -47,6 +47,10 @@ _session_default() {
     # set: the button is emitted only once both ends are known, so forgetting
     # this field is a complete and safe way to call a drag off.
     drag-anchor | drag-restore) echo "" ;;
+    # Which monitor the drop pass is aimed at. It starts as the one the drag
+    # picked up on and the arrows move it, so a drag can end on a screen it did
+    # not start on. Empty outside a drop pass, and never read there.
+    drop-monitor) echo "" ;;
     *) die "no such session field '$1'" ;;
   esac
 }
@@ -91,14 +95,14 @@ session_begin() {
   session_set scope "$2"
   session_set action "$3"
   session_set base-action "$3"
-  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore}
+  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
 }
 
 # Every field goes, action included: a run that is over must leave nothing a
 # later one could read back. Teardown lived in two hand-written lists before
 # this and they had already drifted apart.
 session_end() {
-  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore}
+  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
 }
 
 # Ask the run loop to tear the overlay down and put it back up. $1 says why,

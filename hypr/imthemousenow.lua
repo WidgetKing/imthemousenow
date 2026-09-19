@@ -128,6 +128,12 @@ local function overlay_binds()
   -- they move the view under the overlay; over a window they move that window,
   -- which is what SUPER + an arrow and SUPER + SHIFT + a digit do outside the
   -- overlay. Both keep you aiming at the thing you opened the overlay for.
+  --
+  -- The drop pass of a drag is the exception, and reads them both again: the
+  -- arrows take the drop to the monitor that way, and the digits do nothing.
+  -- Mid-drag, "left" means the screen on the left far more often than it means
+  -- the workspace before this one, and a key that might mean either leaves you
+  -- unsure which one you just did -- with one end of a path already held down.
   for workspace = 1, 9 do
     hl.bind(tostring(workspace), hl.dsp.exec_cmd("imthemousenow-steer digit " .. workspace), {
       description = "Pointer: go to workspace " .. workspace .. ", or send the window there",
@@ -200,16 +206,16 @@ local function overlay_binds()
   })
 
   hl.bind("LEFT", hl.dsp.exec_cmd("imthemousenow-steer arrow l"), {
-    description = "Pointer: previous workspace, or move the window left",
+    description = "Pointer: previous workspace, move the window left, or drop on the monitor left",
   })
   hl.bind("RIGHT", hl.dsp.exec_cmd("imthemousenow-steer arrow r"), {
-    description = "Pointer: next workspace, or move the window right",
+    description = "Pointer: next workspace, move the window right, or drop on the monitor right",
   })
   hl.bind("UP", hl.dsp.exec_cmd("imthemousenow-steer arrow u"), {
-    description = "Pointer: previous monitor, or move the window up",
+    description = "Pointer: previous monitor, move the window up, or drop on the monitor above",
   })
   hl.bind("DOWN", hl.dsp.exec_cmd("imthemousenow-steer arrow d"), {
-    description = "Pointer: next monitor, or move the window down",
+    description = "Pointer: next monitor, move the window down, or drop on the monitor below",
   })
 
 end

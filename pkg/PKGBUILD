@@ -19,13 +19,14 @@ source=(
   0001-destroy-pending-frame-callback-before-teardown.patch
   0002-read-keys-from-a-channel-instead-of-the-keyboard.patch
   0003-walk-a-path-with-a-button-held.patch
+  0004-Say-a-drag-path-in-layout-coordinates-so-it-can-leav.patch
 )
 # Every patch is listed above and applied below in that order; adding one is a
 # single line here. Each patch's own header says what it does and whether it is
-# headed upstream (0001 is a bug fix and should land there; 0002 and 0003 are
-# ours, and 0003 is worth offering).
+# headed upstream (0001 is a bug fix and should land there; 0002, 0003 and 0004
+# are ours, and the drag pair is worth offering).
 # One entry per source, so a new patch needs a 'SKIP' here too or makepkg refuses.
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)
@@ -33,6 +34,18 @@ fi
 
 prepare() {
   local p
+  # Every patch next to this PKGBUILD must be listed above. pkg/patch-stamp
+  # counts the files on disk and that count becomes the pkgver, so a patch left
+  # out of `source` builds a binary that calls itself p<n> while containing
+  # n-1 patches -- which is a build id that lies, and the failure shows up as
+  # a feature silently missing at runtime. Cheaper to refuse to build.
+  for p in "$startdir"/*.patch; do
+    [[ -e $p ]] || continue
+    if [[ " ${source[*]} " != *" ${p##*/} "* ]]; then
+      echo "PKGBUILD: ${p##*/} is not in source=(); add it and a 'SKIP'" >&2
+      return 1
+    fi
+  done
   for p in "${source[@]}"; do
     [[ $p == *.patch ]] || continue
     patch -d wl-kbptr -Np1 -i "$srcdir/$p"

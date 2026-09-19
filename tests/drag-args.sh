@@ -60,8 +60,9 @@ STUB
 
 # The pointer is somewhere different on each pass, which is the whole point:
 # the anchor is read after the first and the drop point after the second.
-# A monitor at 100,50 makes the monitor-relative arithmetic visible -- if it is
-# skipped, the numbers come out 100 and 50 too large.
+# A monitor at 100,50 is there to be ignored: the press is said in layout
+# coordinates, so the numbers that reach --drag are the pointer's own, with
+# nothing subtracted.
 hyprctl_stub() {
   cat >"$WORK/stub/hyprctl" <<STUB
 #!/bin/bash
@@ -130,10 +131,20 @@ fi
 # the first pass a click and the drag a no-op after it.
 check "neither overlay pass clicks" "" "modes=tile,bisect,click" "" "mode_click.button"
 
-# The anchor at 500,400 and the drop at 1200,900, both relative to a monitor at
-# 100,50, over the configured 300ms.
-check "the press walks from anchor to drop, monitor-relative" \
-  "--drag 400,350,1100,850,300" "-O DP-9"
+# The anchor at 500,400 and the drop at 1200,900, as Hyprland reports them,
+# over the configured 300ms. No -O on that invocation: an output-bound virtual
+# pointer cannot leave its output, and a drop on another monitor is the whole
+# point of saying the path in layout coordinates.
+check "the press walks from anchor to drop in layout coordinates" \
+  "--drag 500,400,1200,900,300"
+
+presses="$(grep -- '--drag' "$WORK/argv.log" || true)"
+if [[ $presses != *"-O "* ]]; then
+  echo "ok    the press is not pinned to one output"
+else
+  echo "FAIL  the press is not pinned to one output -- got: $presses"
+  failures=$((failures + 1))
+fi
 
 # The drop pass covers the monitor even though the run asked for window scope,
 # so -r (which confines an overlay to a window) must appear once, not twice.
@@ -168,7 +179,7 @@ s = open(p).read().replace("duration_ms = 300", "duration_ms = 900", 1)
 open(p, "w").write(s)
 PY
 run_drag --mode grid --scope monitor
-check "the travel time comes from the config" "--drag 400,350,1100,850,900"
+check "the travel time comes from the config" "--drag 500,400,1200,900,900"
 
 echo
 if ((failures)); then

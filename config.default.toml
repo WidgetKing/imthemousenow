@@ -101,6 +101,12 @@ label = "move"
 # Drag is two passes: one to say what to pick up, one to say where to put it.
 # Both of them only move the pointer -- nothing is pressed until both ends are
 # known, which is why abandoning a drag halfway can never leave a button down.
+#
+# The two ends need not be on the same monitor: in the drop pass the arrow keys
+# take the overlay to the screen that way, and the press walks the whole path
+# across the boundary. The digits do nothing there, and no key changes
+# workspace -- mid-drag, an arrow that might mean "workspace" and might mean
+# "monitor" leaves you unsure which one you just did.
 [imthemousenow.action.drag]
 label = "drag"
 # How long the pointer takes to travel from the thing it picked up to where it

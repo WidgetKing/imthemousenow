@@ -26,9 +26,10 @@ Usage: imthemousenow-steer <verb> [value]
   action <a>     switch ACTION to left-click|right-click|move|drag, or back
   scope          flip SCOPE between window and monitor
   mode           flip MODE between hints and grid
-  arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window
+  arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window;
+                 during a drop, move to the monitor that way
   digit <1-9>    in monitor scope, go to that workspace; in window scope, send
-                 the window there
+                 the window there; during a drop, nothing
   resize <l|r|u|d>  in window scope, resize the window the overlay is on
   swap           pick another window and swap the focused one with it
   swap-commit    finish that swap with whatever the picker landed on
@@ -125,6 +126,34 @@ require_monitor_scope() {
   [[ $(session_get scope) == monitor ]] || exit 0
 }
 
+# The drop pass of a drag holds one end of a path and is aimed at the other.
+# Every key that would move the world under it -- a workspace, the focus, a
+# window -- is a key that moves what you are aiming at while you aim, so the
+# whole group is a no-op there. The arrows are the exception, and they mean
+# something else entirely: see `arrow`.
+require_no_drop() {
+  session_has drag-anchor && exit 0
+}
+
+# Move the drop pass to the monitor that lies in direction $1, and take the
+# focus with it. The focus matters because what the overlay is made of follows
+# it: imthemousenow-regions labels windows on the focused monitor, so a drop
+# overlay on one screen built from another screen's windows would label things
+# that are not there.
+drop_to_monitor() {
+  local here next
+  here="$(session_get drop-monitor)"
+  [[ -n $here ]] || read -r here _ _ < <(session_get drag-anchor)
+  next="$(monitor_in_direction "$here" "$1")"
+  # Nothing that way: the edge of the desk is not an error, and a relaunch
+  # that lands where it started is a flicker for nothing.
+  [[ -n $next && $next != "$here" ]] || exit 0
+  session_set drop-monitor "$next"
+  dispatch_focus "monitor=\"$next\"" || exit 0
+  session_relaunch geometry
+  exit 0
+}
+
 # Everything but `stop` acts on a run that is up. With none, do nothing at all
 # -- not even stamp a bind -- so a stray invocation leaves no state behind.
 [[ ${1:-} =~ ^(stop|-h|--help)$ ]] || session_active || exit 0
@@ -159,6 +188,7 @@ case "$verb" in
       [[ -n ${rest_scope:-} ]] && session_set scope "$rest_scope"
       session_clear drag-anchor
       session_clear drag-restore
+      session_clear drop-monitor
       session_stamp_bind
       session_set action "$base"
       osd_action "$base" "$(session_get scope)"
@@ -317,6 +347,16 @@ case "$verb" in
     # Either way the overlay is rebuilt around where things ended up.
     value="${1:?$verb needs a value}"
     session_stamp_bind
+    # A drop pass reads both of these differently, and the reason is the
+    # confusion they cause otherwise: in the middle of a drag, "left" is much
+    # more likely to mean the screen on the left than the workspace before this
+    # one, and a key that could mean either leaves you unsure which one you
+    # just did. So during a drop the arrows only ever change monitor, and the
+    # digits -- which can only mean a workspace -- do nothing at all.
+    if session_has drag-anchor; then
+      [[ $verb == arrow ]] || exit 0
+      drop_to_monitor "$value"
+    fi
     if [[ $(session_get scope) == window ]]; then
       if [[ $verb == arrow ]]; then
         dispatch_window "direction=\"$value\"" || exit 0
@@ -342,6 +382,7 @@ case "$verb" in
     # 5` form does not parse at all. hl.dsp.focus takes an absolute id or a
     # signed relative step, which is every move these keys need.
     session_stamp_bind
+    require_no_drop
     require_monitor_scope
     dispatch_focus "workspace=\"${1:?workspace needs a value}\""
     session_relaunch geometry
@@ -349,6 +390,10 @@ case "$verb" in
 
   monitor)
     session_stamp_bind
+    # Unlike the workspace keys, this one is not wrong during a drop -- it is
+    # what the arrows now do -- but it steps by index, and the drop pass is
+    # steered by direction and remembers where it is. Let `arrow` own it.
+    require_no_drop
     require_monitor_scope
     # One monitor means there is nowhere to go, and a relaunch that lands
     # exactly where it started is a flicker for nothing.

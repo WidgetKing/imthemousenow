@@ -20,10 +20,42 @@ focused_monitor() {
 }
 
 # The same five fields for a monitor named outright, for the times the answer
-# must not be "whichever one has the focus now": a drag's drop pass is pinned
-# to the monitor it picked up on, and the focus can have moved since.
+# must not be "whichever one has the focus now": a drag's drop pass follows the
+# monitor it is aimed at, and the focus can have moved since.
 monitor_by_name() {
   hyprctl -j monitors | jq -r --arg n "$1" ".[] | select(.name == \$n) | $_MONITOR_FIELDS"
+}
+
+# The monitor that lies in direction $2 (l|r|u|d) from the monitor named $1,
+# as its name, or nothing when there is none that way. Used by the drop pass of
+# a drag, where the arrows move between screens rather than workspaces.
+#
+# Direction is decided on monitor centres, which is the only thing that holds
+# for monitors of different sizes, stacked or side by side. Among the ones that
+# lie that way, the winner is the nearest along the direction, with distance
+# across it counting four times as much: of two screens equally far to the
+# right, the one level with this one is the one "right" means, and a screen far
+# off the axis is not to the right of anything.
+monitor_in_direction() {
+  hyprctl -j monitors | jq -r --arg from "$1" --arg dir "$2" '
+    map({ name, cx: (.x + .width / .scale / 2), cy: (.y + .height / .scale / 2) })
+    | . as $all
+    | ($all[] | select(.name == $from)) as $here
+    | [ $all[]
+        | select(.name != $from)
+        | . + { along: (
+            if $dir == "l" then $here.cx - .cx
+            elif $dir == "r" then .cx - $here.cx
+            elif $dir == "u" then $here.cy - .cy
+            else .cy - $here.cy end),
+            across: (
+            if $dir == "l" or $dir == "r" then (.cy - $here.cy | fabs)
+            else (.cx - $here.cx | fabs) end) }
+        | select(.along > 0)
+      ]
+    | sort_by(.along + 4 * .across)
+    | .[0].name // ""
+  '
 }
 
 # Where the pointer is now, as `x y` in the same logical pixels the monitor

@@ -143,11 +143,28 @@ picked up from. It uses the same MODE the drag started in; set
 MODE that can reach a pixel no hint names — blank canvas, or the gap between
 two list items.
 
-Both ends have to be on the same monitor. A virtual pointer is bound to one
-output, so the drop overlay is pinned to the monitor the anchor is on and `↑`
-`↓` cannot carry it to another.
+A drop can be on another monitor. The drop overlay starts on the monitor the
+drag picked up on, and the arrow keys carry it to the screen that way — `→` to
+the one on the right, `↑` to the one above, by where the monitors actually are
+rather than by index. Pick a target there and the pointer walks the whole path,
+across the boundary, with the button held the whole way.
 
-Drag needs the `wl-kbptr` this plugin builds (`pkg/0003-walk-a-path-*.patch`);
+During a drop pass, and only there, the arrows mean monitors and nothing else,
+and the digits do nothing at all:
+
+| Key | Does, during a drop |
+| --- | --- |
+| `←` `→` `↑` `↓` | aim at the monitor that way |
+| `1` … `9` | nothing |
+
+Mid-drag, "left" means the screen on the left far more often than it means the
+workspace before this one, and one key that might mean either leaves you unsure
+which you just did — while one end of a path is already held. So the ambiguity
+is removed rather than explained: no key changes workspace while a drag is
+half-finished.
+
+Drag needs the `wl-kbptr` this plugin builds (`pkg/0003-walk-a-path-*.patch`
+and `pkg/0004-Say-a-drag-path-*.patch`);
 with a stock one the chord says so rather than half-running.
 
 **SHIFT and ALT retune the overlay**, tapped on their own with nothing else
@@ -224,6 +241,9 @@ When SCOPE is `monitor`, the overlay is a whole screen, so they move the screen:
 | `1` … `9` | switch to that workspace |
 | `←` / `→` | previous / next workspace on this monitor |
 | `↑` / `↓` | previous / next monitor, left to right, wrapping |
+
+(During the drop pass of a drag all four arrows change monitor instead, by
+direction, and the digits do nothing — see [Dragging](#dragging).)
 
 When SCOPE is `window`, the overlay is one window, and moving the view would be
 moving away from the thing you are aiming at — so the same keys move that

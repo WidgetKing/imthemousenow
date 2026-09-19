@@ -16,6 +16,7 @@ the implementation differs from the original plan.
 | Upstream commit 0854a51 | Real; makes meson accept opencv4 or opencv5. Not in any tagged release. |
 | `'` (apostrophe) as a submap bind | Free, and Hyprland reports it under that keysym name -- which is why `SUBMAP_KEYS` in `bin/imthemousenow` spells it lowercase, matching what `hypr/imthemousenow.lua` registers. |
 | `--drag` end to end | Built and run against the live compositor: a drag across a terminal line selects exactly that line, which is only possible if a real press, real intermediate motion and a real release all reached the client. Driven both directly and through the whole `bin/imthemousenow` two-pass path. |
+| A virtual pointer with no output crosses monitors | Measured on a two-monitor desk: `zwlr_virtual_pointer_manager_v1.create_virtual_pointer` (no `_with_output`) plus `motion_absolute` against the whole layout box walks the cursor from one screen to the other and lands exactly on the target, both directions. The `_with_output` form does not: its absolute motion is mapped into that output. |
 | No pointer-injection tool on this machine | `ydotool` and `wlrctl` are absent; `wtype` is present but keyboard-only; Hyprland exposes no dispatcher that presses a mouse button. Hence the patch. |
 
 ## Departures from the plan
@@ -186,8 +187,35 @@ processed where the pointer got to.
 **The drop pass covers the monitor, whatever SCOPE says.** You are usually
 dropping onto something other than the window you picked up from, and window
 scope would put the overlay over the one place you are least likely to be
-aiming. It is the anchor's monitor specifically -- see the cross-monitor gap
-below.
+aiming. It starts on the anchor's monitor, and the session field `drop-monitor`
+is what it actually follows -- not the focus, so nothing a window or the
+pointer does in between can move the overlay out from under a half-finished
+drag.
+
+**A drag can cross monitors, because the path is said in layout coordinates.**
+`pkg/0004-Say-a-drag-path-in-layout-coordinates-*.patch` creates the virtual
+pointer WITHOUT an output. A pointer bound to an output has its absolute motion
+mapped into that output and can never leave it, whatever coordinates it is
+given; unbound, the same motion is mapped over the box every output sits
+inside, so one device walks the whole path. One device is the point: a press on
+one device followed by motion on another is a gap an application's drag session
+can fall into, and there is no such gap here. Verified on a two-monitor desk --
+the pointer crosses the boundary and lands exactly where it was aimed, both
+directions.
+
+**During a drop, the arrows mean monitors and the digits mean nothing.** This
+is a usability rule, not a technical one. Outside a drag the digits and arrows
+are read by SCOPE and move the view under the overlay -- workspace left,
+workspace right, monitor up, monitor down. Mid-drag that is exactly the wrong
+set of meanings: "left" is far more likely to mean the screen on the left, and
+a key that might mean either leaves you unsure which of the two you just did
+while one end of a path is already held. So during the drop pass the arrows
+change monitor by direction (`monitor_in_direction`, decided on monitor centres
+rather than index, so it holds for stacked or uneven desks), and every key that
+could change a workspace -- the digits, and the `workspace` and `monitor` verbs
+-- is a no-op. The focus follows the arrow, because `imthemousenow-regions`
+labels windows on the focused monitor and an overlay made of another screen's
+windows would label things that are not there.
 
 **The two halves get their own colours**, which the ACTION palette makes cheap
 -- see "Deriving the ACTION palette" below. Drag and drop land 72 degrees apart
@@ -255,14 +283,6 @@ derived.
   helper in Omarchy's Lua API and no in-tree precedent, so it needs its own
   investigation. (The drag half of it is done, by a different route: see
   "Dragging" below.)
-- **A drag cannot cross monitors.** `zwlr_virtual_pointer_v1` is created
-  bound to one output (`create_virtual_pointer_with_output`), so a path that
-  leaves that output is not a path it can walk. The drop pass is therefore
-  pinned to the monitor the drag picked up on, rather than letting you aim
-  somewhere the drag cannot reach. Doing better means interpolating in layout
-  coordinates and re-creating the virtual pointer per output as the path
-  crosses a boundary -- and finding out whether an application's drag-and-drop
-  session survives that crossing, which is why it waits.
 - **All-monitors mode**: upstream PR #79 was closed, not merged. The wrapper
   always passes `-O <focused monitor>`.
 - **AT-SPI region source** is not implemented; `imthemousenow-regions` has a

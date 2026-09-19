@@ -262,7 +262,7 @@ EOF
 
   if [[ $action == drag ]] && ((dry_run == 0)) && ! has_drag; then
     notify "Drag needs the wl-kbptr this plugin builds; run its install.sh"
-    die "--action drag needs the wl-kbptr built by install.sh (pkg/0003-walk-a-path-*.patch)"
+    die "--action drag needs the wl-kbptr built by install.sh (pkg/0003-walk-a-path-*.patch, pkg/0004-Say-a-drag-path-*.patch)"
   fi
 
   if ((dry_run == 0)); then
@@ -324,28 +324,27 @@ EOF
   compute_geometry() {
     IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
 
-    # The drop pass is pinned to the monitor the drag picked up on, whatever
-    # the pointer or the focus did in between. A virtual pointer is bound to
-    # one output (wl-kbptr's own move_pointer does this too), so a path that
-    # leaves that output is not a path it can walk -- and an overlay that let
-    # you aim somewhere the drag cannot reach is an overlay that lies.
-    #
-    # TODO: cross-monitor drags. Interpolating in layout coordinates and
-    # re-creating the virtual pointer per output as the path crosses a boundary
-    # is the shape of it; whether an application's drag-and-drop session
-    # survives that crossing is unverified, which is why this waits.
+    # The drop pass is drawn over one whole monitor: the one the drag picked up
+    # on, until an arrow key says another. It follows `drop-monitor` rather
+    # than the focus, so nothing the pointer or a window did in between can
+    # move the overlay out from under the half-finished drag -- and when an
+    # arrow does move it, the path crosses the boundary with it, because
+    # wl-kbptr walks the press in layout coordinates.
     #
     # Monitor scope, not the run's: a drop is usually onto something other than
     # the window you picked up from, and window scope would put the overlay
     # over the one place you are least likely to be aiming.
     if session_has drag-anchor; then
-      local anchor_mon
-      read -r anchor_mon _ _ < <(session_get drag-anchor)
+      local drop_mon
+      drop_mon="$(session_get drop-monitor)"
+      if [[ -z $drop_mon ]]; then
+        read -r drop_mon _ _ < <(session_get drag-anchor)
+      fi
       local pinned
-      pinned="$(monitor_by_name "$anchor_mon")"
-      # Unplugged mid-drag. The anchor names somewhere that no longer exists,
-      # so the drag cannot be finished; fall through to the focused monitor and
-      # let the drop pass be aimed there instead of drawing nothing.
+      pinned="$(monitor_by_name "$drop_mon")"
+      # Unplugged mid-drag. The monitor named is somewhere that no longer
+      # exists; fall through to the focused monitor and let the drop pass be
+      # aimed there instead of drawing nothing.
       if [[ -n $pinned ]]; then
         IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h <<<"$pinned"
         restrict=""
@@ -563,6 +562,7 @@ EOF
         [[ -n $rest_scope ]] && session_set scope "$rest_scope"
         session_clear drag-anchor
         session_clear drag-restore
+        session_clear drop-monitor
       fi
       if session_has swap-from; then
         "$PLUGIN_DIR/bin/imthemousenow-steer" swap-cancel || true
@@ -594,6 +594,9 @@ EOF
       read -r anchor_x anchor_y < <(pointer_position)
       session_set drag-anchor "$mon_name $anchor_x $anchor_y"
       session_set drag-restore "$(session_get mode) $(session_get scope)"
+      # Where the drop pass starts out. The arrows move it from here, and
+      # compute_geometry reads it rather than the focus.
+      session_set drop-monitor "$mon_name"
       drop_mode="$(setting action.drag.drop_mode)"
       [[ -n $drop_mode && $drop_mode != same ]] && session_set mode "$drop_mode"
       current_action="drop"
@@ -609,11 +612,12 @@ EOF
     # here was the pointer moving, which is why Escape, a switch or a crash at
     # any earlier point cannot leave a button down: there was no button.
     if [[ $current_action == drop ]]; then
-      local anchor_mon anchor_x anchor_y drop_x drop_y
-      local anchor_mx anchor_my drag_ms rest_mode rest_scope drag_args=()
-      read -r anchor_mon anchor_x anchor_y < <(session_get drag-anchor)
+      local anchor_x anchor_y drop_x drop_y
+      local drag_ms rest_mode rest_scope drag_args=()
+      # The monitor the anchor was recorded on is not needed here: both ends
+      # are layout coordinates, which already say which screen they are on.
+      read -r _ anchor_x anchor_y < <(session_get drag-anchor)
       read -r drop_x drop_y < <(pointer_position)
-      IFS=$'\t' read -r _ anchor_mx anchor_my _ _ < <(monitor_by_name "$anchor_mon")
 
       drag_ms="$(setting action.drag.duration_ms)"
       [[ -n $drag_ms ]] || drag_ms=300
@@ -622,8 +626,12 @@ EOF
       # mode_click.button. A drag with the middle button is then a config
       # change rather than an option nothing else would ever pass.
       [[ -n $compiled && -f $compiled ]] && drag_args+=(-c "$compiled")
-      drag_args+=(-O "$anchor_mon")
-      drag_args+=(--drag "$((anchor_x - anchor_mx)),$((anchor_y - anchor_my)),$((drop_x - anchor_mx)),$((drop_y - anchor_my)),$drag_ms")
+      # Both ends as Hyprland reports them -- layout coordinates, the space the
+      # monitors are laid out in -- and no -O at all. That is what lets the two
+      # ends be on different screens: one virtual pointer, unbound to any
+      # output, walks the whole path, so the client holding the drag sees one
+      # unbroken stream of motion across the boundary.
+      drag_args+=(--drag "$anchor_x,$anchor_y,$drop_x,$drop_y,$drag_ms")
 
       wl-kbptr "${drag_args[@]}" || notify "The drag did not complete"
 
@@ -632,6 +640,7 @@ EOF
       session_set scope "$rest_scope"
       session_clear drag-anchor
       session_clear drag-restore
+      session_clear drop-monitor
       current_action="$base_action"
       session_set action "$base_action"
     fi
