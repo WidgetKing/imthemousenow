@@ -85,7 +85,10 @@ on_start = false
 # What the OSD says for each ACTION, and later what a two-stage action calls
 # its stages: drag announces DRAG when it takes hold and DROP when it is about
 # to let go. Upper-cased at display time, so these stay readable here.
-# Colours for these same actions come from the theme template, not from here.
+# Colours are not here either. The theme template supplies exactly one -- the
+# accent, as left-click's -- and bin/imthemousenow-config turns the other four
+# off it, 72 degrees apart around an OkLCh wheel. Setting `color` on any action
+# below pins that one and leaves the rest derived.
 [imthemousenow.action.left-click]
 label = "left"
 

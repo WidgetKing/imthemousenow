@@ -72,44 +72,20 @@ button=left
 # it to tint the overlay when you switch ACTION mid-flight. It lives here
 # because it is a palette value and must follow the theme.
 #
-# `red` rather than a hue chosen by eye: Omarchy themes collapse semantic
-# colour names freely (in Matte Black, blue == accent and yellow is a red), but
-# accent and red were distinct in every theme checked, and they are the pair
-# that reads as "normal" versus "careful".
-# left-click is the untinted overlay, so it has no tint to reuse -- but the OSD
-# still has to draw its word in something, and accent is what "this is the
-# normal thing" already looks like everywhere else in this overlay.
+# ONE colour, and the other four ACTIONs are turned off it by
+# `derive_action_colors` in bin/imthemousenow-config -- 72 degrees apart around
+# an OkLCh wheel, which is a wheel an eye divides evenly. The reasoning, and the
+# measurements across all 22 shipped themes that set its two guard rails, are
+# there rather than here.
+#
+# The accent, because the ordinary overlay should look like the rest of the
+# desktop rather than announcing itself: left-click is what a pointer does when
+# you have not said otherwise. It is also the seed for everything else, so a
+# theme gets a whole ACTION palette by having an accent, and overriding this one
+# line in ~/.config/omarchy/themed/wl-kbptr.conf.tpl repaints all five.
+#
+# To pin one ACTION's colour instead, name it in
+# ~/.config/omarchy/imthemousenow/config.toml -- anything written by hand is
+# left alone, and only the missing ones are derived.
 [imthemousenow.action.left-click]
 color=#{{ accent_strip }}
-
-[imthemousenow.action.right-click]
-color=#{{ red_strip }}
-
-# `magenta` for move, by the same survey that picked red. Across all 22 shipped
-# themes it is the hue that least often collapses into accent (the untinted
-# overlay) or red (the right-click tint): 4 themes where it reads close to one
-# of them, against 7 for cyan, 8 for yellow and 9 for green. It is also the
-# right meaning -- move clicks nothing, so it should not borrow red's "careful"
-# or the accent's "this is the normal thing".
-[imthemousenow.action.move]
-color=#{{ magenta_strip }}
-
-# `yellow` for drag, by the same survey that picked red and magenta, rerun with
-# the two of them plus accent as the taken set. Of the hues present in all 22
-# shipped themes, yellow collides with one of those three least often (9
-# themes, against 11 for green, 12 for cyan and 22 for blue -- blue IS accent
-# almost everywhere). `brown` scores better still, at 6, but four themes do not
-# define it at all, and a colour that renders as an empty string is a broken
-# config line rather than a dim tint.
-#
-# Both passes of a drag are the same colour, and that is a decision rather than
-# an omission. A second hue would have to be distinct from accent, red, magenta
-# AND this one, and nothing left clears that bar: the best remaining pair still
-# reads alike in 5 of the 22 themes, which is a tint that lies about which half
-# of the drag you are in. The word does that job instead -- DRAG, then DROP --
-# which is what the OSD is for.
-[imthemousenow.action.drag]
-color=#{{ yellow_strip }}
-
-[imthemousenow.action.drop]
-color=#{{ yellow_strip }}

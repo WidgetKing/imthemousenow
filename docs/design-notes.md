@@ -189,16 +189,62 @@ scope would put the overlay over the one place you are least likely to be
 aiming. It is the anchor's monitor specifically -- see the cross-monitor gap
 below.
 
-**One colour for both halves.** The ACTION tints are chosen by a survey across
-all 22 shipped themes, because Omarchy themes collapse semantic colour names
-freely. With accent, red and magenta already taken, `yellow` is the hue present
-in every theme that collides with one of those least often (9 themes, against
-11 for green, 12 for cyan, 22 for blue). `brown` scores better at 6 but four
-themes do not define it, and a colour that renders empty is a broken config
-line. A second hue for the drop half would have to clear the bar against four
-taken colours, and nothing does: the best remaining pair still reads alike in 5
-of the 22. So both passes are yellow and the OSD carries the difference -- DRAG,
-then DROP -- which is what it is for.
+**The two halves get their own colours**, which the ACTION palette makes cheap
+-- see "Deriving the ACTION palette" below. Drag and drop land 72 degrees apart
+on the same wheel as everything else, so they read as two distinct states rather
+than one state twice, and the OSD still names which half you are in.
+
+## Deriving the ACTION palette
+
+Five ACTIONs need five tints an eye can separate. Picking them by hand does not
+survive contact with 22 themes: an earlier version of this file chose `red` and
+`magenta` by surveying which semantic colour names least often collapse into the
+accent, which worked for three colours and ran out at five -- the best remaining
+pair still read alike in 5 of the 22 themes. So only one colour is chosen now.
+
+**`left-click` is the theme's accent**, because the untinted overlay is what a
+pointer does when you have not said otherwise, and it should look like the rest
+of the desktop. It is also the seed: the other four are turned off it, 72 degrees
+apart (360/5). A theme gets a whole palette by having an accent.
+
+**The wheel is an OkLCh wheel, not an HSL one.** This is the substantive part. In
+HSL, equal hue steps are not equal steps to an eye: at a fixed lightness number,
+yellows and cyans come out glaring while blues sink into the background, so a
+wheel divided evenly there gives a set where some members shout and others are
+missed -- which is the opposite of what signal colours are for. OkLCh is built on
+a model of human vision, so holding L and C still and moving only H yields
+colours of genuinely equal weight. Equal spacing in a perceptually uniform space
+is also simply the documented way to build a categorical palette; there was no
+need to invent a scheme.
+
+Two guard rails, both found by measuring all 22 shipped themes rather than by
+reasoning about colour in the abstract:
+
+- **A chroma floor.** Four themes have an accent with almost no chroma
+  (`vantablack` and `white` are grey, `solitude` and `last-horizon` nearly so).
+  Rotating the hue of a grey produces five greys, and a palette whose entire job
+  is to say whether the next keypress right-clicks or drags becomes unreadable.
+  The derived four therefore get at least `CHROMA_FLOOR` even when the accent has
+  less. `left-click` keeps the accent exactly, so a monochrome theme still looks
+  monochrome until you switch ACTION -- which is the moment being told matters
+  more than being consistent.
+- **A lightness ceiling.** sRGB is not a cylinder: available chroma collapses as
+  lightness rises, from roughly 0.32 at mid lightness to 0.13 for blues.
+  `hackerman` and `kanagawa` have accents at L 0.88, where five hues plateaued at
+  a barely-visible 0.066 separation whatever floor was asked for. Pulling the
+  derived four down to `L_MAX` buys the chroma back, at the cost of their weight
+  differing a little from `left-click`'s.
+
+One chroma is shared by all five, taken from the most gamut-limited hue in the
+set, rather than each hue taking its own maximum: per-hue maxima would give the
+set an uneven weight, which is the thing this is avoiding.
+
+Measured result: every shipped theme separates its five by at least 0.096 in
+Oklab, where 1.0 is black to white. `tests/action-colors.sh` asserts that, and
+asserts the two guard rails by the themes that need them, so a new theme or a
+tweaked constant cannot quietly regress it. Anything written by hand -- in
+`config.toml`, or in a user's own template -- is left alone; only gaps are
+derived.
 
 ## Known gaps
 

@@ -166,9 +166,12 @@ So a right click is always one keypress away, whatever --action says.
 
 Three keys switch ACTION for the whole overlay, at any point before you commit:
 
-  ;   right click, tinted red      press again to go back
-  :   move (no click), tinted      press again to go back
-  '   drag, tinted yellow          press again to go back
+  ;   right click                  press again to go back
+  :   move (no click)              press again to go back
+  '   drag                         press again to go back
+
+Each has its own tint, turned off your theme's accent 72 degrees at a time, so
+which one you are in is visible rather than remembered.
 
 Any of them is a one-off: after it lands, ACTION returns to what the chord
 asked for, even in a continuous lifetime.

@@ -1,3 +1,7 @@
 # Screenshots kept for writing the README, not part of the plugin.
 imthemousenow.jpg
 keyboard-be-like.jpg
+
+# Loading bin/imthemousenow-config as a module (tests/action-colors.sh) leaves
+# one of these behind.
+__pycache__/

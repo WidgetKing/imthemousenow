@@ -22,6 +22,7 @@ Subcommands:
 
 from __future__ import annotations
 
+import math
 import os
 import shlex
 import sys
@@ -109,6 +110,154 @@ def nest_reserved(flat: dict) -> dict:
     return out
 
 
+# --- the ACTION palette ------------------------------------------------------
+# Five colours are needed and one is given. `left-click` is the theme's accent,
+# straight out of the theme template, because the ordinary overlay should look
+# like the rest of the desktop; the other four are turned off it, so a new theme
+# repaints the whole set and no hue is ever chosen by hand.
+#
+# The turning happens in OkLCh, and that choice is the whole reason this is not
+# six lines of HSL. Equal hue steps in HSL are not equal steps to an eye: at one
+# lightness number, yellows and cyans come out glaring while blues sink into the
+# background, so a wheel divided evenly there produces a set where some members
+# shout and others are missed. OkLCh is built on a model of human vision, so
+# holding L and C still and moving only the hue gives colours of genuinely equal
+# weight -- which is exactly what a set of signal colours has to be, none of them
+# louder than the rest. Five of them means 360/5 = 72 degrees apart.
+#
+# Two things stop that from being the whole algorithm, and both were measured
+# across all 22 shipped themes rather than guessed:
+#
+# CHROMA_FLOOR. Four themes have an accent with almost no colour in it at all
+# (vantablack and white are grey, solitude and last-horizon nearly so). Rotating
+# the hue of a grey produces five greys, and the palette that is meant to tell
+# you whether the next keypress right-clicks or drags becomes unreadable. So the
+# derived four are given at least this much chroma even when the accent has
+# less. They stay muted -- 0.10 is a tint, not a poster -- and left-click keeps
+# the accent exactly as the theme wrote it, so a monochrome theme still looks
+# monochrome until you switch ACTION, which is the moment you need to be told.
+#
+# L_MAX. sRGB is not a cylinder: the chroma available at a hue collapses as
+# lightness rises, from about 0.32 at mid lightness down to 0.13 for blues. Two
+# themes (hackerman, kanagawa) have accents up at L 0.88, where no hue can hold
+# enough chroma to separate five of them -- they plateaued at a barely-visible
+# 0.066 whatever floor was asked for. Pulling the derived four down to L_MAX
+# buys the chroma back. Their weight then differs a little from left-click's,
+# which is a fair trade for being able to tell them apart at all.
+#
+# The result, measured: every shipped theme separates its five by at least 0.096
+# in Oklab, where 1.0 is the distance from black to white. tests/action-colors.sh
+# asserts it, so a new theme cannot quietly break it.
+WHEEL = ("left-click", "right-click", "move", "drag", "drop")
+CHROMA_FLOOR = 0.10
+L_MIN, L_MAX = 0.45, 0.78
+
+# Bjorn Ottosson's Oklab, transcribed rather than depended on: this runs on
+# every settings() call, and a colour library is not worth a dependency in a
+# plugin whose whole install is a build of one C program.
+_OKLAB_M1 = (
+    (0.4122214708, 0.5363325363, 0.0514459929),
+    (0.2119034982, 0.6806995451, 0.1073969566),
+    (0.0883024619, 0.2817188376, 0.6299787005),
+)
+_OKLAB_M2 = (
+    (0.2104542553, 0.7936177850, -0.0040720468),
+    (1.9779984951, -2.4285922050, 0.4505937099),
+    (0.0259040371, 0.7827717662, -0.8086757660),
+)
+
+
+def _srgb_to_linear(u: float) -> float:
+    return u / 12.92 if u <= 0.04045 else ((u + 0.055) / 1.055) ** 2.4
+
+
+def _linear_to_srgb(u: float) -> float:
+    return 12.92 * u if u <= 0.0031308 else 1.055 * u ** (1 / 2.4) - 0.055
+
+
+def parse_hex(value: str):
+    """`#rrggbb` (with or without the #, with or without trailing alpha) as
+    three 0-255 ints, or None if it is not a colour at all."""
+    text = str(value).strip().lstrip("#")
+    if len(text) not in (6, 8) or any(c not in "0123456789abcdefABCDEF" for c in text):
+        return None
+    return tuple(int(text[i : i + 2], 16) for i in (0, 2, 4))
+
+
+def to_oklch(rgb):
+    lin = [_srgb_to_linear(c / 255) for c in rgb]
+    lms = [sum(row[i] * lin[i] for i in range(3)) for row in _OKLAB_M1]
+    lms = [math.copysign(abs(v) ** (1 / 3), v) for v in lms]
+    light, a, b = (sum(row[i] * lms[i] for i in range(3)) for row in _OKLAB_M2)
+    return light, math.hypot(a, b), math.degrees(math.atan2(b, a)) % 360
+
+
+def _oklch_to_linear(light, chroma, hue):
+    a = chroma * math.cos(math.radians(hue))
+    b = chroma * math.sin(math.radians(hue))
+    l_ = (light + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (light - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (light - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    return (
+        4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
+
+
+def max_chroma(light, hue, ceiling=0.45):
+    """The most chroma sRGB can show at this lightness and hue. Bisected rather
+    than solved: clamping the channels instead would drag the hue with it, which
+    is the one thing the whole approach is for."""
+    low, high = 0.0, ceiling
+    for _ in range(40):
+        mid = (low + high) / 2
+        if all(-1e-4 <= c <= 1 + 1e-4 for c in _oklch_to_linear(light, mid, hue)):
+            low = mid
+        else:
+            high = mid
+    return low
+
+
+def oklch_to_hex(light, chroma, hue):
+    channels = _oklch_to_linear(light, chroma, hue)
+    return "#%02x%02x%02x" % tuple(
+        round(min(1.0, max(0.0, _linear_to_srgb(min(1.0, max(0.0, c))))) * 255) for c in channels
+    )
+
+
+def derive_action_colors(merged: dict) -> None:
+    """Fill in any ACTION with no colour of its own, in place.
+
+    Only the missing ones: a colour written out by hand -- in the user's
+    config.toml, or in their own copy of the theme template -- is a decision,
+    and nothing here may second-guess it. Which also means setting left-click's
+    by hand repaints all five, since they are all turned off it.
+    """
+    actions = merged.setdefault("imthemousenow", {}).setdefault("action", {})
+    base = parse_hex(actions.get(WHEEL[0], {}).get("color", ""))
+    # No accent anywhere: theme_colors is off and nothing was written by hand.
+    # Every tint then stays unset, which the callers already read as "no tint".
+    if base is None:
+        return
+
+    light, chroma, hue = to_oklch(base)
+    derived_light = min(max(light, L_MIN), L_MAX)
+    hues = [(hue + i * 360 / len(WHEEL)) % 360 for i in range(len(WHEEL))]
+    # One chroma for all of them, taken from the most gamut-limited hue in the
+    # set. Per-hue maxima would give the set an uneven weight, which is the
+    # thing this is trying not to do.
+    wanted = max(chroma, CHROMA_FLOOR)
+    shared = min(wanted, min(max_chroma(derived_light, h) for h in hues))
+
+    for index, action in enumerate(WHEEL):
+        if index == 0:
+            continue
+        entry = actions.setdefault(action, {})
+        if not parse_hex(entry.get("color", "")):
+            entry["color"] = oklch_to_hex(derived_light, shared, hues[index])
+
+
 def settings() -> dict:
     """The merged config, all layers applied."""
     merged = load_toml(DEFAULTS)
@@ -118,7 +267,11 @@ def settings() -> dict:
     theme_on = user.get("imthemousenow", {}).get("theme_colors", theme_on)
     if theme_on:
         merged = deep_merge(merged, nest_reserved(parse_ini(THEME_CONF)))
-    return deep_merge(merged, user)
+    merged = deep_merge(merged, user)
+    # Last, so the accent it turns is the one every layer agreed on, and so a
+    # colour any layer set by hand is already in place to be left alone.
+    derive_action_colors(merged)
+    return merged
 
 
 def axis_values(merged: dict) -> dict:
