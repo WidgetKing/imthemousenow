@@ -122,6 +122,21 @@ size = 120
 # only glyphs are private-use marks -- it has no letters to set a word in.
 font = ""
 
+# The key sheet: F1 or `?` inside an overlay writes down every key that overlay
+# listens to, and Escape puts it away. Nothing about this plugin is printed on
+# a key, so the sheet is the discoverable half of it.
+#
+# The sheet replaces the overlay for as long as it is up rather than covering
+# it -- it reads its own keyboard, and wl-kbptr is holding one. Dismissing it
+# puts the overlay back exactly as it was, so pressing F1 mid-selection costs
+# you the letters you had typed and nothing else.
+#
+# Colours are not here: the sheet is painted in the theme the overlay is, read
+# from the same rendered template.
+[imthemousenow.help]
+# Body text, in px. The keys and the headings are sized off this.
+size = 15
+
 # =============================================================================
 # ADVANCED
 # =============================================================================

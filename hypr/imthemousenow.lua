@@ -67,7 +67,12 @@ KEY_CHANNEL = (os.getenv("XDG_RUNTIME_DIR") or "/tmp") .. "/imthemousenow/keys"
 -- so the target under it can be read. wl-kbptr decides which; this just has to
 -- deliver the key, because in popup-safe mode a key that is not relayed is a
 -- key the overlay is not told about.
-RELAY_KEYS = { "comma", "Escape", "BackSpace", "Return", "space" }
+-- Escape is NOT in this list and is bound on its own in the popups submap
+-- below: with the key sheet (F1) up there is no overlay for Escape to cancel,
+-- and the sheet takes no keyboard in this mode -- taking it is precisely what
+-- closes the popup the mode exists to keep open -- so Escape has to reach
+-- imthemousenow-steer first and be relayed only when no sheet is showing.
+RELAY_KEYS = { "comma", "BackSpace", "Return", "space" }
 for byte = string.byte("a"), string.byte("z") do
   table.insert(RELAY_KEYS, string.char(byte))
 end
@@ -215,6 +220,29 @@ local function overlay_binds()
     description = "Pointer: rebuild the overlay against the screen as it is now",
   })
 
+  -- Nothing here is printed on a key, and the overlay is invisible until one
+  -- is pressed -- so the one thing a person cannot work out by looking is what
+  -- they are allowed to press. F1 is where a help key lives, and pressing it
+  -- again closes the sheet.
+  --
+  -- The sheet replaces the overlay for as long as it is up rather than sitting
+  -- over it: it reads its own keyboard, and wl-kbptr is holding a grab. The
+  -- overlay comes back unchanged when the sheet is dismissed -- see the `help`
+  -- verb in bin/imthemousenow-steer.
+  --
+  -- `?` is deliberately NOT a second way in. On a QWERTY keyboard the keysym
+  -- only exists because SHIFT is held, so `question` has to be bound as
+  -- `SHIFT + question` -- a bare bind registers at modmask 0, never fires, and
+  -- the `?` falls through to the window underneath and is typed into it. But
+  -- `?` is not on SHIFT on every layout, so covering it properly means a pair
+  -- of binds whose correctness depends on the keymap, and F1 already answers
+  -- the question on every keymap there is. One key that always works beats two
+  -- where one of them is a guess about the layout.
+  hl.bind("F1", hl.dsp.exec_cmd("imthemousenow-steer help"), {
+    description = "Pointer: show the keys this overlay listens to",
+  })
+
+
   -- `-` `=` `_` `+` resize the window the overlay is drawn over -- the same
   -- four keys, the same directions and the same 100px step as SUPER + them
   -- outside the overlay, so nothing new is learned to use them here. They are
@@ -258,6 +286,11 @@ hl.define_submap(SUBMAP_POPUPS, function()
   for _, name in ipairs(RELAY_KEYS) do
     imthemousenow_relay_bind(name)
   end
+
+  -- Escape, the exception to the relay. See RELAY_KEYS.
+  hl.bind("Escape", hl.dsp.exec_cmd("imthemousenow-steer escape"), {
+    description = "Pointer: close the key sheet, or cancel the overlay",
+  })
 
   -- Everything else. With no keyboard focus anywhere near the overlay, a key
   -- that is not bound here goes to the window underneath -- so a mistyped

@@ -36,6 +36,8 @@ Usage: imthemousenow-steer <verb> [value]
   swap-cancel    abandon that swap, putting the overlay back as it was
   workspace <n>  go to workspace n, or step by ±n
   monitor <±n>   step the overlay to another monitor
+  help           show or hide the key sheet for the overlay that is up
+  escape         popup-safe mode only: close the key sheet, or relay Escape
   refresh        rebuild the overlay against the screen as it is now
   stop           close any overlay that is up
 
@@ -322,6 +324,41 @@ case "$verb" in
     # axes and stops there.
     session_has swap-from || exit 0
     swap_restore_axes
+    ;;
+
+  help)
+    # Bound to F1 and `?`. A toggle, because the key that opens the sheet is
+    # the one a hand is already on when it wants it gone.
+    #
+    # The sheet REPLACES the overlay rather than sitting on top of it. In the
+    # ordinary submap it has to: it reads its own keyboard, and wl-kbptr holds
+    # a grab that nothing else may take while it is up. So this asks for a
+    # relaunch the way every other key here does, and the run loop shows the
+    # sheet in the gap -- when it is dismissed the overlay comes back exactly
+    # as it was, same mode, same scope, same action. Popup-safe mode keeps the
+    # same shape rather than growing a second one: there the overlay takes no
+    # keyboard either way, but an overlay left up behind a sheet is labels
+    # under a panel of text.
+    if help_showing; then
+      help_stop
+      exit 0
+    fi
+    session_stamp_bind
+    session_relaunch help
+    ;;
+
+  escape)
+    # Popup-safe mode only, where Escape is a compositor binding rather than a
+    # key wl-kbptr reads -- see RELAY_KEYS in hypr/imthemousenow.lua. With the
+    # sheet up there is no overlay to cancel and the sheet cannot read its own
+    # keyboard (taking it is what closes the popup the mode exists to keep
+    # open), so Escape has to arrive here. Otherwise it is the relay it always
+    # was, and wl-kbptr cancels exactly as it did before.
+    if help_showing; then
+      help_stop
+      exit 0
+    fi
+    echo Escape >>"$SESSION_DIR/keys" 2>/dev/null || true
     ;;
 
   refresh)

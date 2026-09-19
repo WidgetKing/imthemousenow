@@ -1,0 +1,240 @@
+#!/bin/bash
+# omarchy:summary=Show the overlay's key list until it is dismissed
+# omarchy:args=[--scope S] [--mode M] [--action A] [--lifetime L] [--stage S] [--focus none|exclusive] [--output NAME]
+#
+# F1 or `?` inside an overlay. The plugin's whole surface is invisible until a
+# key is pressed and none of those keys are printed on anything, so this is the
+# one place they are written down at the moment they are wanted.
+#
+# The list is built HERE rather than in qml/help.qml, because which keys apply
+# depends on the overlay that is up: the resize and swap keys are window scope
+# only, and the drop pass of a drag reads the digits and the arrows differently
+# from every other overlay. A sheet that lists keys which currently do nothing
+# is worse than no sheet.
+#
+# Blocking: this returns when the sheet is dismissed, which is what lets the
+# run loop in bin/imthemousenow treat "show the help" as a pause between two
+# passes of the overlay rather than a second thing on screen. See that loop,
+# and the header of qml/help.qml for why the sheet may take the keyboard at all.
+set -euo pipefail
+
+LIB_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}/bin"
+[[ -f $LIB_DIR/imthemousenow-lib.sh ]] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=imthemousenow-lib.sh
+source "$LIB_DIR/imthemousenow-lib.sh"
+# shellcheck source=imthemousenow-session.sh
+source "$LIB_DIR/imthemousenow-session.sh"
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+QML="$SELF_DIR/../qml/help.qml"
+[[ -f $QML ]] || QML="$PLUGIN_DIR/qml/help.qml"
+
+usage() {
+  cat <<'USAGE'
+Usage: imthemousenow-help [options]
+
+  --scope S      window | monitor   (default: the running overlay's)
+  --mode M       grid | hints | windows
+  --action A     left-click | right-click | move | drag | drop
+  --lifetime L   single | continuous
+  --stage S      normal | drop | swap -- which keys are live right now
+  --focus F      exclusive (this sheet reads the keyboard) | none (popup-safe
+                 mode: the keys are compositor bindings and closing it is
+                 `imthemousenow-steer help`)
+  --output NAME  which monitor to draw on
+  --print        print the sheet as JSON and exit, drawing nothing
+  --self-test    check this can run at all, then exit
+
+Blocks until the sheet is dismissed.
+USAGE
+}
+
+scope="" mode="" action="" lifetime="single" stage="" focus="exclusive" output="" print_only=0
+
+while (($#)); do
+  case "$1" in
+    -h | --help) usage; exit 0 ;;
+    --self-test)
+      command -v quickshell >/dev/null 2>&1 || { echo "imthemousenow-help: quickshell is not installed" >&2; exit 1; }
+      [[ -f $QML ]] || { echo "imthemousenow-help: missing $QML" >&2; exit 1; }
+      echo "imthemousenow-help: ready"
+      exit 0
+      ;;
+    --print) print_only=1; shift ;;
+    --scope) scope="${2:?--scope needs a value}"; shift 2 ;;
+    --mode) mode="${2:?--mode needs a value}"; shift 2 ;;
+    --action) action="${2:?--action needs a value}"; shift 2 ;;
+    --lifetime) lifetime="${2:?--lifetime needs a value}"; shift 2 ;;
+    --stage) stage="${2:?--stage needs a value}"; shift 2 ;;
+    --focus) focus="${2:?--focus needs a value}"; shift 2 ;;
+    --output) output="${2:?--output needs a value}"; shift 2 ;;
+    *) echo "imthemousenow-help: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+
+# Unstated axes come from the run that is up, which is the normal case: the
+# key that opens this sheet passes nothing.
+[[ -n $scope ]] || scope="$(session_get scope)"
+[[ -n $mode ]] || mode="$(session_get mode)"
+[[ -n $action ]] || action="$(session_get action)"
+if [[ -z $stage ]]; then
+  if session_has drag-anchor; then stage="drop"
+  elif session_has swap-from; then stage="swap"
+  else stage="normal"; fi
+fi
+case "$focus" in
+  none | exclusive) ;;
+  *) echo "imthemousenow-help: --focus is none or exclusive" >&2; exit 2 ;;
+esac
+
+# --- the list ----------------------------------------------------------------
+# Built as JSON because the sheet is a grid of key/meaning pairs and jq is the
+# only thing here that can quote arbitrary text into one safely.
+#
+# A section is { title, rows: [[keys, meaning], ...] }, and the sheet lays them
+# out in two columns in the order they are added.
+sections_json='[]'
+
+section() {
+  local title="$1"; shift
+  local rows='[]' pair
+  while (($#)); do
+    pair="$(jq -cn --arg k "$1" --arg v "$2" '[$k, $v]')"
+    rows="$(jq -c --argjson p "$pair" '. + [$p]' <<<"$rows")"
+    shift 2
+  done
+  sections_json="$(jq -c --arg t "$title" --argjson r "$rows" \
+    '. + [{ title: $t, rows: $r }]' <<<"$sections_json")"
+}
+
+# What wl-kbptr itself reads. These are the keys that actually select
+# something; everything below them only changes what selecting will do.
+if [[ $mode == grid ]]; then
+  section "Aim" \
+    "a . . z ," "type a cell's label to zoom into it" \
+    "home row" "halve the area again, eight ways" \
+    "Space / Return" "commit the area you have narrowed to" \
+    "BackSpace" "undo the last step" \
+    "Escape" "close the overlay without clicking"
+else
+  section "Aim" \
+    "a . . z ," "type a label to pick that target" \
+    "Space (hold)" "fade the overlay to read what is under it" \
+    "BackSpace" "undo the last letter" \
+    "Escape" "close the overlay without clicking"
+fi
+
+# ACTION. `;` and `:` are two meanings of one physical key, `'` is the key next
+# to it; pressing the same one twice goes back to what the chord asked for.
+if [[ $stage == drop ]]; then
+  section "This drag" \
+    ";  :  '" "call the drag off -- nothing has been pressed yet" \
+    "Escape" "the same: abandon the drag"
+else
+  section "What happens" \
+    ";" "right click instead (again: back)" \
+    ":" "move the pointer, no click (again: back)" \
+    "'" "drag: pick up here, then say where to drop"
+fi
+
+# The two axes a modifier flips outside the overlay flip the same way inside
+# it, on a bare tap.
+section "This overlay" \
+  "Shift (tap)" "the other scope: window <-> monitor" \
+  "Alt (tap)" "the other mode: hints <-> grid" \
+  "F5" "measure the screen again and redraw" \
+  "F1" "this sheet"
+
+# SCOPE decides what the digits and the arrows move, so the sheet says the one
+# thing they do here rather than all three things they can do.
+if [[ $stage == drop ]]; then
+  section "Where to drop" \
+    "arrows" "take the drop to the monitor that way" \
+    "1 . . 9" "nothing during a drag"
+elif [[ $scope == window ]]; then
+  section "This window" \
+    "arrows" "move the window through the layout" \
+    "1 . . 9" "send the window to that workspace" \
+    "-  =" "grow or shrink on the horizontal edge" \
+    "_  +" "grow or shrink on the vertical edge" \
+    "Tab" "swap this window with one you pick"
+else
+  section "What is under it" \
+    "left / right" "previous or next workspace" \
+    "up / down" "previous or next monitor" \
+    "1 . . 9" "go to that workspace"
+fi
+
+section "Out" \
+  "Escape" "close the overlay" \
+  "Ctrl+Alt+Del" "close the overlay, then Omarchy's own panic"
+
+footer=""
+if [[ $stage == swap ]]; then
+  footer="Picking a window to swap with: choose one, or Escape to put the overlay back."
+elif [[ $stage == drop ]]; then
+  footer="Holding one end of a drag. Nothing is pressed until you name the other end."
+elif [[ $focus == none ]]; then
+  footer="Popup-safe mode: the window underneath keeps its focus and its popups."
+fi
+[[ $lifetime == continuous ]] &&
+  footer="Continuous: the overlay comes back after every click, until Escape. $footer"
+
+label="$(setting "action.${action}.label")"
+[[ -n $label ]] || label="${action%-click}"
+
+sheet="$(jq -cn \
+  --arg title "I'm the mouse now" \
+  --arg state "$mode · $scope · $label" \
+  --arg footer "$footer" \
+  --argjson sections "$sections_json" \
+  '{ title: $title, state: $state, footer: $footer, sections: $sections }')"
+
+if ((print_only)); then
+  jq . <<<"$sheet"
+  exit 0
+fi
+
+# --- draw --------------------------------------------------------------------
+# Colours follow the theme the overlay itself is painted in, read straight from
+# the rendered template rather than configured twice: the sheet is part of the
+# overlay and must not be the one surface that ignores the theme.
+read -r help_bg help_fg < <(theme_surface_colors)
+accent="$(setting action.left-click.color)"
+[[ -n $accent ]] || accent="#89b4fa"
+
+font="$(setting osd.font)"
+if [[ -z $font ]] && command -v omarchy-font-current >/dev/null 2>&1; then
+  font="$(omarchy-font-current 2>/dev/null || true)"
+fi
+[[ -n $font ]] || font="sans-serif"
+
+[[ -n $output ]] || IFS=$'\t' read -r output _ < <(focused_monitor)
+
+mkdir -p "$SESSION_DIR"
+
+export MOUSENOW_HELP_JSON="$sheet" \
+  MOUSENOW_HELP_BG="$help_bg" \
+  MOUSENOW_HELP_FG="$help_fg" \
+  MOUSENOW_HELP_ACCENT="$accent" \
+  MOUSENOW_HELP_FONT="$font" \
+  MOUSENOW_HELP_FOCUS="$focus" \
+  MOUSENOW_HELP_OUTPUT="$output"
+if [[ -n $(setting help.size) ]]; then
+  export MOUSENOW_HELP_SIZE="$(setting help.size)"
+fi
+
+# Backgrounded and waited on rather than exec'd or left in the foreground,
+# because the pid that matters is quickshell's, not this script's. It is what
+# `imthemousenow-steer help` signals to put the sheet away, and signalling this
+# wrapper instead leaves the surface on screen with nothing holding its pid --
+# measured, not assumed: the wrapper died and the sheet stayed.
+#
+# The pid file must not outlive the process either. A stale one naming a
+# recycled pid would make `help` believe a sheet is up and refuse to open one,
+# so it goes however this ends, and the sheet goes with it.
+quickshell --no-color -p "$QML" &
+sheet_pid=$!
+echo "$sheet_pid" >"$SESSION_DIR/help.pid"
+trap 'kill "$sheet_pid" 2>/dev/null || true; rm -f "$SESSION_DIR/help.pid"' EXIT INT TERM HUP
+wait "$sheet_pid" || true

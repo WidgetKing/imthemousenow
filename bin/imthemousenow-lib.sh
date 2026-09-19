@@ -65,6 +65,63 @@ pointer_position() {
   hyprctl cursorpos | tr -d ','
 }
 
+# The rendered theme's surface colours, as `background foreground`, six hex
+# digits each with a leading `#`. The theme template writes wl-kbptr's colours
+# with two alpha digits on the end; the help sheet paints its own alpha, so the
+# pairing that comes back here is the flat one.
+#
+# mode_floating is the section to read, not mode_tile: its labels sit on top of
+# whatever is on screen, so the template already made that background near
+# opaque and that pairing readable against itself -- which is exactly what a
+# panel of text needs. A theme that has not been rendered falls back to
+# Catppuccin Mocha, which is Omarchy's own default.
+THEME_CONF="$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
+
+theme_surface_colors() {
+  local bg="" fg=""
+  if [[ -f $THEME_CONF ]]; then
+    # Only within [mode_floating]: the same key names appear in every section.
+    read -r bg fg < <(awk -F= '
+      /^\[/ { in_section = ($0 ~ /^\[mode_floating\]/) }
+      in_section && $1 == "unselectable_bg_color" { bg = $2 }
+      in_section && $1 == "label_color" { fg = $2 }
+      END { print bg, fg }
+    ' "$THEME_CONF")
+  fi
+  # Strip the alpha the template appends, and refuse anything that is not a
+  # colour -- a malformed value would reach QML and paint the sheet black.
+  [[ $bg =~ ^#[0-9a-fA-F]{6} ]] && bg="${BASH_REMATCH[0]}" || bg="#1e1e2e"
+  [[ $fg =~ ^#[0-9a-fA-F]{6} ]] && fg="${BASH_REMATCH[0]}" || fg="#cdd6f4"
+  echo "$bg $fg"
+}
+
+# The key sheet, which is one process at a time and is owned by whoever opened
+# it. The pid file is written by imthemousenow-help and removed when it exits,
+# but a pid file can still name a recycled pid, so the process is checked to be
+# one of ours before it is signalled -- the same guard the OSD uses.
+help_pid() {
+  local pid
+  pid="$(cat "${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/help.pid" 2>/dev/null || true)"
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  grep -qa "help.qml" "/proc/$pid/cmdline" 2>/dev/null ||
+    grep -qa "imthemousenow-help" "/proc/$pid/cmdline" 2>/dev/null || return 1
+  echo "$pid"
+}
+
+# True when a sheet is on screen. `help` is a toggle, and this is what tells it
+# which way it is toggling.
+help_showing() {
+  help_pid >/dev/null
+}
+
+# Take the sheet down. The run loop is blocked on that process, so this is also
+# what puts the overlay back: imthemousenow-help returning is the signal.
+help_stop() {
+  local pid
+  pid="$(help_pid)" || return 0
+  kill "$pid" 2>/dev/null || true
+}
+
 notify() {
   [[ $(setting notify) == false ]] && return 0
   if command -v omarchy-notification-send >/dev/null 2>&1; then

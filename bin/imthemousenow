@@ -29,6 +29,8 @@ STATE_DIR="$HOME/.local/state/imthemousenow"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow.lock"
 STEER_CMD="$LIB_DIR/imthemousenow-steer"
 [[ -x $STEER_CMD ]] || STEER_CMD="imthemousenow-steer"
+HELP_CMD="$LIB_DIR/imthemousenow-help"
+[[ -x $HELP_CMD ]] || HELP_CMD="imthemousenow-help"
 SUBMAP="imthemousenow"
 # EXPERIMENTAL, chosen by popups.keep_open: the same overlay with its keys
 # coming from compositor bindings, so it never takes keyboard focus and the
@@ -39,7 +41,11 @@ KEY_CHANNEL="$SESSION_DIR/keys"
 # names, not how each one is bound: `space` is relayed on release as well as
 # press (the peek needs to know when the hand comes off it), and that pairing
 # lives in the lua, in the function this file re-asserts binds through.
-RELAY_KEYS=(comma Escape BackSpace Return space {a..z})
+# Escape is NOT here, and is bound on its own: with the key sheet up there is
+# no overlay for it to cancel, and the sheet takes no keyboard in this mode, so
+# it has to reach imthemousenow-steer first and be relayed only if no sheet is
+# showing. The lua keeps the same exception, for the same reason.
+RELAY_KEYS=(comma BackSpace Return space {a..z})
 
 # The other value on an axis: what a modifier means. SCOPE and LIFETIME have
 # exactly two, so "the other" is unambiguous. MODE is the config's list and can
@@ -138,6 +144,7 @@ SUBMAP_KEYS=(
   "TAB:imthemousenow-steer swap:Pointer: swap this window with one you pick"
   "apostrophe:imthemousenow-steer action drag:Pointer: pick something up, then say where to drop it"
   "F5:imthemousenow-steer refresh:Pointer: rebuild the overlay against the screen as it is now"
+  "F1:imthemousenow-steer help:Pointer: show the keys this overlay listens to"
   "CTRL + ALT + DELETE:imthemousenow-panic:Pointer: close the overlay and all windows"
 )
 
@@ -154,6 +161,10 @@ ensure_submap_binds() {
       [[ " $present " == *" $relay "* ]] && continue
       body+="imthemousenow_relay_bind(\"$relay\")"$'\n'
     done
+    if [[ " $present " != *" Escape "* ]]; then
+      body+="hl.bind(\"Escape\", hl.dsp.exec_cmd(\"imthemousenow-steer escape\"),"
+      body+=" { description = \"Pointer: close the key sheet, or cancel the overlay\" })"$'\n'
+    fi
   fi
 
   for entry in "${SUBMAP_KEYS[@]}"; do
@@ -577,6 +588,25 @@ EOF
     return "$rc"
   }
 
+  # The key sheet, shown in the gap between two passes of the overlay. It has
+  # to be a gap rather than a layer on top: in the ordinary submap the sheet
+  # reads its own keyboard, and wl-kbptr holds a grab that nothing else may
+  # take while it is up. imthemousenow-steer has already killed the overlay by
+  # the time this runs -- that is what `session_relaunch help` does -- so this
+  # blocks until the sheet is dismissed and the loop then puts the overlay back
+  # exactly as it was.
+  show_help() {
+    local focus="exclusive"
+    # Popup-safe mode's one rule: take no keyboard, ever. The sheet is closed
+    # by its own compositor bindings there instead.
+    [[ $SUBMAP == "$SUBMAP_POPUPS" ]] && focus="none"
+    "$HELP_CMD" --focus "$focus" --lifetime "$lifetime" --output "$mon_name" || true
+    # Keys pressed at the sheet still fired their submap bindings, and any of
+    # them will have asked for a relaunch we are about to do anyway. Consume it
+    # so the overlay is not torn down again the moment it comes back.
+    session_take_relaunch >/dev/null || true
+  }
+
   local status=0 passes=0 quick_exits=0 started elapsed
   local current_action="$base_action"
   local guard_ms max_quick max_passes
@@ -604,6 +634,13 @@ EOF
     # without counting a pass.
     local reason=""
     if reason="$(session_take_relaunch)"; then
+      # F1 or `?`. Not a switch and not a pass: the overlay that comes back
+      # after it is the same one that went away.
+      if [[ $reason == help ]]; then
+        show_help
+        current_action="$(session_get action)"
+        continue
+      fi
       current_action="$(session_get action)"
       # A workspace or monitor change is not instant: relaunching before the
       # compositor has settled measures the geometry we just left.

@@ -142,6 +142,73 @@ letters in it. Everywhere Omarchy sets text it uses fontconfig's monospace
 (JetBrainsMono Nerd Font, itself an `omarchy` dependency), which is what
 `osd.font = ""` follows.
 
+## The key sheet (`F1`)
+
+`bin/imthemousenow-help` builds the list, `qml/help.qml` draws it, the same
+split and for the same reason as the ACTION announcement: quickshell is already
+a dependency of the `omarchy` package, and quickshell owns argv, so the content
+arrives as JSON in an environment variable.
+
+Three decisions, each of which had an obvious-looking alternative.
+
+**The sheet replaces the overlay; it does not cover it.** A sheet on top would
+have to read its own keyboard, and in the ordinary submap wl-kbptr is holding a
+grab. So `imthemousenow-steer help` asks for a relaunch exactly the way `;`
+does, and the run loop shows the sheet in the gap between two passes -- a
+`show_help` next to `run_once`, blocking. The overlay that comes back is the
+one that went away: same MODE, SCOPE, ACTION. Nothing new had to be invented
+for this; the relaunch machinery that exists for switching ACTION is the whole
+implementation.
+
+**The list is built in bash, not written in the QML.** Which keys are live
+depends on the overlay that is up -- the resize keys and `Tab` are window scope
+only, `grid` ends in a bisect and `hints` does not, and a drag's drop pass
+reads the digits and the arrows differently from every other overlay. Only the
+process that can read the session knows that, and a sheet that lists keys which
+currently do nothing teaches the wrong thing.
+
+**`Escape` stopped being a plain relay in popup-safe mode.** It was in
+`RELAY_KEYS`: bound in the submap, appended to the channel, read by wl-kbptr.
+But with the sheet up there is no wl-kbptr to cancel, and the sheet takes no
+keyboard in that mode (taking it is exactly what closes the popup the mode
+exists to keep open), so an `Escape` that only ever relays is a key that cannot
+close what it opened. It is now its own bind, `imthemousenow-steer escape`,
+which closes the sheet if one is showing and relays `Escape` if not. Both
+halves of `RELAY_KEYS` -- the lua's list and the bash mirror that re-asserts
+dropped binds -- had to lose it together; `tests/help-sheet.sh` asserts that
+they did.
+
+One thing measured rather than assumed: the pid the sheet is closed by must be
+**quickshell's**, not the wrapper's. Signalling the wrapper left the surface on
+screen with nothing holding its pid -- bash died, the sheet stayed, and the run
+loop came back to an overlay underneath a panel of text. So the wrapper
+backgrounds quickshell, records *that* pid, and waits on it.
+
+### `?` was a second way in, and is not
+
+It shipped bound to `question` and did not work: the `?` went through the
+overlay and was typed into whatever was underneath. `hyprctl -j binds` showed
+the bind at `modmask=0` while the key arrives with SHIFT in the mask, because
+on a QWERTY keyboard the keysym only exists *because* SHIFT is held -- the same
+trap as the bare `Shift_L` tap, which this file's neighbours already document.
+
+`SHIFT + question` fixes that case, but `?` is not on SHIFT on every layout, so
+covering it means a pair of binds that are each only right for some keymaps --
+and in popup-safe mode the catchall deliberately passes chords through to the
+window underneath, so a mask that does not match is a `?` typed into a text
+field rather than a key that quietly does nothing. F1 is the help key on every
+keymap there is, so `?` was dropped rather than patched. `tests/help-sheet.sh`
+asserts it stays dropped.
+
+Worth recording separately: this could not be verified with synthetic input.
+`wtype` attaches a virtual keyboard with its own keymap, which both fails to
+exercise the shifted bind and leaves the seat's main keyboard with
+`active keymap: error` -- after which wl-kbptr refuses to start at all
+(`0x26 symkey does not have a UTF-8 representation in given keymap`), and every
+later test fails for that reason instead of its own. `systemctl --user restart
+omarchy-fcitx5.service` repairs it. Drive the overlay through
+`imthemousenow-steer <verb>` instead, which is what the binds run anyway.
+
 ## Dragging
 
 A drag is the one ACTION that cannot be expressed as "put the pointer here and

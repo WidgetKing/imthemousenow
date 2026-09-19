@@ -236,6 +236,34 @@ keyboard. You will see a flicker, and anything you had already typed is
 discarded — the trade for being able to decide *after* seeing the overlay
 rather than before.
 
+### The keys, on screen: `F1`
+
+Nothing here is printed on a key, and the overlay is invisible until one is
+pressed — so the one thing you cannot work out by looking is what you are
+allowed to press. `F1` writes it all down, and `Escape` puts it away.
+
+The sheet is about the overlay you are actually in, not about the plugin: the
+resize keys only appear in `window` SCOPE, `grid` names the home row and
+`hints` does not, and in the middle of a drag it says outright that the digits
+do nothing and that the arrows have changed meaning. A sheet that listed keys
+which currently do nothing would be teaching the wrong thing.
+
+It replaces the overlay for as long as it is up rather than covering it: it
+reads its own keyboard and wl-kbptr is holding one. Dismissing it puts the
+overlay back exactly as it was — same MODE, SCOPE and ACTION — so pressing `F1`
+mid-selection costs you the letters you had typed and nothing else. Pressing
+`F1` again closes it too.
+
+In popup-safe mode the sheet takes no keyboard at all, for the same reason
+nothing else in that mode does; `Escape` and `F1` reach it as compositor
+bindings instead, and behave the same.
+
+`?` is not a second way in, and that was tried: on a QWERTY keyboard the keysym
+only exists while `SHIFT` is held, so the bind has to carry the modifier — and
+`?` is not on `SHIFT` on every layout, so covering it properly means a pair of
+binds whose correctness depends on the keymap. `F1` is the help key on every
+keymap there is.
+
 ### Refreshing an overlay: `F5`
 
 An overlay is measured once, when it opens — the window's geometry, and in
@@ -662,7 +690,10 @@ bin/imthemousenow-config    config superset -> compiled wl-kbptr config
 bin/imthemousenow-regions   window rects for hints without OpenCV
 bin/imthemousenow-panic     Ctrl+Alt+Delete escape hatch
 bin/imthemousenow-osd       the large word that names the ACTION you moved into
-qml/osd.qml                 what draws it, through quickshell
+bin/imthemousenow-help      the key sheet F1 opens, built for the overlay that
+                            is up
+qml/osd.qml                 what draws the word, through quickshell
+qml/help.qml                what draws the sheet, the same way
 config.default.toml         shipped defaults and MODEs
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
 hypr/imthemousenow.lua      keybindings + layer rules
