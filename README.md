@@ -71,6 +71,10 @@ is the setting to turn on while the four actions are still new; `osd.enabled =
 false` turns the whole thing off. The word is set in the Omarchy font unless
 `osd.font` names another.
 
+Where it appears follows the overlay: `osd.position` (`top`, `center`,
+`bottom`) is relative to the focused window in `window` scope and to the screen
+in `monitor` scope, so the word is always on the thing you are aiming at.
+
 It never eats a click: its input region is empty, so the pointer passes straight
 through it, and it takes no keyboard focus.
 

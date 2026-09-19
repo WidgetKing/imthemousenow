@@ -57,9 +57,15 @@ fade_ms = 250
 # Font size in px. Large on purpose: it is meant to be read without looking for
 # it, from wherever on screen your eyes already were.
 size = 120
-# top | center | bottom. `top` by default because `center` is where hint labels
-# and the bisect grid are, and a word over the target defeats the point -- it
-# cannot swallow a click (its input region is empty) but it can hide one.
+# top | center | bottom, of whatever the overlay is covering: the screen in
+# monitor scope, the focused window in window scope. A word announcing an overlay
+# confined to one window has no business in the middle of a screen that overlay
+# is not on.
+#
+# `top` by default because `center` is where hint labels and the bisect grid are,
+# and a word over the target defeats the point -- it cannot swallow a click (its
+# input region is empty) but it can hide one. In window scope `center` is more
+# defensible: the word is then inside the area you are already looking at.
 position = "top"
 # Empty follows the Omarchy font, which is what Omarchy renders its own text in
 # (fontconfig's monospace, via `omarchy font current`). Name a family here to

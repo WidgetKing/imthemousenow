@@ -1,6 +1,6 @@
 #!/bin/bash
 # omarchy:summary=Flash one large word on screen, then fade it out
-# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom]
+# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME]
 #
 # Say which ACTION you just switched into, large enough to read without looking
 # for it and gone before it is in the way.
@@ -32,12 +32,15 @@ Usage: imthemousenow-osd TEXT [options]
   --font NAME     font family
   --size N        font size in px
   --position P    top | center | bottom
+  --region R      WxH+X+Y, monitor-relative: place within this box rather than
+                  across the whole screen. What window scope passes.
+  --output NAME   which monitor the region belongs to
 
 One at a time: starting another replaces the one on screen.
 USAGE
 }
 
-text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top"
+text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output=""
 
 while (($#)); do
   case "$1" in
@@ -55,6 +58,8 @@ while (($#)); do
     --font) font="${2:?--font needs a value}"; shift 2 ;;
     --size) size="${2:?--size needs a value}"; shift 2 ;;
     --position) position="${2:?--position needs a value}"; shift 2 ;;
+    --region) region="${2:?--region needs a value}"; shift 2 ;;
+    --output) output="${2:?--output needs a value}"; shift 2 ;;
     -*) echo "imthemousenow-osd: unknown option $1" >&2; exit 2 ;;
     *)
       [[ -z $text ]] || { echo "imthemousenow-osd: only one TEXT" >&2; exit 2; }
@@ -68,6 +73,15 @@ case "$position" in
   top | center | bottom) ;;
   *) echo "imthemousenow-osd: --position is top, center or bottom" >&2; exit 2 ;;
 esac
+# Rejected here rather than silently ignored in QML, where a malformed box would
+# place the word somewhere arbitrary and look like a bug in the positioning.
+if [[ -n $region && ! $region =~ ^[0-9]+x[0-9]+\+-?[0-9]+\+-?[0-9]+$ ]]; then
+  echo "imthemousenow-osd: --region must be WxH+X+Y" >&2
+  exit 2
+fi
+# A fade longer than the whole life would never reach zero on screen.
+((fade_ms > ms)) && fade_ms=$ms
+
 # Replace whatever is on screen rather than stacking on top of it: two switches
 # in quick succession are normal (`;` cycles), and two words both fading would
 # be one unreadable over the other. The runtime directory is the session's own,
@@ -91,5 +105,7 @@ export MOUSENOW_OSD_TEXT="$text" \
   MOUSENOW_OSD_SIZE="$size" \
   MOUSENOW_OSD_MS="$ms" \
   MOUSENOW_OSD_FADE_MS="$fade_ms" \
-  MOUSENOW_OSD_POSITION="$position"
+  MOUSENOW_OSD_POSITION="$position" \
+  MOUSENOW_OSD_REGION="$region" \
+  MOUSENOW_OSD_OUTPUT="$output"
 exec quickshell --no-color -p "$QML"

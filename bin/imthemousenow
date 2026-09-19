@@ -62,10 +62,6 @@ has_key_channel() {
 }
 
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
-focused_monitor() {
-  hyprctl -j monitors | jq -r '.[] | select(.focused) | [.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
-}
-
 # $1 must be one of the remaining arguments.
 expect_one_of() {
   local value="$1" label="$2"
@@ -423,7 +419,7 @@ EOF
   # flashing back up each time would be noise rather than a signal. Switches
   # made inside the overlay are announced by imthemousenow-steer, where the
   # change actually happens.
-  [[ $(setting osd.on_start) == false ]] || osd_action "$base_action"
+  [[ $(setting osd.on_start) == false ]] || osd_action "$base_action" "$scope"
 
   # `;` must reach us, not wl-kbptr, and must mean nothing at all when no
   # overlay is up. A submap is exactly that: it is entered for the lifetime of

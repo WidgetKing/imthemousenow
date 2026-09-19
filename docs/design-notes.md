@@ -86,6 +86,23 @@ Two constraints shaped the QML, and both are easy to get wrong:
   `WlrKeyboardFocus.Exclusive`: it *is* the thing being driven, where this only
   reports on it.
 
+**`position` is relative to what the overlay covers**, not to the screen: the
+focused window in window scope, the whole output in monitor scope. `osd_action`
+takes the scope from its caller and passes the window's box as
+`--region WxH+X+Y` -- monitor-relative, the same shape and the same arithmetic as
+wl-kbptr's own `-r`. No focused window (an empty workspace) falls back to the
+output, which is where the overlay went too.
+
+The QML keeps one code path for both: the surface covers the target box and the
+word is *aligned inside it*, rather than the surface being label-sized and
+placed. A region becomes `anchors { left; top }` plus margins and an implicit
+size, because margins are the only coordinates a layer surface has; no region
+anchors all four edges. `position` then only picks the alignment, so "centred in
+the thing the overlay is covering" is one rule rather than two. The inset from
+the anchored edge drops from 80px to 24px inside a window, since the same 80
+would read as most of the way down a small one, and `fontSizeMode:
+Text.HorizontalFit` shrinks the word rather than clipping it in a narrow window.
+
 `hypr/imthemousenow.lua` gives the `imthemousenow-osd` namespace the same
 `no_anim` layer rule the overlay has, and here it matters twice over: the word
 is solid for only 250ms before it starts fading, and Hyprland's own fade-in

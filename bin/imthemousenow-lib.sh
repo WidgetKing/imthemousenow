@@ -8,6 +8,15 @@ CONFIG_CMD="$PLUGIN_DIR/bin/imthemousenow-config"
 OSD_CMD="$PLUGIN_DIR/bin/imthemousenow-osd"
 [[ -x $OSD_CMD ]] || OSD_CMD="imthemousenow-osd"
 
+# name, x, y, width, height of the focused monitor, tab separated. Logical
+# pixels, not physical: everything that places a surface -- wl-kbptr's -r, a
+# layer surface's margins -- is in the scaled coordinate space Hyprland reports
+# windows in. Lives here rather than in the wrapper because the ACTION
+# announcement needs it too, from whichever process is doing the announcing.
+focused_monitor() {
+  hyprctl -j monitors | jq -r '.[] | select(.focused) | [.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
+}
+
 notify() {
   [[ $(setting notify) == false ]] && return 0
   if command -v omarchy-notification-send >/dev/null 2>&1; then
@@ -23,7 +32,7 @@ notify() {
 # A missing OSD is not an error: the plugin works without it, so a system with
 # no quickshell loses the announcement and nothing else.
 osd_action() {
-  local act="$1"
+  local act="$1" scope="${2:-}"
   [[ $(setting osd.enabled) == false ]] && return 0
   command -v "${OSD_CMD%% *}" >/dev/null 2>&1 || [[ -x $OSD_CMD ]] || return 0
 
@@ -39,6 +48,26 @@ osd_action() {
   [[ -n $(setting osd.fade_ms) ]] && args+=(--fade-ms "$(setting osd.fade_ms)")
   [[ -n $(setting osd.size) ]] && args+=(--size "$(setting osd.size)")
   [[ -n $(setting osd.position) ]] && args+=(--position "$(setting osd.position)")
+
+  # In window scope the word belongs to the window, not to the screen: an
+  # overlay confined to one window that announces itself in the middle of the
+  # monitor is pointing somewhere the overlay is not. Monitor scope keeps the
+  # screen, which is where its overlay is.
+  if [[ $scope == window ]]; then
+    local mon_name mon_x mon_y mon_w mon_h win
+    IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
+    win="$(hyprctl -j activewindow)"
+    if [[ -n $mon_name && $(jq -r '.at // "null"' <<<"$win") != null ]]; then
+      local wx wy ww wh
+      read -r wx wy ww wh < <(jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$win")
+      # Monitor-relative, because that is the coordinate space a layer surface's
+      # margins live in. Same shape as wl-kbptr's -r, and computed the same way.
+      args+=(--output "$mon_name")
+      args+=(--region "${ww}x${wh}+$((wx - mon_x))+$((wy - mon_y))")
+    fi
+    # No focused window (an empty workspace) falls through to the monitor, which
+    # is where the overlay went too.
+  fi
 
   # A named family wins; otherwise follow the Omarchy font, which is the same
   # one the overlay's own labels get and what Omarchy sets its own text in.

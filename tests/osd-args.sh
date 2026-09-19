@@ -1,12 +1,16 @@
 #!/bin/bash
 # What does osd_action() ask the OSD to draw, and where?
 #
-# Every one of these decisions is invisible at runtime -- a wrong one draws
-# something plausible-looking -- so they are asserted here rather than discovered
-# by eye.
+# The interesting part is the geometry: the word belongs to whatever the overlay
+# is covering, which is the focused window in window scope and the screen in
+# monitor scope. All three of those decisions are invisible at runtime -- a wrong
+# one puts the word somewhere plausible-looking -- so they are asserted here
+# rather than discovered by eye.
 #
 # Nothing is drawn: osd_action fires the OSD detached with its output discarded,
-# so the stub standing in for it appends its argv to a file instead.
+# so the stub standing in for it appends its argv to a file instead. hyprctl is
+# stubbed too, which is the only way to exercise the "no focused window" branch
+# without switching the tester to an empty workspace.
 #
 #   ./tests/osd-args.sh
 set -uo pipefail
@@ -27,7 +31,8 @@ setup() {
   chmod +x "$WORK/plugin/bin/imthemousenow-osd"
 }
 
-# Enough of a desktop for the lib to read: one focused monitor, one window.
+# A monitor at the origin, and a window inset on it. The numbers are arbitrary
+# but the arithmetic is not: the region must be monitor-relative.
 hyprctl_stub() {
   local window="$1"
   cat >"$WORK/stub/hyprctl" <<STUB
@@ -81,6 +86,20 @@ setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 check "the action's label, upper-cased" right-click monitor "RIGHT"
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 check "move is a word, not a click name" move monitor "MOVE"
+
+# Monitor scope is the screen: no box, and so no output to put one on.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "monitor scope passes no region" left-click monitor "LEFT" "" "--region" "" "--output"
+
+# Window scope is the window, in the monitor's own coordinates: a window at
+# 400,250 on a monitor at 100,50 is 300,200 into that monitor.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "window scope passes the window box" left-click window "--region 800x600+300+200" "--output DP-9"
+
+# An empty workspace has nothing to aim at, so the word goes where the overlay
+# went: the monitor.
+setup; hyprctl_stub '{}'
+check "no focused window falls back to the screen" left-click window "LEFT" "" "--region"
 
 # The axes the config owns, which a caller must not have to repeat.
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'

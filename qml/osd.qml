@@ -40,25 +40,77 @@ ShellRoot {
   readonly property int fadeMs: Math.min(parseInt(env("MOUSENOW_OSD_FADE_MS", "250")), totalMs)
   readonly property string place: env("MOUSENOW_OSD_POSITION", "top")
 
+  // A box to sit inside, monitor-relative, as WxH+X+Y -- what window scope
+  // passes so the word lands on the window the overlay is confined to rather
+  // than in the middle of a screen the overlay is not covering. Empty means the
+  // whole output, which is what monitor scope wants.
+  readonly property string regionSpec: env("MOUSENOW_OSD_REGION", "")
+  readonly property var region: {
+    const m = /^(\d+)x(\d+)\+(-?\d+)\+(-?\d+)$/.exec(root.regionSpec);
+    return m ? { w: parseInt(m[1]), h: parseInt(m[2]), x: parseInt(m[3]), y: parseInt(m[4]) } : null;
+  }
+  readonly property string outputName: env("MOUSENOW_OSD_OUTPUT", "")
+  // The inset from the edge the word is anchored to. A window is a smaller
+  // space than a screen, so the same 80px would read as "most of the way down".
+  readonly property int inset: root.region ? 24 : 80
+
   PanelWindow {
     id: panel
 
-    // Anchored left and right so the surface spans the output and the word is
-    // centred on the screen rather than on a guess at its own width.
+    // With a region, the surface covers exactly that box: anchored to the top
+    // left corner of the output and pushed into place by its margins, because
+    // margins are the only coordinates a layer surface has. Without one it
+    // spans the output, and `position` is then relative to the screen.
+    //
+    // Either way the surface covers the whole target area and the word is
+    // aligned inside it, rather than the surface being label-sized and placed.
+    // That keeps one rule for both scopes: "centred in the thing the overlay is
+    // covering".
     anchors {
       left: true
-      right: true
-      top: root.place === "top"
-      bottom: root.place === "bottom"
+      top: true
+      right: !root.region
+      bottom: !root.region
     }
-    margins.top: root.place === "top" ? 80 : 0
-    margins.bottom: root.place === "bottom" ? 80 : 0
-    implicitHeight: label.implicitHeight + 24
+    margins.left: root.region ? root.region.x : 0
+    margins.top: root.region ? root.region.y : 0
+    implicitWidth: root.region ? root.region.w : 0
+    implicitHeight: root.region ? root.region.h : 0
     color: "transparent"
+
+    // The window may be on a monitor other than the focused one by the time
+    // this draws; the caller names which, and an unknown name falls back to
+    // wherever quickshell would have put it.
+    screen: {
+      if (root.outputName === "") return null;
+      const match = Quickshell.screens.find(s => s.name === root.outputName);
+      return match !== undefined ? match : null;
+    }
+
+    WlrLayershell.namespace: "imthemousenow-osd"
+    WlrLayershell.layer: WlrLayer.Overlay
+    WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+    // Nothing this short-lived may push a bar or a window aside.
+    exclusionMode: ExclusionMode.Ignore
+    // The empty input region. See the header: this is the click-through.
+    mask: Region {}
 
     Text {
       id: label
-      anchors.centerIn: parent
+      // Filling the surface and aligning inside it, rather than anchoring to an
+      // edge: this is what makes `center` mean the middle of the window in
+      // window scope and the middle of the screen in monitor scope, with no
+      // second code path.
+      anchors.fill: parent
+      anchors.topMargin: root.place === "top" ? root.inset : 0
+      anchors.bottomMargin: root.place === "bottom" ? root.inset : 0
+      horizontalAlignment: Text.AlignHCenter
+      verticalAlignment: root.place === "top" ? Text.AlignTop
+        : root.place === "bottom" ? Text.AlignBottom : Text.AlignVCenter
+      // A window can be narrower than the word is wide at 120px. Shrink to fit
+      // rather than clip: a truncated ACTION name is worse than a smaller one.
+      fontSizeMode: Text.HorizontalFit
+      minimumPixelSize: 16
       text: root.text.toUpperCase()
       color: root.textColor
       font.family: root.family
