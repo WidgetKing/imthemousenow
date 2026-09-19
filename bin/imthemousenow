@@ -242,8 +242,11 @@ underneath it -- a page scrolled, a window resized, a dialog opened -- and the
 labels are re-derived from what is on screen now.
 
 Tab opens a picker with one label per window (that is --mode windows, which you
-can also ask for directly). Picking one swaps it with the window the overlay is
-on, and the overlay comes back on that window in its new place.
+can also ask for directly). The window the overlay is on is not among them --
+swapping a window with itself is nothing happening. Picking one swaps it with
+the window the overlay is on, and the overlay comes back on that window in its
+new place. The arrows walk the picker to another monitor, so the window you
+swap with does not have to be on this screen.
 
 The digits and the arrows move what is under the overlay, and what that is
 depends on SCOPE. In --scope monitor the overlay is a whole screen, so they
@@ -576,7 +579,12 @@ EOF
       local regions scope_arg
       # imthemousenow-regions speaks the older scope vocabulary.
       [[ $scope == window ]] && scope_arg="active-window" || scope_arg="screen"
-      regions="$("$PLUGIN_DIR/bin/imthemousenow-regions" --scope "$scope_arg" || true)"
+      # The swap picker offers everything but the window the swap started
+      # from: swapping a window with itself is nothing happening, and a label
+      # on it is a label that can only waste a press.
+      local -a region_args=(--scope "$scope_arg")
+      session_has swap-from && region_args+=(--exclude "$(session_get swap-from)")
+      regions="$("$PLUGIN_DIR/bin/imthemousenow-regions" "${region_args[@]}" || true)"
       if [[ -z $regions ]]; then
         notify "Nothing to label in this $scope"
         return 1

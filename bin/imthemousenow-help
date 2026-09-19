@@ -147,7 +147,11 @@ section "This overlay" \
 
 # SCOPE decides what the digits and the arrows move, so the sheet says the one
 # thing they do here rather than all three things they can do.
-if [[ $stage == drop ]]; then
+if [[ $stage == swap ]]; then
+  section "Where to look" \
+    "arrows" "take the picker to the monitor that way" \
+    "1 . . 9" "nothing while picking"
+elif [[ $stage == drop ]]; then
   section "Where to drop" \
     "arrows" "take the drop to the monitor that way" \
     "1 . . 9" "nothing during a drag"
@@ -171,7 +175,7 @@ section "Out" \
 
 footer=""
 if [[ $stage == swap ]]; then
-  footer="Picking a window to swap with: choose one, or Escape to put the overlay back."
+  footer="Picking a window to swap with: choose one, walk the arrows to another monitor, or Escape to put the overlay back."
 elif [[ $stage == drop ]]; then
   footer="Holding one end of a drag. Nothing is pressed until you name the other end."
 elif [[ $focus == none ]]; then

@@ -1,10 +1,11 @@
 #!/bin/bash
 # omarchy:summary=Emit wl-kbptr floating regions (wxh+x+y) for the focused output
-# omarchy:args=[--scope screen|active-window|workspace] [--source windows|merge]
+# omarchy:args=[--scope screen|active-window|workspace] [--source windows|merge] [--exclude ADDRESS]
 set -euo pipefail
 
 scope="screen"
 source_kind="windows"
+exclude=""
 
 while (($#)); do
   case "$1" in
@@ -12,8 +13,10 @@ while (($#)); do
     --scope=*) scope="${1#*=}"; shift ;;
     --source) source_kind="${2:?}"; shift 2 ;;
     --source=*) source_kind="${1#*=}"; shift ;;
+    --exclude) exclude="${2:?}"; shift 2 ;;
+    --exclude=*) exclude="${1#*=}"; shift ;;
     -h | --help)
-      echo "Usage: imthemousenow-regions [--scope ...] [--source windows|merge]"
+      echo "Usage: imthemousenow-regions [--scope ...] [--source windows|merge] [--exclude ADDRESS]"
       exit 0
       ;;
     *) echo "imthemousenow-regions: unknown option $1" >&2; exit 2 ;;
@@ -34,9 +37,10 @@ read -r mon_x mon_y mon_id mon_ws mon_special < <(hyprctl -j monitors | jq -r '
 # so it can never match a real workspace by accident.
 windows() {
   hyprctl -j clients | jq -r --argjson mon "$mon_id" --argjson mx "$mon_x" --argjson my "$mon_y" \
-    --argjson ws "$mon_ws" --argjson special "$mon_special" '
+    --argjson ws "$mon_ws" --argjson special "$mon_special" --arg exclude "$exclude" '
     [ .[]
       | select(.monitor == $mon)
+      | select($exclude == "" or .address != $exclude)
       | select(.hidden == false)
       | select(.mapped == true)
       | select(.workspace.id == $ws or ($special != 0 and .workspace.id == $special))

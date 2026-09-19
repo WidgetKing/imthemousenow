@@ -94,18 +94,58 @@ require_window_scope() {
 # a window that was never offered, so this is imthemousenow-regions' filter --
 # on screen on the focused monitor, scratchpad included only while it is up --
 # in layout coordinates, which is what the pointer is in.
+#   $1  the window the swap started from, left out: it is not offered as a
+#       label, so it must not be findable under the pointer either.
 swap_candidates() {
+  local origin="${1:-}"
   local mon ws special
   read -r mon ws special < <(hyprctl -j monitors | jq -r '
     .[] | select(.focused) | [.id, .activeWorkspace.id, .specialWorkspace.id] | @tsv')
-  hyprctl -j clients | jq --argjson mon "$mon" --argjson ws "$ws" --argjson special "$special" '
+  hyprctl -j clients | jq --argjson mon "$mon" --argjson ws "$ws" --argjson special "$special" \
+    --arg origin "$origin" '
     [ .[]
       | select(.monitor == $mon)
+      | select($origin == "" or .address != $origin)
       | select(.hidden == false)
       | select(.mapped == true)
       | select(.workspace.id == $ws or ($special != 0 and .workspace.id == $special))
       | select(.size[0] > 8 and .size[1] > 8)
     ]'
+}
+
+# Is there anything at all to swap with, anywhere on the desk? The picker can
+# now be walked from monitor to monitor, so "nothing to swap with" is a question
+# about every screen rather than only the one the overlay is on -- the same
+# filter as swap_candidates, run without the monitor restriction.
+#   $1  the window the swap would start from, which is not a candidate
+swap_has_candidates() {
+  local live
+  live="$(hyprctl -j monitors | jq -c '[.[] | .activeWorkspace.id, .specialWorkspace.id]')"
+  (($(hyprctl -j clients | jq -r --argjson live "$live" --arg origin "$1" '
+    [ .[]
+      | select(.address != $origin)
+      | select(.hidden == false)
+      | select(.mapped == true)
+      | select([.workspace.id] | inside($live))
+      | select(.size[0] > 8 and .size[1] > 8)
+    ] | length') > 0))
+}
+
+# Walk the picker to the monitor that lies in direction $1. The overlay follows
+# the focus -- imthemousenow-regions labels the focused monitor, and
+# swap_candidates reads the same one -- so moving the focus is the whole of it.
+# Which window the swap started from is held in `swap-from`, not in the focus,
+# so taking the focus along cannot lose it.
+swap_to_monitor() {
+  local here next
+  here="$(hyprctl -j monitors | jq -r '.[] | select(.focused) | .name')"
+  next="$(monitor_in_direction "$here" "$1")"
+  # Nothing that way: the edge of the desk is not an error, and a relaunch
+  # that lands where it started is a flicker for nothing.
+  [[ -n $next && $next != "$here" ]] || exit 0
+  dispatch_focus "monitor=\"$next\"" || exit 0
+  session_relaunch geometry
+  exit 0
 }
 
 # Put back the mode, scope and action the picker borrowed, and forget the swap.
@@ -276,7 +316,7 @@ case "$verb" in
     # Nothing focused, or nothing to swap with: an overlay that can only be
     # cancelled is worse than a key that did nothing.
     [[ -n $origin ]] || exit 0
-    (($(swap_candidates | jq -r 'length') > 1)) || exit 0
+    swap_has_candidates "$origin" || exit 0
     session_stamp_bind
     session_set swap-from "$origin"
     session_set swap-restore "$(session_get mode) $(session_get scope) $(session_get action)"
@@ -299,7 +339,7 @@ case "$verb" in
     # ACTION move is what put it there; wl-kbptr does not report the region it
     # chose. Topmost first, so overlapping windows resolve the way they look.
     read -r cx cy < <(hyprctl -j cursorpos | jq -r '[.x, .y] | @tsv')
-    target="$(swap_candidates | jq -r --argjson x "$cx" --argjson y "$cy" '
+    target="$(swap_candidates "$origin" | jq -r --argjson x "$cx" --argjson y "$cy" '
       [ .[]
         | select(.at[0] <= $x and $x < .at[0] + .size[0])
         | select(.at[1] <= $y and $y < .at[1] + .size[1])
@@ -393,6 +433,15 @@ case "$verb" in
     if session_has drag-anchor; then
       [[ $verb == arrow ]] || exit 0
       drop_to_monitor "$value"
+    fi
+    # The picker reads them the same way, and for the same reason: it is drawn
+    # over one whole monitor and the window it is looking for may be on another
+    # screen. So the arrows walk the picker across the desk, and the digits --
+    # which could only mean a workspace, and would swap the labels out from
+    # under a half-made choice -- do nothing at all.
+    if session_has swap-from; then
+      [[ $verb == arrow ]] || exit 0
+      swap_to_monitor "$value"
     fi
     if [[ $(session_get scope) == window ]]; then
       if [[ $verb == arrow ]]; then

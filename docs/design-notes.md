@@ -162,8 +162,9 @@ implementation.
 
 **The list is built in bash, not written in the QML.** Which keys are live
 depends on the overlay that is up -- the resize keys and `Tab` are window scope
-only, `grid` ends in a bisect and `hints` does not, and a drag's drop pass
-reads the digits and the arrows differently from every other overlay. Only the
+only, `grid` ends in a bisect and `hints` does not, and a drag's drop pass and
+the `Tab` picker each read the digits and the arrows differently from every
+other overlay. Only the
 process that can read the session knows that, and a sheet that lists keys which
 currently do nothing teaches the wrong thing.
 
