@@ -23,7 +23,7 @@ usage() {
   cat <<EOF
 Usage: imthemousenow-steer <verb> [value]
 
-  action <a>     switch ACTION to left-click|right-click|move, or back
+  action <a>     switch ACTION to left-click|right-click|move|drag, or back
   scope          flip SCOPE between window and monitor
   mode           flip MODE between hints and grid
   arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window
@@ -147,6 +147,24 @@ case "$verb" in
     target="${1:-right-click}"
     now="$(session_get action)"
     base="$(session_get base-action)"
+    # Any of `;` `:` `'` abandons a drag that is half-finished, whichever one
+    # started it: at this point the pointer has been moved onto something but
+    # nothing has been pressed, so there is no press to undo and no state worth
+    # carrying into whatever ACTION you asked for instead. The axes the drop
+    # pass borrowed go back, and the ACTION asked for is the run's own -- you
+    # said "not this", not "and now do that with it".
+    if session_has drag-anchor; then
+      read -r rest_mode rest_scope <<<"$(session_get drag-restore)"
+      [[ -n ${rest_mode:-} ]] && session_set mode "$rest_mode"
+      [[ -n ${rest_scope:-} ]] && session_set scope "$rest_scope"
+      session_clear drag-anchor
+      session_clear drag-restore
+      session_stamp_bind
+      session_set action "$base"
+      osd_action "$base" "$(session_get scope)"
+      session_relaunch action
+      exit 0
+    fi
     # Pressing the same key again goes back to what the chord asked for, so `;`
     # and `:` are each their own undo rather than needing one.
     [[ $now == "$target" ]] && next="$base" || next="$target"
@@ -218,6 +236,10 @@ case "$verb" in
     # `swap-commit` reads the pointer back. The axes it borrows are put back
     # when it commits, so the swap is a detour rather than a new state.
     require_window_scope
+    # Not during a drag. The drop pass is drawn over a whole monitor and is
+    # holding one end of a path; a detour that moves windows around underneath
+    # it would leave the other end pointing at where something used to be.
+    session_has drag-anchor && exit 0
     origin="$(hyprctl -j activewindow | jq -r '.address // ""')"
     # Nothing focused, or nothing to swap with: an overlay that can only be
     # cancelled is worse than a key that did nothing.

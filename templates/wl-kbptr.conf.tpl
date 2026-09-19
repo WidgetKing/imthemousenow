@@ -93,3 +93,23 @@ color=#{{ red_strip }}
 # or the accent's "this is the normal thing".
 [imthemousenow.action.move]
 color=#{{ magenta_strip }}
+
+# `yellow` for drag, by the same survey that picked red and magenta, rerun with
+# the two of them plus accent as the taken set. Of the hues present in all 22
+# shipped themes, yellow collides with one of those three least often (9
+# themes, against 11 for green, 12 for cyan and 22 for blue -- blue IS accent
+# almost everywhere). `brown` scores better still, at 6, but four themes do not
+# define it at all, and a colour that renders as an empty string is a broken
+# config line rather than a dim tint.
+#
+# Both passes of a drag are the same colour, and that is a decision rather than
+# an omission. A second hue would have to be distinct from accent, red, magenta
+# AND this one, and nothing left clears that bar: the best remaining pair still
+# reads alike in 5 of the 22 themes, which is a tint that lies about which half
+# of the drag you are in. The word does that job instead -- DRAG, then DROP --
+# which is what the OSD is for.
+[imthemousenow.action.drag]
+color=#{{ yellow_strip }}
+
+[imthemousenow.action.drop]
+color=#{{ yellow_strip }}

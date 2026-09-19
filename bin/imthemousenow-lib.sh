@@ -13,8 +13,24 @@ OSD_CMD="$PLUGIN_DIR/bin/imthemousenow-osd"
 # layer surface's margins -- is in the scaled coordinate space Hyprland reports
 # windows in. Lives here rather than in the wrapper because the ACTION
 # announcement needs it too, from whichever process is doing the announcing.
+_MONITOR_FIELDS='[.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
+
 focused_monitor() {
-  hyprctl -j monitors | jq -r '.[] | select(.focused) | [.name, .x, .y, (.width / .scale | floor), (.height / .scale | floor)] | @tsv'
+  hyprctl -j monitors | jq -r ".[] | select(.focused) | $_MONITOR_FIELDS"
+}
+
+# The same five fields for a monitor named outright, for the times the answer
+# must not be "whichever one has the focus now": a drag's drop pass is pinned
+# to the monitor it picked up on, and the focus can have moved since.
+monitor_by_name() {
+  hyprctl -j monitors | jq -r --arg n "$1" ".[] | select(.name == \$n) | $_MONITOR_FIELDS"
+}
+
+# Where the pointer is now, as `x y` in the same logical pixels the monitor
+# helpers above report. hyprctl prints it as `x, y`; nothing else should have
+# to know that.
+pointer_position() {
+  hyprctl cursorpos | tr -d ','
 }
 
 notify() {

@@ -95,8 +95,33 @@ label = "right"
 [imthemousenow.action.move]
 label = "move"
 
+# Drag is two passes: one to say what to pick up, one to say where to put it.
+# Both of them only move the pointer -- nothing is pressed until both ends are
+# known, which is why abandoning a drag halfway can never leave a button down.
 [imthemousenow.action.drag]
 label = "drag"
+# How long the pointer takes to travel from the thing it picked up to where it
+# is dropped. It cannot be instant: a client reads drag-and-drop out of the
+# stream of motion events under a held button, and one jump from A to B is a
+# single event for it to infer everything from -- toolkits that arm on a
+# movement threshold, autoscroll on dwell, or animate a drop target never get
+# the chance. 300ms is long enough for all of that and short enough not to feel
+# like watching an animation. Raise it if an application keeps missing the drop.
+duration_ms = 300
+# MODE for the second pass. `same` follows the MODE that picked up, so a drag
+# started in hints drops in hints; name a MODE outright (grid, hints) to always
+# drop in that one. Worth knowing before choosing: hints answers "what is
+# clickable", which is not the same question as "where do I put this" -- a drop
+# onto blank canvas, or between two list items, is not a hint. `grid` can reach
+# any pixel, so it is the one that can always answer.
+drop_mode = "same"
+
+# The second pass of a drag, which is not an ACTION you can ask for -- you
+# arrive at it by picking something up. It gets its own entry because it needs
+# its own word: the overlay looks the same as the pass before it, and "DROP" is
+# the only thing that says which half of the drag you are in.
+[imthemousenow.action.drop]
+label = "drop"
 
 # Switching ACTION, workspace or monitor from inside the overlay tears it down
 # and puts it back up. A workspace or monitor change needs the compositor to

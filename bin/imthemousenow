@@ -61,6 +61,18 @@ has_key_channel() {
   grep -qa WL_KBPTR_KEY_CHANNEL "$binary"
 }
 
+# Whether the installed wl-kbptr is one that can hold a button down across a
+# path. Asked the same way has_key_channel asks its question, and for the same
+# reason: --drag is ours, not a version or a flag upstream would report, so the
+# binary is asked the only way it can answer. A stock wl-kbptr would reject the
+# argument and exit non-zero AFTER both overlays had been aimed, which is the
+# worst moment to find out; better to refuse the chord up front.
+has_drag() {
+  local binary
+  binary="$(command -v wl-kbptr)" || return 1
+  grep -qa -- --drag "$binary"
+}
+
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
 # $1 must be one of the remaining arguments.
 expect_one_of() {
@@ -93,6 +105,7 @@ SUBMAP_KEYS=(
   "UP:imthemousenow-steer arrow u:Pointer: previous monitor, or move the window up"
   "DOWN:imthemousenow-steer arrow d:Pointer: next monitor, or move the window down"
   "TAB:imthemousenow-steer swap:Pointer: swap this window with one you pick"
+  "apostrophe:imthemousenow-steer action drag:Pointer: pick something up, then say where to drop it"
   "F5:imthemousenow-steer refresh:Pointer: rebuild the overlay against the screen as it is now"
   "CTRL + ALT + DELETE:imthemousenow-panic:Pointer: close the overlay and all windows"
 )
@@ -151,13 +164,22 @@ Inside the overlay, at the narrowing-down step, the home row picks a sub-area
 and three keys commit it:  g = left click,  ; = right click,  b = middle click.
 So a right click is always one keypress away, whatever --action says.
 
-Two keys switch ACTION for the whole overlay, at any point before you commit:
+Three keys switch ACTION for the whole overlay, at any point before you commit:
 
   ;   right click, tinted red      press again to go back
   :   move (no click), tinted      press again to go back
+  '   drag, tinted yellow          press again to go back
 
-Either is a one-off: after it lands, ACTION returns to what the chord asked
-for, even in a continuous lifetime.
+Any of them is a one-off: after it lands, ACTION returns to what the chord
+asked for, even in a continuous lifetime.
+
+A drag asks twice: once for the thing to pick up, once for where it goes. The
+first pass only moves the pointer -- nothing is pressed until both ends are
+known -- so `;`, `:`, `'` and Escape all abandon one halfway and leave nothing
+held. The drop pass covers the monitor the drag picked up on, and the pointer
+takes action.drag.duration_ms to travel, because a client reads drag-and-drop
+out of the motion events under a held button and one jump is not enough of
+them.
 
   F5   rebuild the overlay against the screen as it is now
   Tab  in --scope window: swap this window with one you pick
@@ -235,9 +257,9 @@ EOF
   # The ACTION the chords asked for. `;` switches away from it and back.
   local base_action="$action"
 
-  if [[ $action == drag ]]; then
-    notify "Drag is not implemented yet"
-    die "--action drag is not implemented yet"
+  if [[ $action == drag ]] && ((dry_run == 0)) && ! has_drag; then
+    notify "Drag needs the wl-kbptr this plugin builds; run its install.sh"
+    die "--action drag needs the wl-kbptr built by install.sh (pkg/0003-walk-a-path-*.patch)"
   fi
 
   if ((dry_run == 0)); then
@@ -299,6 +321,35 @@ EOF
   compute_geometry() {
     IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h < <(focused_monitor)
 
+    # The drop pass is pinned to the monitor the drag picked up on, whatever
+    # the pointer or the focus did in between. A virtual pointer is bound to
+    # one output (wl-kbptr's own move_pointer does this too), so a path that
+    # leaves that output is not a path it can walk -- and an overlay that let
+    # you aim somewhere the drag cannot reach is an overlay that lies.
+    #
+    # TODO: cross-monitor drags. Interpolating in layout coordinates and
+    # re-creating the virtual pointer per output as the path crosses a boundary
+    # is the shape of it; whether an application's drag-and-drop session
+    # survives that crossing is unverified, which is why this waits.
+    #
+    # Monitor scope, not the run's: a drop is usually onto something other than
+    # the window you picked up from, and window scope would put the overlay
+    # over the one place you are least likely to be aiming.
+    if session_has drag-anchor; then
+      local anchor_mon
+      read -r anchor_mon _ _ < <(session_get drag-anchor)
+      local pinned
+      pinned="$(monitor_by_name "$anchor_mon")"
+      # Unplugged mid-drag. The anchor names somewhere that no longer exists,
+      # so the drag cannot be finished; fall through to the focused monitor and
+      # let the drop pass be aimed there instead of drawing nothing.
+      if [[ -n $pinned ]]; then
+        IFS=$'\t' read -r mon_name mon_x mon_y mon_w mon_h <<<"$pinned"
+        restrict=""
+        return 0
+      fi
+    fi
+
     restrict=""
     if [[ $scope == window ]]; then
       local win
@@ -320,8 +371,11 @@ EOF
     local act="$1" modes="$chain" opts="$options"
     [[ -n $refine ]] && modes="$modes,$refine"
     case "$act" in
-      # move has no click stage: the pointer lands and stays.
-      move) ;;
+      # move has no click stage: the pointer lands and stays. Neither half of
+      # a drag has one either, and for a sharper reason -- the press is emitted
+      # afterwards, once both ends are known, by a separate wl-kbptr --drag.
+      # An overlay that clicked here would be a click, not a drag.
+      move | drag | drop) ;;
       *) modes="$modes,click"; opts="$opts mode_click.button=${act%-click}" ;;
     esac
 
@@ -495,6 +549,18 @@ EOF
     # ends the run, as it always did. Cancelling must not go through
     # swap-commit -- the pointer never moved, so it names a window by accident.
     if ((status != 0)); then
+      # Escape during the drop pass abandons the drag. There is nothing to undo
+      # -- the press has not happened yet -- so forgetting the anchor is the
+      # whole of it, and the axes the drop pass borrowed go back the way a
+      # cancelled swap puts its own back.
+      if session_has drag-anchor; then
+        local rest_mode rest_scope
+        read -r rest_mode rest_scope < <(session_get drag-restore)
+        [[ -n $rest_mode ]] && session_set mode "$rest_mode"
+        [[ -n $rest_scope ]] && session_set scope "$rest_scope"
+        session_clear drag-anchor
+        session_clear drag-restore
+      fi
       if session_has swap-from; then
         "$PLUGIN_DIR/bin/imthemousenow-steer" swap-cancel || true
         current_action="$(session_get action)"
@@ -513,6 +579,58 @@ EOF
       current_action="$(session_get action)"
       sleep "$(awk "BEGIN{print $settle_ms/1000}")"
       continue
+    fi
+
+    # A drag is two selections and one press, in that order. The first pass
+    # only moved the pointer -- onto the thing being picked up -- so remember
+    # where that was and put the overlay back up to ask the other half of the
+    # question. Like a switch or a swap, it does not count as a pass: one drag
+    # is one thing you did, however many overlays it took to say it.
+    if [[ $current_action == drag ]]; then
+      local anchor_x anchor_y drop_mode
+      read -r anchor_x anchor_y < <(pointer_position)
+      session_set drag-anchor "$mon_name $anchor_x $anchor_y"
+      session_set drag-restore "$(session_get mode) $(session_get scope)"
+      drop_mode="$(setting action.drag.drop_mode)"
+      [[ -n $drop_mode && $drop_mode != same ]] && session_set mode "$drop_mode"
+      current_action="drop"
+      session_set action drop
+      # The drop overlay looks exactly like the one before it, so the word is
+      # the only thing that says which half of the drag you are in. Monitor,
+      # because that is where the drop pass is drawn whatever SCOPE says.
+      osd_action drop monitor
+      continue
+    fi
+
+    # Both ends are known, and only now is anything pressed. Everything up to
+    # here was the pointer moving, which is why Escape, a switch or a crash at
+    # any earlier point cannot leave a button down: there was no button.
+    if [[ $current_action == drop ]]; then
+      local anchor_mon anchor_x anchor_y drop_x drop_y
+      local anchor_mx anchor_my drag_ms rest_mode rest_scope drag_args=()
+      read -r anchor_mon anchor_x anchor_y < <(session_get drag-anchor)
+      read -r drop_x drop_y < <(pointer_position)
+      IFS=$'\t' read -r _ anchor_mx anchor_my _ _ < <(monitor_by_name "$anchor_mon")
+
+      drag_ms="$(setting action.drag.duration_ms)"
+      [[ -n $drag_ms ]] || drag_ms=300
+
+      # The same compiled config the overlays got, for one key out of it:
+      # mode_click.button. A drag with the middle button is then a config
+      # change rather than an option nothing else would ever pass.
+      [[ -n $compiled && -f $compiled ]] && drag_args+=(-c "$compiled")
+      drag_args+=(-O "$anchor_mon")
+      drag_args+=(--drag "$((anchor_x - anchor_mx)),$((anchor_y - anchor_my)),$((drop_x - anchor_mx)),$((drop_y - anchor_my)),$drag_ms")
+
+      wl-kbptr "${drag_args[@]}" || notify "The drag did not complete"
+
+      read -r rest_mode rest_scope < <(session_get drag-restore)
+      session_set mode "$rest_mode"
+      session_set scope "$rest_scope"
+      session_clear drag-anchor
+      session_clear drag-restore
+      current_action="$base_action"
+      session_set action "$base_action"
     fi
 
     passes=$((passes + 1))

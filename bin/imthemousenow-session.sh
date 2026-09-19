@@ -22,7 +22,7 @@
 #   session_stamp_bind / session_recent_bind <ms>   chord-vs-tap debouncing
 #
 # Fields: mode, scope, action, base-action, switch, last-bind, swap-from,
-# swap-restore.
+# swap-restore, drag-anchor, drag-restore.
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 
@@ -39,6 +39,14 @@ _session_default() {
     # The window a swap started from, and the mode/scope/action to put back
     # when it finishes. Both empty unless a swap is in flight.
     swap-from | swap-restore) echo "" ;;
+    # Where a drag picked something up, as `monitor x y` in logical pixels,
+    # and the mode/scope the drop pass borrowed, to put back after it.
+    # Set between the two passes of a drag and at no other time, so it is also
+    # the answer to "is a drag half-finished" -- which is what tells `;`, `:`
+    # and `'` they have something to abandon. Nothing is pressed while it is
+    # set: the button is emitted only once both ends are known, so forgetting
+    # this field is a complete and safe way to call a drag off.
+    drag-anchor | drag-restore) echo "" ;;
     *) die "no such session field '$1'" ;;
   esac
 }
@@ -83,14 +91,14 @@ session_begin() {
   session_set scope "$2"
   session_set action "$3"
   session_set base-action "$3"
-  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore}
+  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore}
 }
 
 # Every field goes, action included: a run that is over must leave nothing a
 # later one could read back. Teardown lived in two hand-written lists before
 # this and they had already drifted apart.
 session_end() {
-  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore}
+  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore}
 }
 
 # Ask the run loop to tear the overlay down and put it back up. $1 says why,

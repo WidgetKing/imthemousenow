@@ -21,7 +21,7 @@
 --
 -- They compose, so you never memorise eight bindings: you memorise one, plus
 -- what each modifier means. ACTION is not on a modifier because it is decided
--- after you can see the overlay, not before: `;` and `:` switch it.
+-- after you can see the overlay, not before: `;`, `:` and `'` switch it.
 
 -- The overlay is a layer-shell surface that must appear instantly: a fade or
 -- slide makes the labels unreadable for the first frames.
@@ -108,6 +108,19 @@ local function overlay_binds()
   -- physical key: `;` to click differently, `:` to not click at all.
   hl.bind("SHIFT + SEMICOLON", hl.dsp.exec_cmd("imthemousenow-steer action move"), {
     description = "Pointer: switch to move without clicking",
+  })
+
+  -- `'` is the key next to `;`, which is where the other two ACTION switches
+  -- live, and drag is the one that needs its own: `;` and `:` are two meanings
+  -- of one physical key and there is no third modifier left on it that does
+  -- not already mean something else in this submap.
+  --
+  -- Pressing it during the drop pass abandons the drag, and so do `;` and `:`.
+  -- Nothing has been pressed at that point -- both passes only move the
+  -- pointer, and the button is emitted after the second one -- so calling a
+  -- drag off costs nothing and can leave nothing behind.
+  hl.bind("apostrophe", hl.dsp.exec_cmd("imthemousenow-steer action drag"), {
+    description = "Pointer: pick something up, then say where to drop it",
   })
 
   -- The digits and the arrows are read by SCOPE, not fixed to one dispatcher:

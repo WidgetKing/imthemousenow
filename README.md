@@ -17,7 +17,7 @@ names to memorise and no special cases — any combination is valid.
 | --- | --- | --- |
 | **MODE** | `hints` · `grid` · `windows` | how targets are presented |
 | **SCOPE** | `window` · `monitor` | where the overlay is drawn |
-| **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land (`;` switches it live) |
+| **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land (`;` `:` `'` switch it live) |
 | **LIFETIME** | `single` · `continuous` | one selection, or until Escape |
 
 **MODE** — `hints` labels what looks clickable: detected targets when the build
@@ -36,10 +36,11 @@ closing the overlay: they move the screen under a `monitor` overlay, and the
 window under a `window` one.
 
 **ACTION** — what the pointer does on arrival. `move` places the pointer and
-leaves it there, clicking nothing. `drag` is not implemented yet. This is the
-one axis you do not have to decide up front: `;` and `:` switch it while the
-overlay is on screen, which is the only moment you can actually see what you
-are aiming at.
+leaves it there, clicking nothing. `drag` asks twice — once for the thing to
+pick up, once for where it goes — and only then presses, travels and releases.
+This is the one axis you do not have to decide up front: `;`, `:` and `'`
+switch it while the overlay is on screen, which is the only moment you can
+actually see what you are aiming at.
 
 **LIFETIME** — `single` clicks once and gets out of the way. `continuous`
 reopens after every click, so a burst of clicking is one invocation; Escape
@@ -95,17 +96,56 @@ In `hints`, type a label and it clicks. In `grid`, type a label to pick a cell,
 then the home row (`a s d f` / `j k l m`) halves it until the pointer is where
 you want it; `g`, `h` and `b` commit with a left, right or middle click.
 
-**`;` and `:` switch ACTION**, in either mode, at any point before you commit:
+**`;`, `:` and `'` switch ACTION**, in either mode, at any point before you
+commit:
 
 ```
 ;   right click        the overlay turns red
 :   move, no click     the overlay turns magenta
+'   drag               the overlay turns yellow
 ```
 
-Both are toggles — press the same key again to go back — and both are one-offs:
-after the pointer lands, the overlay returns to whatever ACTION the chord asked
-for, even in a continuous lifetime. So a right click or a bare move costs one
-extra keypress and neither changes what the next click does.
+All three are toggles — press the same key again to go back — and all three are
+one-offs: after the pointer lands, the overlay returns to whatever ACTION the
+chord asked for, even in a continuous lifetime. So a right click or a bare move
+costs one extra keypress and neither changes what the next click does.
+
+### Dragging
+
+`'` starts a drag, and a drag is two questions rather than one.
+
+```
+'          DRAG   aim at the thing to pick up, land on it
+           DROP   the overlay comes back; aim at where it goes
+                  press, travel, release
+```
+
+The first pass only moves the pointer onto what you are picking up — nothing is
+pressed yet. The second pass asks the other half of the question, and only when
+both ends are known does the button go down, travel to the drop point and come
+back up. Nothing is ever held while you are still deciding, so `;`, `:`, `'` and
+Escape all abandon a half-finished drag and leave the desktop exactly as it was.
+
+The travel is not instant, and cannot be. A client reads drag-and-drop out of
+the stream of motion events under a held button; one jump from start to finish
+gives it a single event to infer everything from, and toolkits that arm on a
+movement threshold, autoscroll on dwell, or animate a drop target never get the
+chance. `action.drag.duration_ms` is how long the pointer takes to cross —
+300ms by default. Raise it if an application keeps missing the drop.
+
+The drop pass is drawn over the whole monitor the drag picked up on, whatever
+SCOPE says: you are usually dropping onto something other than the window you
+picked up from. It uses the same MODE the drag started in; set
+`action.drag.drop_mode` to `grid` to always drop in the grid, which is the one
+MODE that can reach a pixel no hint names — blank canvas, or the gap between
+two list items.
+
+Both ends have to be on the same monitor. A virtual pointer is bound to one
+output, so the drop overlay is pinned to the monitor the anchor is on and `↑`
+`↓` cannot carry it to another.
+
+Drag needs the `wl-kbptr` this plugin builds (`pkg/0003-walk-a-path-*.patch`);
+with a stock one the chord says so rather than half-running.
 
 **SHIFT and ALT retune the overlay**, tapped on their own with nothing else
 held. They flip the same axis they flip in the chords, so there is nothing new

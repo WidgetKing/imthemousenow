@@ -14,6 +14,9 @@ the implementation differs from the original plan.
 | Keys `SUPER + [SHIFT/ALT/CTRL +] SEMICOLON` | All four unbound in Omarchy defaults and in the user's config. |
 | wl-kbptr CLI | `-r/--restrict WxH+X+Y`, `-O/--output <name>`, `-o/--option`, `-c/--config`, `-p/--only-print` all confirmed in `src/main.c`. Note it is `--only-print`, not `--print-only`. |
 | Upstream commit 0854a51 | Real; makes meson accept opencv4 or opencv5. Not in any tagged release. |
+| `'` (apostrophe) as a submap bind | Free, and Hyprland reports it under that keysym name -- which is why `SUBMAP_KEYS` in `bin/imthemousenow` spells it lowercase, matching what `hypr/imthemousenow.lua` registers. |
+| `--drag` end to end | Built and run against the live compositor: a drag across a terminal line selects exactly that line, which is only possible if a real press, real intermediate motion and a real release all reached the client. Driven both directly and through the whole `bin/imthemousenow` two-pass path. |
+| No pointer-injection tool on this machine | `ydotool` and `wlrctl` are absent; `wtype` is present but keyboard-only; Hyprland exposes no dispatcher that presses a mouse button. Hence the patch. |
 
 ## Departures from the plan
 
@@ -136,6 +139,67 @@ letters in it. Everywhere Omarchy sets text it uses fontconfig's monospace
 (JetBrainsMono Nerd Font, itself an `omarchy` dependency), which is what
 `osd.font = ""` follows.
 
+## Dragging
+
+A drag is the one ACTION that cannot be expressed as "put the pointer here and
+then do a thing". It is three events across two decisions -- press at A, motion
+while held, release at B -- and the second decision cannot be made until the
+first one has been.
+
+**Two passes, and nothing held between them.** The overlay comes up, you pick
+the thing to drag, and the pointer moves onto it and stops. Nothing is pressed.
+The overlay comes back, you pick where it goes, and only then does the button
+go down, travel, and come up -- all inside one short-lived process. This is
+worth stating as a rule because the obvious alternative is not: pressing at the
+end of the first pass and releasing at the end of the second would leave a
+button held across a window in which the user can press Escape, switch ACTION,
+or have the run die on `continuous.max_quick_exits`. A held button nobody
+releases is a desktop that has to be rescued, and the rescue would have to live
+in `bin/imthemousenow-panic` and in the run's cleanup path and be correct in
+both. Deferring the press until both ends are known deletes that whole class of
+failure instead of handling it: `;`, `:`, `'` and Escape all abandon a
+half-finished drag, and there is nothing to undo, because nothing happened.
+
+**The press comes from wl-kbptr, via a patch.** `move_pointer` emits a press
+and a release together, as the process exits; there was no way to ask for a
+lone press, let alone motion between two of them. Four routes were weighed.
+`ydotool` and `wlrctl` are not installed and `wtype` is keyboard-only. A uinput
+device sidesteps Wayland and makes the landing position approximate, which is
+the one thing this tool exists to get exact. A small standalone Wayland client
+would work but duplicates the registry, seat, output and transform setup
+wl-kbptr already carries, and adds a second compiled artifact to build,
+version and uninstall. So: `pkg/0003-walk-a-path-with-a-button-held.patch`
+adds `--drag x1,y1,x2,y2,duration_ms`, which stops before any surface is
+created and reuses everything above that point. `pkg/patch-stamp` makes the
+rebuild automatic, which is what made this the cheap option rather than the
+expensive one.
+
+**The travel is not instant, and could not be.** A client reads drag-and-drop
+out of the stream of motion events under a held button. One jump from A to B is
+a single event to infer everything from, and a toolkit that arms on a movement
+threshold, autoscrolls on dwell, or animates a drop target never gets the
+chance. `action.drag.duration_ms` (300 by default) is spread over frames about
+8ms apart, with a short hold at each end so that the press is not coalesced
+into the first motion and the release does not land before the client has
+processed where the pointer got to.
+
+**The drop pass covers the monitor, whatever SCOPE says.** You are usually
+dropping onto something other than the window you picked up from, and window
+scope would put the overlay over the one place you are least likely to be
+aiming. It is the anchor's monitor specifically -- see the cross-monitor gap
+below.
+
+**One colour for both halves.** The ACTION tints are chosen by a survey across
+all 22 shipped themes, because Omarchy themes collapse semantic colour names
+freely. With accent, red and magenta already taken, `yellow` is the hue present
+in every theme that collides with one of those least often (9 themes, against
+11 for green, 12 for cyan, 22 for blue). `brown` scores better at 6 but four
+themes do not define it, and a colour that renders empty is a broken config
+line. A second hue for the drop half would have to clear the bar against four
+taken colours, and nothing does: the best remaining pair still reads alike in 5
+of the 22. So both passes are yellow and the OSD carries the difference -- DRAG,
+then DROP -- which is what it is for.
+
 ## Known gaps
 
 - **Mouse mode** (sticky submap: `hjkl` movement, press/release for drag,
@@ -143,8 +207,16 @@ letters in it. Everywhere Omarchy sets text it uses fontconfig's monospace
   `bin/imthemousenow-osd` covers the "which action am I in" half of that pill,
   but a sticky mode needs a persistent indicator rather than a fading one. Hyprland submaps have no `o.*`
   helper in Omarchy's Lua API and no in-tree precedent, so it needs its own
-  investigation. Drag also needs `wlrctl` (not installed, not in the repos as a
-  package on this machine) or `ydotool` (installed) with a uinput group.
+  investigation. (The drag half of it is done, by a different route: see
+  "Dragging" below.)
+- **A drag cannot cross monitors.** `zwlr_virtual_pointer_v1` is created
+  bound to one output (`create_virtual_pointer_with_output`), so a path that
+  leaves that output is not a path it can walk. The drop pass is therefore
+  pinned to the monitor the drag picked up on, rather than letting you aim
+  somewhere the drag cannot reach. Doing better means interpolating in layout
+  coordinates and re-creating the virtual pointer per output as the path
+  crosses a boundary -- and finding out whether an application's drag-and-drop
+  session survives that crossing, which is why it waits.
 - **All-monitors mode**: upstream PR #79 was closed, not merged. The wrapper
   always passes `-O <focused monitor>`.
 - **AT-SPI region source** is not implemented; `imthemousenow-regions` has a

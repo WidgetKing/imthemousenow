@@ -320,6 +320,24 @@ def cmd_check(args):
     if isinstance(osd.get("ms"), int) and isinstance(osd.get("fade_ms"), int) and osd["fade_ms"] > osd["ms"]:
         problems.append(f"[imthemousenow.osd].fade_ms ({osd['fade_ms']}) is longer than ms ({osd['ms']})")
 
+    # Drag's own settings, which fail at the far end of a two-pass action: a
+    # drop_mode that is not a MODE silently leaves the drop pass in whatever
+    # MODE it was already in, and a duration that is not a number reaches
+    # wl-kbptr as an unparsable --drag and kills the drag after both overlays
+    # have been aimed. Both look like drag being broken rather than misspelt.
+    drag = merged.get("imthemousenow", {}).get("action", {}).get("drag", {})
+    drop_mode = drag.get("drop_mode")
+    if drop_mode is not None and drop_mode != "same" and drop_mode not in merged.get("mode", {}):
+        problems.append(
+            f"[imthemousenow.action.drag].drop_mode = '{drop_mode}' is not `same` or a MODE; "
+            f"try one of {sorted(merged.get('mode', {}))}"
+        )
+    duration = drag.get("duration_ms")
+    if duration is not None and (not isinstance(duration, int) or isinstance(duration, bool) or duration < 0):
+        problems.append(
+            f"[imthemousenow.action.drag].duration_ms = '{duration}' is not a positive whole number"
+        )
+
     keys = merged.get("general", {}).get("home_row_keys", "")
     if keys and len(keys) != 11:
         problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")
