@@ -1,5 +1,6 @@
 # imthemousenow
-[I'm the captain now meme with a semi-colon][./docs/meme.jpeg]
+
+![I'm the captain now meme with a semi-colon](docs/meme.jpeg)
 
 **Drive the mouse pointer from the keyboard on [Omarchy](https://omarchy.org).**
 
