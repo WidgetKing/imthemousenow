@@ -315,10 +315,20 @@ def axis_values(merged: dict) -> dict:
     """What each of the four axes may be. The shell validates its own flags
     against this and `check` validates the config against it, so the vocabulary
     is declared once rather than once per language."""
+    actions = merged.get("imthemousenow", {}).get("action", {})
     return {
         "mode": sorted(merged.get("mode", {})),
         "scope": ["window", "monitor"],
-        "action": ["left-click", "right-click", "move", "drag", "hold"],
+        # Every ACTION you can ask for, in the order they are declared. `drop`
+        # is declared like the rest and is not among them: it says
+        # switchable = false, because you arrive at a drop rather than choosing
+        # one, and a flag or a chord naming it would be asking for the second
+        # half of something that never had a first.
+        "action": [
+            name
+            for name, entry in actions.items()
+            if isinstance(entry, dict) and entry.get("switchable", True)
+        ],
         "lifetime": ["single", "continuous"],
     }
 

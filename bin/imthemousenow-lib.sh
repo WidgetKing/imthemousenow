@@ -210,3 +210,41 @@ setting() {
   name="${name^^}"
   echo "${!name-}"
 }
+
+# Whether the installed wl-kbptr is one of ours, asked by looking for a string
+# that is in the build this plugin's install.sh makes and not in a stock one.
+#
+# It has to be asked this way. None of what the patches add is a flag or a
+# version upstream would report -- `--drag` and `--hold` are arguments a stock
+# build rejects, the key channel is an environment variable it would ignore,
+# and `peek_alpha` is a config key it has never heard of -- so the only thing
+# that can answer is the binary itself.
+#
+# The cost of guessing wrong is not the same in each case but is never small:
+# a rejected argument comes back AFTER the overlay has been aimed, an ignored
+# environment variable hands over a keyboard nothing is listening to, and an
+# unknown config key makes wl-kbptr reject the WHOLE file and draw nothing at
+# all -- which would turn every chord into a silent no-op on a stock build.
+binary_knows() {
+  local binary
+  binary="$(command -v wl-kbptr)" || return 1
+  grep -qa -- "$1" "$binary"
+}
+
+# Whether this build can do what an ACTION needs of it. An action that names no
+# `requires` works on any build, which is most of them.
+action_supported() {
+  local needs
+  needs="$(setting "action.$1.requires")"
+  [[ -n $needs ]] || return 0
+  binary_knows "$needs"
+}
+
+# Why it cannot, in the one sentence a person gets. The patch comes from the
+# registry rather than the message, so an action that moves to another patch
+# does not leave the wrong filename behind in two scripts.
+action_requirement() {
+  local patch
+  patch="$(setting "action.$1.patch")"
+  echo "--action $1 needs the wl-kbptr built by install.sh (${patch:-see pkg/})"
+}

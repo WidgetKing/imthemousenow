@@ -218,12 +218,13 @@ case "$verb" in
     target="${1:-right-click}"
     now="$(session_get action)"
     base="$(session_get base-action)"
-    # A hold is held open by a wl-kbptr that has to know --hold, and the overlay
-    # this switches would be torn down before that was discovered -- leaving you
-    # aimed at something with nothing holding it. Refused here, where the answer
-    # is still "nothing happened", exactly as the launcher refuses the chord.
-    if [[ $target == hold ]] && ! grep -qa -- --hold "$(command -v wl-kbptr)" 2>/dev/null; then
-      notify "Hold needs the wl-kbptr this plugin builds; run its install.sh"
+    # An ACTION that needs a patched wl-kbptr is refused here for the reason the
+    # launcher refuses the chord, and by the same registry: the overlay this
+    # switches would be torn down before the binary was ever asked, leaving you
+    # aimed at something with nothing holding it. Refused while the answer is
+    # still "nothing happened".
+    if ! action_supported "$target"; then
+      notify "${target^} needs the wl-kbptr this plugin builds; run its install.sh"
       exit 0
     fi
     # Any of `;` `:` `'` `"` abandons a drag that is half-finished, whichever

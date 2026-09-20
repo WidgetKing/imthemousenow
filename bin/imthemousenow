@@ -75,54 +75,12 @@ has_opencv() {
   wl-kbptr --version 2>&1 | grep -qi opencv
 }
 
-# Whether the installed wl-kbptr is one that can be fed keys through a file.
-# It is not a flag or a version -- the patch reads an environment variable --
-# so the binary is asked the only way it can answer: the name is in it or it
-# is not. A stock wl-kbptr would ignore the variable, take keyboard focus as
-# usual, and leave every label key bound to a relay it never reads; better to
-# stay on the ordinary submap than to hand over a keyboard nothing listens to.
-has_key_channel() {
-  local binary
-  binary="$(command -v wl-kbptr)" || return 1
-  grep -qa WL_KBPTR_KEY_CHANNEL "$binary"
-}
-
-# Whether the installed wl-kbptr is one that can hold a button down across a
-# path. Asked the same way has_key_channel asks its question, and for the same
-# reason: --drag is ours, not a version or a flag upstream would report, so the
-# binary is asked the only way it can answer. A stock wl-kbptr would reject the
-# argument and exit non-zero AFTER both overlays had been aimed, which is the
-# worst moment to find out; better to refuse the chord up front.
-has_drag() {
-  local binary
-  binary="$(command -v wl-kbptr)" || return 1
-  grep -qa -- --drag "$binary"
-}
-
-# Whether the installed wl-kbptr is one that can hold a button down while
-# something else steers the pointer. Asked exactly as has_drag asks its own
-# question and for the same reason: --hold is ours, so the binary is asked the
-# only way it can answer. Getting it wrong would be worse here than for a drag
-# -- a stock wl-kbptr would reject the argument AFTER the overlay had been
-# aimed, leaving a hold that never took hold of anything.
-has_hold() {
-  local binary
-  binary="$(command -v wl-kbptr)" || return 1
-  grep -qa -- --hold "$binary"
-}
-
-# Whether the installed wl-kbptr is one that can fade itself while a key is
-# held. Asked the same way the two above ask theirs, but the consequence of
-# guessing wrong is worse than either: an option wl-kbptr does not know makes
-# it reject the WHOLE config file and exit before drawing anything, so shipping
-# `general.peek_alpha` unconditionally would turn every chord into a silent
-# no-op on a stock build -- including `mode = "aur"` in pkg/source.toml, which
-# is unpatched by definition.
-has_peek() {
-  local binary
-  binary="$(command -v wl-kbptr)" || return 1
-  grep -qa peek_alpha "$binary"
-}
+# What each patched feature is called inside the binary. `binary_knows` in
+# imthemousenow-lib.sh says why the binary is asked this way and what it costs
+# to guess wrong; an ACTION asks the same question through its `requires`
+# field, which is the same question with the name coming from the config.
+has_key_channel() { binary_knows WL_KBPTR_KEY_CHANNEL; }
+has_peek() { binary_knows peek_alpha; }
 
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
 # $1 must be one of the remaining arguments.
@@ -371,14 +329,12 @@ EOF
   # The ACTION the chords asked for. `;` switches away from it and back.
   local base_action="$action"
 
-  if [[ $action == hold ]] && ((dry_run == 0)) && ! has_hold; then
-    notify "Hold needs the wl-kbptr this plugin builds; run its install.sh"
-    die "--action hold needs the wl-kbptr built by install.sh (pkg/0006-Hold-a-button-*.patch)"
-  fi
-
-  if [[ $action == drag ]] && ((dry_run == 0)) && ! has_drag; then
-    notify "Drag needs the wl-kbptr this plugin builds; run its install.sh"
-    die "--action drag needs the wl-kbptr built by install.sh (pkg/0003-walk-a-path-*.patch, pkg/0004-Say-a-drag-path-*.patch)"
+  # Refused up front, while the answer is still "nothing happened". The
+  # alternative is aiming an overlay -- twice, for a drag -- and finding out at
+  # the press, which is the worst moment to learn the binary cannot do it.
+  if ((dry_run == 0)) && ! action_supported "$action"; then
+    notify "${action^} needs the wl-kbptr this plugin builds; run its install.sh"
+    die "$(action_requirement "$action")"
   fi
 
   if ((dry_run == 0)); then
@@ -488,16 +444,17 @@ EOF
   build_args() {
     local act="$1" modes="$chain" opts="$options"
     [[ -n $refine ]] && modes="$modes,$refine"
-    case "$act" in
-      # move has no click stage: the pointer lands and stays. Neither half of
-      # a drag has one either, and for a sharper reason -- the press is emitted
-      # afterwards, once both ends are known, by a separate wl-kbptr --drag.
-      # An overlay that clicked here would be a click, not a drag. Hold is the
-      # same again: its press is held open by a separate wl-kbptr --hold, and a
-      # click here would let go of the thing before it was ever steered.
-      move | drag | drop | hold) ;;
-      *) modes="$modes,click"; opts="$opts mode_click.button=${act%-click}" ;;
-    esac
+    # Whether this ACTION clicks at all, and with which button, is the
+    # registry's to say: an empty `button` is no click stage, which move, both
+    # halves of a drag, and hold each need for reasons written beside them in
+    # config.default.toml. The three that do press something name the button
+    # outright rather than having it cut out of their own name.
+    local button
+    button="$(setting "action.$act.button")"
+    if [[ -n $button ]]; then
+      modes="$modes,click"
+      opts="$opts mode_click.button=$button"
+    fi
 
     args=()
     [[ -n $compiled && -f $compiled ]] && args+=(-c "$compiled")
