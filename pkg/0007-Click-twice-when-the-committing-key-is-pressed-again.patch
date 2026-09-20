@@ -1,4 +1,4 @@
-From e1858ffb8c60dba9b7262168c018649cafa867b3 Mon Sep 17 00:00:00 2001
+From 6ca81dbca0d26c2cb234c8481488f5fe39265b87 Mon Sep 17 00:00:00 2001
 From: t <t@e>
 Date: Sun, 20 Sep 2026 21:21:20 +0800
 Subject: [PATCH] Click twice when the committing key is pressed again
@@ -65,11 +65,11 @@ dispatch.
 
 Not sent upstream yet.
 ---
- src/config.c |  12 +++-
+ src/config.c |  12 ++-
  src/config.h |  15 ++++
- src/main.c   | 192 +++++++++++++++++++++++++++++++++++++++++++++++----
+ src/main.c   | 206 +++++++++++++++++++++++++++++++++++++++++++++++----
  src/state.h  |  19 +++++
- 4 files changed, 222 insertions(+), 16 deletions(-)
+ 4 files changed, 236 insertions(+), 16 deletions(-)
 
 diff --git a/src/config.c b/src/config.c
 index e5b83bd..11970d2 100644
@@ -128,7 +128,7 @@ index 55770c4..6efcfbb 100644
  
  struct config {
 diff --git a/src/main.c b/src/main.c
-index 6742ced..e267369 100644
+index 6742ced..34c1eda 100644
 --- a/src/main.c
 +++ b/src/main.c
 @@ -6,6 +6,7 @@
@@ -147,7 +147,7 @@ index 6742ced..e267369 100644
  #include <unistd.h>
  #include <wayland-client-protocol.h>
  #include <wayland-client.h>
-@@ -29,6 +31,55 @@
+@@ -29,6 +31,69 @@
  #include <xkbcommon/xkbcommon-keysyms.h>
  #include <xkbcommon/xkbcommon.h>
  
@@ -182,6 +182,13 @@ index 6742ced..e267369 100644
 +    cairo_paint(cairo);
 +    cairo_restore(cairo);
 +
++    // cairo_paint() clears the pixels, not the path. The context comes back
++    // around with the buffer, and the frame before this one was the whole
++    // overlay -- whose labels were drawn with cairo_show_text(), which leaves
++    // a current point sitting wherever the last one ended. Left there, the
++    // first cairo_arc() below joins it to the ring with a straight line.
++    cairo_new_path(cairo);
++
 +    double cx = state->result.x + state->result.w / 2.0;
 +    double cy = state->result.y + state->result.h / 2.0;
 +
@@ -195,6 +202,13 @@ index 6742ced..e267369 100644
 +        uint32_t alpha = (color & 0xff) / (i + 1);
 +        cairo_set_source_u32(cairo, (color & 0xffffff00) | alpha);
 +        cairo_set_line_width(cairo, 2);
++        // And the same hazard once per ring: an arc is appended to whatever
++        // path is already there, so it needs a sub-path of its own rather than
++        // a line drawn to it from the end of the last one. cairo_stroke()
++        // happens to clear the path each time round, which makes this look
++        // redundant -- it is not, it is what makes the arc independent of
++        // anything drawn before it.
++        cairo_new_sub_path(cairo);
 +        cairo_arc(cairo, cx, cy, radius, 0, 2 * M_PI);
 +        cairo_stroke(cairo);
 +    }
@@ -203,7 +217,7 @@ index 6742ced..e267369 100644
  static void send_frame(struct state *state) {
      int32_t scale_120 = state->fractional_scale;
      if (scale_120 == 0) {
-@@ -51,7 +102,9 @@ static void send_frame(struct state *state) {
+@@ -51,7 +116,9 @@ static void send_frame(struct state *state) {
      cairo_t *cairo = surface_buffer->cairo;
      cairo_identity_matrix(cairo);
      cairo_scale(cairo, scale_120 / 120.0, scale_120 / 120.0);
@@ -214,7 +228,7 @@ index 6742ced..e267369 100644
          // Peek: draw the overlay into a group and composite the whole thing at
          // a low alpha, so what is underneath can be read through it. Done here
          // rather than by scaling every colour because it is the *overlay* that
-@@ -160,6 +213,57 @@ static void peek_set(struct state *state, bool peeking) {
+@@ -160,6 +227,57 @@ static void peek_set(struct state *state, bool peeking) {
      request_frame(state);
  }
  
@@ -272,7 +286,7 @@ index 6742ced..e267369 100644
  bool compute_initial_area(struct state *state, struct rect *initial_area) {
      if (initial_area->w == -1) {
          initial_area->x = 0;
-@@ -362,6 +466,15 @@ static void key_channel_handle_line(struct state *state, char *line) {
+@@ -362,6 +480,15 @@ static void key_channel_handle_line(struct state *state, char *line) {
      }
      xkb_keysym_to_utf8(key_sym, text, sizeof(text));
  
@@ -288,7 +302,7 @@ index 6742ced..e267369 100644
      if (key_sym == XKB_KEY_space && !mode_takes_space(state)) {
          peek_set(state, pressed);
          return;
-@@ -373,7 +486,7 @@ static void key_channel_handle_line(struct state *state, char *line) {
+@@ -373,7 +500,7 @@ static void key_channel_handle_line(struct state *state, char *line) {
  
      bool redraw = mode_handle_key(state, key_sym, text);
      if (has_last_mode_returned(state)) {
@@ -297,7 +311,7 @@ index 6742ced..e267369 100644
      } else if (redraw) {
          request_frame(state);
      }
-@@ -422,6 +535,15 @@ static void handle_keyboard_key(
+@@ -422,6 +549,15 @@ static void handle_keyboard_key(
          xkb_state_key_get_one_sym(seat->xkb_state, key_code);
      xkb_keysym_to_utf8(key_sym, text, sizeof(text));
  
@@ -313,7 +327,7 @@ index 6742ced..e267369 100644
      if (key_sym == XKB_KEY_space && !mode_takes_space(seat->state)) {
          peek_set(
              seat->state, key_state == WL_KEYBOARD_KEY_STATE_PRESSED
-@@ -432,7 +554,7 @@ static void handle_keyboard_key(
+@@ -432,7 +568,7 @@ static void handle_keyboard_key(
      if (key_state == WL_KEYBOARD_KEY_STATE_PRESSED) {
          bool redraw = mode_handle_key(seat->state, key_sym, text);
          if (has_last_mode_returned(seat->state)) {
@@ -322,7 +336,7 @@ index 6742ced..e267369 100644
          } else if (redraw) {
              request_frame(seat->state);
          }
-@@ -863,6 +985,9 @@ int main(int argc, char **argv) {
+@@ -863,6 +999,9 @@ int main(int argc, char **argv) {
          .initial_area         = (struct rect){-1, -1, -1, -1},
          .home_row = (char *[]){"", "", "", "", "", "", "", "", "", "", ""},
          .click    = CLICK_NONE,
@@ -332,7 +346,7 @@ index 6742ced..e267369 100644
      };
  
      config_set_default(&state.config);
-@@ -889,7 +1014,6 @@ int main(int argc, char **argv) {
+@@ -889,7 +1028,6 @@ int main(int argc, char **argv) {
      int    option_index         = 0;
      char  *config_filename      = NULL;
      char  *selected_output_name = NULL;
@@ -340,7 +354,7 @@ index 6742ced..e267369 100644
      // A drag is not a selection: there is no overlay, no keyboard and no mode
      // chain, only a path to walk. -1 means no --drag was given.
      int drag_x1 = -1, drag_y1 = -1, drag_x2 = -1, drag_y2 = -1;
-@@ -947,7 +1071,7 @@ int main(int argc, char **argv) {
+@@ -947,7 +1085,7 @@ int main(int argc, char **argv) {
              break;
  
          case 'p':
@@ -349,7 +363,7 @@ index 6742ced..e267369 100644
              break;
  
          case 'D':
-@@ -1039,7 +1163,7 @@ int main(int argc, char **argv) {
+@@ -1039,7 +1177,7 @@ int main(int argc, char **argv) {
          return 1;
      }
  
@@ -358,7 +372,7 @@ index 6742ced..e267369 100644
          LOG_ERR("Failed to get wlr_virtual_pointer_manager_v1 object.");
          return 1;
      }
-@@ -1162,15 +1286,21 @@ int main(int argc, char **argv) {
+@@ -1162,15 +1300,21 @@ int main(int argc, char **argv) {
  
      wl_surface_commit(state.wl_surface);
  
@@ -387,7 +401,7 @@ index 6742ced..e267369 100644
          struct pollfd fds[2] = {
              {.fd = wl_display_get_fd(state.wl_display), .events = POLLIN},
              {.fd = key_channel_fd, .events = POLLIN},
-@@ -1187,7 +1317,16 @@ int main(int argc, char **argv) {
+@@ -1187,7 +1331,16 @@ int main(int argc, char **argv) {
                  goto loop_done;
              }
  
@@ -405,7 +419,7 @@ index 6742ced..e267369 100644
                  wl_display_cancel_read(state.wl_display);
                  if (errno == EINTR) {
                      continue;
-@@ -1209,6 +1348,26 @@ int main(int argc, char **argv) {
+@@ -1209,6 +1362,26 @@ int main(int argc, char **argv) {
              if (state.running && (fds[1].revents & POLLIN)) {
                  key_channel_drain(&state);
              }
@@ -432,7 +446,7 @@ index 6742ced..e267369 100644
          }
      loop_done:;
      }
-@@ -1233,7 +1392,10 @@ int main(int argc, char **argv) {
+@@ -1233,7 +1406,10 @@ int main(int argc, char **argv) {
      int status_code = 0;
      if (state.result.x != -1) {
          print_result(&state);
