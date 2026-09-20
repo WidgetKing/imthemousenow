@@ -15,10 +15,10 @@ moment, which is faster than any page here.
 2. [Keybindings](02-keybindings.md) — `SUPER + ;`, the three modifiers that
    flip one axis each, and the word that names the ACTION you moved into.
 3. [Inside the overlay](03-inside-the-overlay.md) — typing a label, switching
-   ACTION with `;` `:` `'`, holding `Space` to see through it, retuning it with
+   ACTION with `;` `:` `'` `"`, holding `Space` to see through it, retuning it with
    `SHIFT` and `ALT`, and the key sheet on `F1`.
-4. [Dragging](04-dragging.md) — two questions and one press, how far it
-   travels, and dropping onto another monitor.
+4. [Dragging and holding](04-dragging.md) — `'` for two questions and one
+   press, `"` for a button held down while you fly the pointer by hand.
 5. [Moving and swapping windows](05-moving-windows.md) — `Tab` to swap two
    windows, the digits and arrows, and resizing from inside the overlay.
 6. [The command line](06-command-line.md) — the four choices as flags.
@@ -29,7 +29,7 @@ moment, which is faster than any page here.
    from wl-kbptr, and `imthemousenow-config`.
 8. [The bar widget](08-bar-widget.md) — the Pointer widget, and the settings
    that never need a text editor.
-9. [Colours and opacity](09-appearance.md) — where the five ACTION tints come
+9. [Colours and opacity](09-appearance.md) — where the six ACTION tints come
    from, and how much of the screen an overlay hides.
 10. [Popup-safe mode](10-popup-safe-mode.md) — aiming at a context menu without
     closing it. Experimental.

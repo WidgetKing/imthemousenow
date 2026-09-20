@@ -60,9 +60,9 @@ Panel {
   property int chipIndex: -1
 
   readonly property var rows: {
-    var list = ["action", "mode", "scope", "lifetime", "opacity", "peek", "osd"]
-    if (osdEnabled) list = list.concat(["osd-start", "osd-position", "osd-size"])
-    list = list.concat(["notify", "theme"])
+    var list = ["action", "mode", "scope", "lifetime", "opacity", "peek", "hold-step", "osd"]
+    if (osdEnabled) list.push("osd-position")
+    list.push("notify")
     if (popupsSupported) list.push("popups")
     return list.concat(["edit", "check"])
   }
@@ -112,15 +112,13 @@ Panel {
   function toggleKey(id) {
     return ({
       "osd": "osd.enabled",
-      "osd-start": "osd.on_start",
       "notify": "notify",
-      "theme": "theme_colors",
       "popups": "popups.keep_open"
     })[id] || ""
   }
 
   function groupFor(id) {
-    if (id === "action") return { key: "defaults.action", options: ["left-click", "right-click", "move", "drag"] }
+    if (id === "action") return { key: "defaults.action", options: ["left-click", "right-click", "move", "drag", "hold"] }
     if (id === "mode") return { key: "defaults.mode", options: ["hints", "grid"] }
     if (id === "scope") return { key: "defaults.scope", options: ["window", "monitor"] }
     if (id === "lifetime") return { key: "defaults.lifetime", options: ["single", "continuous"] }
@@ -138,9 +136,12 @@ Panel {
       // off, so the slider has to be able to reach it.
       return { key: "peek_alpha", value: Model.numberValue(cfg, "peek_alpha", 0.1),
                minimum: 0.05, maximum: 1.0, step: 0.05, integer: false }
-    if (id === "osd-size")
-      return { key: "osd.size", value: Model.numberValue(cfg, "osd.size", 120),
-               minimum: 40, maximum: 300, step: 10, integer: true }
+    // Pixels per keypress during a hold. The big step is five of these and is
+    // not a setting of its own, so this one slider moves both -- see
+    // [imthemousenow.action.hold] in config.default.toml.
+    if (id === "hold-step")
+      return { key: "action.hold.step", value: Model.numberValue(cfg, "action.hold.step", 40),
+               minimum: 5, maximum: 120, step: 5, integer: true }
     return null
   }
 
@@ -392,7 +393,8 @@ Panel {
               { value: "left-click", label: Model.actionLabel(root.cfg, "left-click") },
               { value: "right-click", label: Model.actionLabel(root.cfg, "right-click") },
               { value: "move", label: Model.actionLabel(root.cfg, "move") },
-              { value: "drag", label: Model.actionLabel(root.cfg, "drag") }
+              { value: "drag", label: Model.actionLabel(root.cfg, "drag") },
+              { value: "hold", label: Model.actionLabel(root.cfg, "hold") }
             ]
           }
 
@@ -425,6 +427,24 @@ Panel {
 
           PanelSeparator { foreground: root.foreground }
 
+          // --- hold ------------------------------------------------------------
+          // Its own section, short as it is: a hold is the one ACTION with no
+          // overlay in it, so it cannot sit under OVERLAY above.
+          PanelSectionHeader {
+            text: "HOLD"
+            foreground: root.foreground
+            fontFamily: root.fontFamily
+          }
+
+          SliderRow {
+            rowId: "hold-step"
+            label: "Hold speed"
+            description: "How far a hold moves the pointer per keypress, while the button is down. Shift is five of these."
+            valueText: String(Math.round(Model.numberValue(root.cfg, "action.hold.step", 40))) + "px"
+          }
+
+          PanelSeparator { foreground: root.foreground }
+
           // --- the action word -----------------------------------------------
           PanelSectionHeader {
             text: "ACTION WORD"
@@ -438,26 +458,11 @@ Panel {
             description: "A large word naming the action you moved into"
           }
 
-          ToggleRow {
-            rowId: "osd-start"
-            visible: root.osdEnabled
-            label: "Announce on open"
-            description: "Name the action a chord opens in, not just switches"
-          }
-
           ChoiceRow {
             rowId: "osd-position"
             visible: root.osdEnabled
             label: "Position"
             options: ["top", "center", "bottom"]
-          }
-
-          SliderRow {
-            rowId: "osd-size"
-            visible: root.osdEnabled
-            label: "Size"
-            description: "Font size in pixels"
-            valueText: String(Math.round(Model.numberValue(root.cfg, "osd.size", 120))) + "px"
           }
 
           PanelSeparator { foreground: root.foreground }
@@ -467,12 +472,6 @@ Panel {
             rowId: "notify"
             label: "Notifications"
             description: "Desktop notifications for errors and refusals"
-          }
-
-          ToggleRow {
-            rowId: "theme"
-            label: "Theme colours"
-            description: "Start from the colours your Omarchy theme renders"
           }
 
           ToggleRow {

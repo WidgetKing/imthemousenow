@@ -1,5 +1,5 @@
 #!/bin/bash
-# Can you tell the five ACTION colours apart, in every theme Omarchy ships?
+# Can you tell the six ACTION colours apart, in every theme Omarchy ships?
 #
 # Four of them are derived from the fifth by turning an OkLCh wheel, and the
 # whole point of deriving them is that nobody checks them by eye afterwards.
@@ -35,6 +35,11 @@ spec.loader.exec_module(cfg)
 MIN_SEPARATION = 0.09
 failures = 0
 
+# The five on the wheel plus hold, which is not on it: hold wears drag's hue a
+# step lighter, so the pair it could collide with is drag, and nothing else here
+# would notice if it did.
+ACTIONS = list(cfg.WHEEL) + ["hold"]
+
 
 def oklab(hex_color):
     light, chroma, hue = cfg.to_oklch(cfg.parse_hex(hex_color))
@@ -50,7 +55,7 @@ def palette(accent):
     merged = {"imthemousenow": {"action": {"left-click": {"color": accent}}}}
     cfg.derive_action_colors(merged)
     actions = merged["imthemousenow"]["action"]
-    return [actions[name]["color"] for name in cfg.WHEEL]
+    return [actions[name]["color"] for name in ACTIONS]
 
 
 accents = {}
@@ -68,12 +73,12 @@ if not accents:
 worst = (9.0, "")
 for name, accent in sorted(accents.items()):
     colors = palette(accent)
-    if len(set(c.lower() for c in colors)) != len(cfg.WHEEL):
+    if len(set(c.lower() for c in colors)) != len(ACTIONS):
         print(f"FAIL  {name}: two ACTIONs got the same colour -- {colors}")
         failures += 1
         continue
     pairs = [
-        (separation(colors[i], colors[j]), cfg.WHEEL[i], cfg.WHEEL[j])
+        (separation(colors[i], colors[j]), ACTIONS[i], ACTIONS[j])
         for i in range(len(colors))
         for j in range(i + 1, len(colors))
     ]
@@ -85,7 +90,7 @@ for name, accent in sorted(accents.items()):
         failures += 1
 
 if not failures:
-    print(f"ok    all {len(accents)} themes separate five ACTIONs (closest: {worst[1]} at {worst[0]:.3f})")
+    print(f"ok    all {len(accents)} themes separate six ACTIONs (closest: {worst[1]} at {worst[0]:.3f})")
 
 # left-click is the accent itself, untouched. It is the one colour the theme
 # actually chose, and a tool that "improved" it would be repainting the desktop.

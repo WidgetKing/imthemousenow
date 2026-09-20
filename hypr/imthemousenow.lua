@@ -26,7 +26,7 @@
 --
 -- They compose, so you never memorise eight bindings: you memorise one, plus
 -- what each modifier means. ACTION is not on a modifier because it is decided
--- after you can see the overlay, not before: `;`, `:` and `'` switch it.
+-- after you can see the overlay, not before: `;`, `:`, `'` and `"` switch it.
 
 -- The overlay is a layer-shell surface that must appear instantly: a fade or
 -- slide makes the labels unreadable for the first frames.
@@ -40,6 +40,10 @@ hl.layer_rule({ match = { namespace = "imthemousenow-osd" }, no_anim = true, ani
 
 -- Must match SUBMAP and SUBMAP_POPUPS in bin/imthemousenow.
 SUBMAP_NAME = "imthemousenow"
+
+-- The keyboard of a hold, which is not an overlay's. Must match SUBMAP_HOLD in
+-- bin/imthemousenow-hold. See the submap itself, at the bottom of this file.
+SUBMAP_HOLD = "imthemousenow-hold"
 
 -- EXPERIMENTAL, off unless popups.keep_open is on. The same overlay, with its
 -- keys arriving from here instead of from the keyboard.
@@ -156,6 +160,23 @@ local function overlay_binds()
   -- drag off costs nothing and can leave nothing behind.
   hl.bind("apostrophe", hl.dsp.exec_cmd("imthemousenow-steer action drag"), {
     description = "Pointer: pick something up, then say where to drop it",
+  })
+
+  -- `"` is that same key with SHIFT, which puts the two halves of one idea on
+  -- one physical key: `'` says both ends before anything is pressed, `"` says
+  -- one end and keeps the button down while you steer the pointer to the other.
+  -- Which is what a drag cannot do -- a scrollbar dragged until the page looks
+  -- right, a window edge sized by eye -- because it has to know where it is
+  -- going before it starts.
+  --
+  -- `SHIFT + apostrophe`, not `SHIFT + quotedbl`: Hyprland matches a bind
+  -- against the keysym the key produces with NO modifiers applied, plus the
+  -- modmask -- which is why `:` above is `SHIFT + SEMICOLON` rather than
+  -- `SHIFT + colon`. Bound the other way the bind registers, shows up in
+  -- `hyprctl binds`, and never fires. Measured, not assumed: `SHIFT +
+  -- quotedbl` was registered first and `"` did nothing at all.
+  hl.bind("SHIFT + apostrophe", hl.dsp.exec_cmd("imthemousenow-steer action hold"), {
+    description = "Pointer: take hold of something and steer it by hand",
   })
 
   -- The digits and the arrows are read by SCOPE, not fixed to one dispatcher:
@@ -306,6 +327,68 @@ hl.define_submap(SUBMAP_POPUPS, function()
   })
 end)
 
+-- The keyboard of a hold. Every other submap here belongs to an overlay; this
+-- one belongs to a button that is already down, with nothing drawn over the
+-- screen -- which is the whole point of a hold, and also why it needs a submap
+-- of its own rather than the overlay's. In the overlay's, `;` would switch an
+-- ACTION that is already underway and a digit would change workspace with a
+-- button held down on something.
+--
+-- Three ways to say the same four directions, because there is no one right
+-- one: the arrows are what a hand reaches for without being told, hjkl is what
+-- a vim hand reaches for, and WASD is what a hand already resting on the left
+-- of the keyboard reaches for -- which is where a hand is when the other one is
+-- not on a mouse. None of them cost anything: no key here has another meaning
+-- to lose, since a hold reads the whole keyboard and nothing else is running.
+--
+-- `repeating` is what makes a held key move the pointer instead of nudging it
+-- once, and SHIFT is the big step for crossing a screen you are not aiming
+-- inside yet. Both steps are [imthemousenow.action.hold] in the config.
+--
+-- Space, Return and Escape all let go. Not one key, because there is nothing to
+-- decide at that point -- the button comes up where the pointer is, whichever
+-- of them you press -- and a hold is a state you want out of with whatever key
+-- your hand finds first. Escape means "stop" everywhere else here, and letting
+-- go IS stopping: there is no half-done hold to put back.
+hl.define_submap(SUBMAP_HOLD, function()
+  local directions = {
+    l = { "LEFT", "h", "a" },
+    r = { "RIGHT", "l", "d" },
+    u = { "UP", "k", "w" },
+    d = { "DOWN", "j", "s" },
+  }
+  local words = { l = "left", r = "right", u = "up", d = "down" }
+
+  for direction, keys in pairs(directions) do
+    for _, key in ipairs(keys) do
+      hl.bind(key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction), {
+        repeating = true,
+        description = "Pointer: drag " .. words[direction] .. " while the button is held",
+      })
+      hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction .. " big"), {
+        repeating = true,
+        description = "Pointer: drag " .. words[direction] .. " in big steps",
+      })
+    end
+  end
+
+  for _, key in ipairs({ "space", "Return", "Escape" }) do
+    hl.bind(key, hl.dsp.exec_cmd("imthemousenow-hold release"), {
+      description = "Pointer: let go of the button and end the hold",
+    })
+  end
+
+  -- Everything else, swallowed. A hold takes no keyboard focus -- there is no
+  -- surface to take it with -- so a key with no binding here reaches the window
+  -- the pointer is holding a button down on, and typing into the thing you are
+  -- dragging is not something a mistyped key should be able to do. Same shape
+  -- and same caveat as the popup-safe overlay's catchall: a plain key is
+  -- swallowed, a chord is not.
+  hl.bind("catchall", hl.dsp.exec_cmd("true"), {
+    description = "Pointer: swallow keys a hold does not use",
+  })
+end)
+
 -- The eight chords. A modifier does not name a value, it asks for the OTHER
 -- value on its axis, and the axis starts from [imthemousenow.defaults] -- so
 -- the bare chord is whatever the bar says SUPER + ; should be, and each
@@ -349,13 +432,13 @@ end
 hl.unbind("CTRL + ALT + DELETE")
 o.bind("CTRL + ALT + DELETE", "Close all windows", "imthemousenow-panic")
 
--- And the same key inside the submap, because an active submap shadows the
+-- And the same key inside each submap, because an active submap shadows the
 -- global binds -- only its own fire, so without this the guaranteed way out of
 -- a stuck overlay is the one thing an overlay takes away. It has to come after
 -- the hl.unbind above: that removes the binding from every submap, this one
 -- included, whatever order they were defined in. `hl.define_submap` appends to
 -- a submap that already exists.
-for _, submap in ipairs({ SUBMAP_NAME, SUBMAP_POPUPS }) do
+for _, submap in ipairs({ SUBMAP_NAME, SUBMAP_POPUPS, SUBMAP_HOLD }) do
   hl.define_submap(submap, function()
     hl.bind("CTRL + ALT + DELETE", hl.dsp.exec_cmd("imthemousenow-panic"), {
       description = "Pointer: close the overlay and all windows",

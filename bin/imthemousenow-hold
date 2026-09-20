@@ -1,0 +1,226 @@
+#!/bin/bash
+# omarchy:summary=Hold the button down on something and fly the pointer by hand
+# omarchy:args=begin <x> <y> | move <l|r|u|d> [big] | release
+#
+# `"` in the overlay. A drag asks where to drop before it presses anything, and
+# that is the right shape for "pick this up and put it there". It is the wrong
+# shape for everything you can only do while the button is already down: a
+# scrollbar dragged until the page looks right, a window edge pulled to a size
+# you are judging by eye, a selection swept over text you are reading as you go.
+# Those need the button held and the pointer steered, and they need to see what
+# is happening -- so there is no overlay at all while a hold is on.
+#
+# The press lives in one wl-kbptr --hold, which holds the button for exactly as
+# long as it runs and cannot return with it down (pkg/0006-Hold-a-button-*.patch).
+# This script starts it, feeds it points, and waits. The keys that produce those
+# points are compositor bindings in a submap of their own -- there is no overlay
+# to read them -- and they run this script again, which is why `move` and
+# `release` do not load the config or talk to Hyprland: they are on the path
+# between a keypress and the pointer moving, and that path is walked twenty-five
+# times a second while a key is held down.
+#
+# What says a hold is on, since nothing is drawn over the screen: the pointer
+# wears a pulsing halo for as long as the button is down. See qml/halo.qml.
+set -euo pipefail
+
+SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
+FIFO="$SESSION_DIR/hold-commands"
+
+usage() {
+  cat <<'EOF'
+Usage: imthemousenow-hold <verb> [value]
+
+  begin <x> <y>       press at that layout point and hold it, until a key
+                      here says to let go. Blocks; run by the run loop.
+  move <l|r|u|d> [big]  move the held pointer that way, by the ordinary step
+                      or the big one
+  release             let go of the button and end the hold
+
+The keys are bound in the `imthemousenow-hold` submap; see hypr/imthemousenow.lua.
+EOF
+}
+
+# --- the fast half ------------------------------------------------------------
+# Every keypress during a hold comes through here, so it does as little as a
+# thing can do: three small files read, some arithmetic, one line written. No
+# config (a python process), no hyprctl (two more, and a round trip to the
+# compositor), no notifications. Everything they would have told us was worked
+# out once in `begin` and written down.
+hold_fast() {
+  local verb="$1"
+  # Nothing is held: these keys' bindings only exist inside the hold submap,
+  # but a stray invocation must still do nothing at all.
+  [[ -p $FIFO ]] || exit 0
+
+  if [[ $verb == release ]]; then
+    # Anything that is not a point ends the hold; `release` is the word, so
+    # that a reader looking at the stream can see what happened.
+    printf 'release\n' 1<>"$FIFO" 2>/dev/null || true
+    exit 0
+  fi
+
+  local dir="${2:-}" size="${3:-}"
+  local step x y minx miny maxx maxy
+  if [[ $size == big ]]; then
+    step="$(<"$SESSION_DIR/hold-big-step")"
+  else
+    step="$(<"$SESSION_DIR/hold-step")"
+  fi
+  read -r x y <"$SESSION_DIR/hold-pos"
+  read -r minx miny maxx maxy <"$SESSION_DIR/hold-bounds"
+
+  case "$dir" in
+    l) x=$((x - step)) ;;
+    r) x=$((x + step)) ;;
+    u) y=$((y - step)) ;;
+    d) y=$((y + step)) ;;
+    *) exit 2 ;;
+  esac
+
+  # Clamped to the desk rather than allowed to run off it. The compositor would
+  # clamp an out-of-layout point itself, but then the position written here and
+  # the pointer's real one would disagree, and the next key would move from a
+  # place the pointer is not.
+  ((x < minx)) && x=$minx
+  ((y < miny)) && y=$miny
+  ((x > maxx)) && x=$maxx
+  ((y > maxy)) && y=$maxy
+
+  printf '%s %s\n' "$x" "$y" >"$SESSION_DIR/hold-pos"
+  printf '%s %s\n' "$x" "$y" 1<>"$FIFO" 2>/dev/null || true
+  exit 0
+}
+
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+  move | release) hold_fast "$@" ;;
+esac
+
+# --- the slow half ------------------------------------------------------------
+# Only `begin` gets here, once per hold, with the overlay already gone and
+# nothing yet pressed.
+LIB_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}/bin"
+[[ -f $LIB_DIR/imthemousenow-lib.sh ]] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=imthemousenow-lib.sh
+source "$LIB_DIR/imthemousenow-lib.sh"
+
+HALO_CMD="$PLUGIN_DIR/bin/imthemousenow-halo"
+[[ -x $HALO_CMD ]] || HALO_CMD="imthemousenow-halo"
+SUBMAP_HOLD="imthemousenow-hold"
+
+[[ ${1:-} == begin ]] || { usage >&2; exit 2; }
+anchor_x="${2:?begin needs an x}"
+anchor_y="${3:?begin needs a y}"
+
+# The keys of the hold submap, for the same reason bin/imthemousenow re-asserts
+# its own: Hyprland reproducibly drops the arrow binds of a submap when
+# wl-kbptr exits, and a hold begins the instant it does. Only the ones that are
+# missing may be sent -- hl.define_submap appends, so a bind re-asserted while
+# present is duplicated rather than replaced.
+ensure_hold_binds() {
+  local present body="" key
+  # As `modmask:key` pairs, because each arrow is bound twice here -- bare and
+  # with SHIFT -- and Hyprland drops them one at a time: asking by name alone
+  # would see the SHIFT bind and call the bare one present, or re-send a SHIFT
+  # bind that never went away, and a doubly-bound arrow moves twice per press.
+  present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP_HOLD" \
+    '[.[] | select(.submap == $s) | "\(.modmask):\(.key)"] | join(" ")' 2>/dev/null || true)"
+  for key in LEFT RIGHT UP DOWN; do
+    local dir
+    case "$key" in
+      LEFT) dir=l ;; RIGHT) dir=r ;; UP) dir=u ;; DOWN) dir=d ;;
+    esac
+    if [[ " $present " != *" 0:$key "* ]]; then
+      body+="hl.bind(\"$key\", hl.dsp.exec_cmd(\"imthemousenow-hold move $dir\"),"
+      body+=" { repeating = true, description = \"Pointer: drag $dir while the button is held\" })"$'\n'
+    fi
+    if [[ " $present " != *" 1:$key "* ]]; then
+      body+="hl.bind(\"SHIFT + $key\", hl.dsp.exec_cmd(\"imthemousenow-hold move $dir big\"),"
+      body+=" { repeating = true, description = \"Pointer: drag $dir in big steps\" })"$'\n'
+    fi
+  done
+  [[ -n $body ]] || return 0
+  hyprctl eval "hl.define_submap(\"$SUBMAP_HOLD\", function()
+$body
+end)" >/dev/null 2>&1 || true
+}
+
+# How far off the desk the pointer may be steered: nowhere. The box every
+# monitor sits inside, in the logical pixels everything else here is said in,
+# with a pixel off the far edges so the pointer stays on a screen rather than
+# on the boundary after them.
+read -r min_x min_y max_x max_y < <(hyprctl -j monitors | jq -r '
+  [ .[] | { x, y, w: (.width / .scale | floor), h: (.height / .scale | floor) } ]
+  | [ (map(.x) | min), (map(.y) | min),
+      (map(.x + .w) | max) - 1, (map(.y + .h) | max) - 1 ]
+  | @tsv')
+
+step="$(setting action.hold.step)"
+[[ -n $step ]] || step=40
+# SHIFT's step is derived, not configured: it is "five of those", so whatever
+# speed the ordinary step is set to, the big one stays the same distance ahead
+# of it. A big step set on its own drifts out of proportion with the step it
+# is supposed to be big compared to.
+big_step=$((step * 5))
+
+mkdir -p "$SESSION_DIR"
+printf '%s %s\n' "$anchor_x" "$anchor_y" >"$SESSION_DIR/hold-pos"
+printf '%s %s %s %s\n' "$min_x" "$min_y" "$max_x" "$max_y" >"$SESSION_DIR/hold-bounds"
+printf '%s\n' "$step" >"$SESSION_DIR/hold-step"
+printf '%s\n' "$big_step" >"$SESSION_DIR/hold-big-step"
+
+rm -f "$FIFO"
+mkfifo -m 600 "$FIFO"
+
+halo_pid=""
+press_pid=""
+
+# However this ends -- the keys, a crash, a signal, the panic key -- the button
+# goes up, the halo goes out, the submap goes back to the overlay's, and the
+# fifo is gone so a later keypress writes into nothing. wl-kbptr --hold releases
+# on TERM (it handles the signal rather than dying under it), which is why
+# killing it here is a release and not a stuck button.
+finish() {
+  [[ -n $press_pid ]] && kill "$press_pid" 2>/dev/null
+  [[ -n $halo_pid ]] && kill "$halo_pid" 2>/dev/null
+  rm -f "$FIFO" "$SESSION_DIR/hold-pos" "$SESSION_DIR/hold-bounds" \
+    "$SESSION_DIR/hold-step" "$SESSION_DIR/hold-big-step"
+  hyprctl dispatch "hl.dsp.submap(\"${MOUSENOW_SUBMAP:-reset}\")" >/dev/null 2>&1 || true
+}
+trap finish EXIT INT TERM HUP
+
+# The halo first, so the pointer is already wearing it by the time the button
+# goes down. A missing one is not an error: quickshell is an Omarchy dependency
+# and this is the only thing on screen during a hold, but a machine without it
+# should lose the glow and keep the feature.
+if command -v "${HALO_CMD%% *}" >/dev/null 2>&1 || [[ -x $HALO_CMD ]]; then
+  setsid "$HALO_CMD" >/dev/null 2>&1 &
+  halo_pid=$!
+fi
+
+# The overlay's submap is the wrong keyboard for a hold: `;` would switch an
+# ACTION that is already underway, the digits would change workspace with a
+# button down on something. So the hold has a submap of its own, where the only
+# keys are the ones that move the pointer and the three that let go.
+ensure_hold_binds
+hyprctl dispatch "hl.dsp.submap(\"$SUBMAP_HOLD\")" >/dev/null 2>&1 || true
+
+# The same compiled config the overlay got, for one key out of it:
+# mode_click.button. A hold with the middle button is then a config change
+# rather than an option nothing else would ever pass.
+press_args=()
+compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
+[[ -n $compiled && -f $compiled ]] && press_args+=(-c "$compiled")
+press_args+=(--hold "$anchor_x,$anchor_y")
+
+# Held open here, read-write, for the whole hold. Two things depend on it: the
+# fifo has a writer, so wl-kbptr's open for reading does not block waiting for
+# one, and it has a reader, so a key pressed in the gap between wl-kbptr exiting
+# and this script noticing does not die of SIGPIPE.
+exec 8<>"$FIFO"
+
+wl-kbptr "${press_args[@]}" <"$FIFO" &
+press_pid=$!
+wait "$press_pid" || notify "The hold did not complete"
+press_pid=""
+exit 0

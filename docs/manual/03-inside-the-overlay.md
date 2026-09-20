@@ -4,19 +4,20 @@ In `hints`, type a label and it clicks. In `grid`, type a label to pick a cell,
 then the home row (`a s d f` / `j k l m`) halves it until the pointer is where
 you want it; `g`, `h` and `b` commit with a left, right or middle click.
 
-**`;`, `:` and `'` switch ACTION**, in either mode, at any point before you
-commit:
+**`;`, `:`, `'` and `"` switch ACTION**, in either mode, at any point before
+you commit:
 
 ```
 ;   right click        the overlay is tinted
 :   move, no click     a different tint
 '   drag               a different tint again
+"   hold               and one more: the button stays down
 ```
 
 `;` and `:` are the same physical key, which is the point: one to click
 differently, one to not click at all. The tint is what tells you which you are
 in — the tints are not fixed hues, `left-click` being your theme's accent and
-the other four turned off it. See [Colours](09-appearance.md#colours).
+the rest turned off it. See [Colours](09-appearance.md#colours).
 
 All three are toggles — press the same key again to go back — and all three are
 one-offs: after the pointer lands, the overlay returns to whatever ACTION the
@@ -120,4 +121,4 @@ same flicker as `;`, and anything you had already typed is discarded.
 
 ---
 
-[← Keybindings](02-keybindings.md) · [Manual contents](README.md) · [Dragging →](04-dragging.md)
+[← Keybindings](02-keybindings.md) · [Manual contents](README.md) · [Dragging and holding →](04-dragging.md)

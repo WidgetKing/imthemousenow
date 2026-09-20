@@ -35,7 +35,7 @@ Usage: imthemousenow-help [options]
 
   --scope S      window | monitor   (default: the running overlay's)
   --mode M       grid | hints | windows
-  --action A     left-click | right-click | move | drag | drop
+  --action A     left-click | right-click | move | drag | drop | hold
   --lifetime L   single | continuous
   --stage S      normal | drop | swap -- which keys are live right now
   --focus F      exclusive (this sheet reads the keyboard) | none (popup-safe
@@ -134,8 +134,19 @@ else
   section "What happens" \
     ";" "right click instead (again: back)" \
     ":" "move the pointer, no click (again: back)" \
-    "'" "drag: pick up here, then say where to drop"
+    "'" "drag: pick up here, then say where to drop" \
+    '"' "hold: take hold here and steer it by hand"
 fi
+
+# The keys of a hold, listed here rather than in a sheet of their own: a hold
+# has no overlay and takes no keyboard, so there is nowhere to press F1 once it
+# has started. This is the moment they are wanted anyway -- the sheet is up
+# because you are deciding what to press next, and `"` is one of the choices.
+section "If you take hold" \
+  "arrows / wasd / hjkl" "move the pointer with the button down" \
+  "Shift + those" "move in big steps" \
+  "Space / Return / Escape" "let go of the button"
+
 
 # The two axes a modifier flips outside the overlay flip the same way inside
 # it, on a bare tap.

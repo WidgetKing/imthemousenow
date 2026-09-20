@@ -17,7 +17,7 @@
 #
 #   MODE      grid | hints          how targets are presented
 #   SCOPE     window | monitor      where the overlay is drawn
-#   ACTION    left-click | right-click | move | drag
+#   ACTION    left-click | right-click | move | drag | hold
 #   LIFETIME  single | continuous   one selection, or until Escape
 #
 # Everything above the ADVANCED divider is a preference: no wrong answers, and
@@ -210,6 +210,38 @@ duration_ms = 300
 # onto blank canvas, or between two list items, is not a hint. `grid` can reach
 # any pixel, so it is the one that can always answer.
 drop_mode = "same"
+
+# Hold is the other half of drag's idea: one pass to say what to take hold of,
+# and then the button stays down while you fly the pointer by hand -- arrows,
+# WASD or hjkl to move, Shift for a bigger step, Space, Return or Escape to let
+# go. Nothing is drawn over the screen while it is on, because the whole reason
+# to hold rather than drag is to watch the thing you are moving: the pointer
+# wears a pulsing halo instead, which is the only sign that a button is down.
+#
+# What it is for is everything a drag cannot say in advance -- a scrollbar
+# pulled until the page looks right, a window edge sized by eye, a selection
+# swept over text you are reading as you go.
+#
+# Needs the wl-kbptr this plugin's install.sh builds
+# (pkg/0006-Hold-a-button-*.patch); on a stock build the chord refuses up front
+# rather than aiming twice and failing at the press.
+[imthemousenow.action.hold]
+label = "hold"
+# Pixels per keypress. The keys repeat while they are held, so `step` is also
+# a speed: 40px about twenty-five times a second is a pointer crossing a 1080p
+# screen in under two seconds, which is fast enough to get somewhere and slow
+# enough to stop where you meant.
+#
+# SHIFT is five times this, and is not its own setting. The big step is for
+# crossing a screen you are not aiming inside yet -- another monitor, the far
+# side of a long page -- which is a thing you want RELATIVE to your ordinary
+# speed, not an absolute number: set independently, a slower step and an
+# untouched big step turn SHIFT into a jump you cannot aim with at all. One
+# number, one slider, and the pair always keeps its proportion.
+step = 40
+# The outer radius of the halo around the pointer, in pixels. It is drawn as
+# three rings of falling alpha inside this, pulsing in and out.
+halo_size = 44
 
 # The second pass of a drag, which is not an ACTION you can ask for -- you
 # arrive at it by picking something up. It gets its own entry because it needs

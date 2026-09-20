@@ -7,7 +7,7 @@ names to memorise and no special cases — any combination is valid.
 | --- | --- | --- |
 | **MODE** | `hints` · `grid` · `windows` | how targets are presented |
 | **SCOPE** | `window` · `monitor` | where the overlay is drawn |
-| **ACTION** | `left-click` · `right-click` · `move` · `drag` | what happens when you land (`;` `:` `'` switch it live) |
+| **ACTION** | `left-click` · `right-click` · `move` · `drag` · `hold` | what happens when you land (`;` `:` `'` `"` switch it live) |
 | **LIFETIME** | `single` · `continuous` | one selection, or until Escape |
 
 **MODE** — `hints` labels what looks clickable: detected targets when the build
@@ -28,9 +28,12 @@ window under a `window` one.
 **ACTION** — what the pointer does on arrival. `move` places the pointer and
 leaves it there, clicking nothing. `drag` asks twice — once for the thing to
 pick up, once for where it goes — and only then presses, travels and releases.
-This is the one axis you do not have to decide up front: `;`, `:` and `'`
-switch it while the overlay is on screen, which is the only moment you can
-actually see what you are aiming at.
+`hold` asks once, puts the button down there and leaves it down while you fly
+the pointer with the arrows, `wasd` or `hjkl` — for everything a drag cannot
+say in advance, like a scrollbar pulled until the page looks right. This is the
+one axis you do not have to decide up front: `;`, `:`, `'` and `"` switch it
+while the overlay is on screen, which is the only moment you can actually see
+what you are aiming at.
 
 **LIFETIME** — `single` clicks once and gets out of the way. `continuous`
 reopens after every click, so a burst of clicking is one invocation; Escape

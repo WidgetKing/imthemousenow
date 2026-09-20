@@ -153,6 +153,15 @@ def nest_reserved(flat: dict) -> dict:
 WHEEL = ("left-click", "right-click", "move", "drag", "drop")
 CHROMA_FLOOR = 0.10
 L_MIN, L_MAX = 0.45, 0.78
+# How far hold sits from drag in lightness, sharing its hue, and how light it
+# is allowed to get on the way. L_MAX is a ceiling for the wheel because a
+# label has to stay readable against its own background; hold's colour is worn
+# by a halo drawn over whatever is on screen, where being pale is a virtue
+# rather than a problem, so it may go higher than the five that are labels.
+# 0.18 is measured rather than picked: it keeps hold further from drag, in
+# every shipped theme, than the closest pair the wheel itself produces.
+HOLD_LIGHT_STEP = 0.18
+HOLD_L_MAX = 0.90
 
 # Bjorn Ottosson's Oklab, transcribed rather than depended on: this runs on
 # every settings() call, and a colour library is not worth a dependency in a
@@ -259,6 +268,26 @@ def derive_action_colors(merged: dict) -> None:
         if not parse_hex(entry.get("color", "")):
             entry["color"] = oklch_to_hex(derived_light, shared, hues[index])
 
+    # Hold is not on the wheel, and deliberately: a sixth hue puts the whole set
+    # closer together than tests/action-colors.sh will accept in every shipped
+    # theme, and hold is not a sixth idea anyway -- it is drag with the far end
+    # left open. So it takes drag's hue at the other end of the lightness range
+    # the wheel is clamped to, which separates the two by more than any pair of
+    # neighbouring hues manages while still reading as the same family.
+    hold = actions.setdefault("hold", {})
+    if not parse_hex(hold.get("color", "")):
+        # Brighter than drag where there is room, darker where there is not:
+        # the halo is drawn over whatever is on screen rather than over an
+        # overlay's own dimming, so a light ring has the better chance of
+        # reading against it.
+        # Always upwards, and it always has room to go: the wheel's own
+        # lightness is clamped at L_MAX, which is below this ceiling by more
+        # than the separation the five are held to.
+        hold_light = min(derived_light + HOLD_LIGHT_STEP, HOLD_L_MAX)
+        drag_hue = hues[WHEEL.index("drag")]
+        hold_chroma = min(shared, max_chroma(hold_light, drag_hue))
+        hold["color"] = oklch_to_hex(hold_light, hold_chroma, drag_hue)
+
 
 def settings() -> dict:
     """The merged config, all layers applied."""
@@ -289,7 +318,7 @@ def axis_values(merged: dict) -> dict:
     return {
         "mode": sorted(merged.get("mode", {})),
         "scope": ["window", "monitor"],
-        "action": ["left-click", "right-click", "move", "drag"],
+        "action": ["left-click", "right-click", "move", "drag", "hold"],
         "lifetime": ["single", "continuous"],
     }
 

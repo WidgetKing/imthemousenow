@@ -104,4 +104,4 @@ ordinary keys the moment the overlay is gone.
 
 ---
 
-[← Dragging](04-dragging.md) · [Manual contents](README.md) · [The command line →](06-command-line.md)
+[← Dragging and holding](04-dragging.md) · [Manual contents](README.md) · [The command line →](06-command-line.md)

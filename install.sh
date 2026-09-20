@@ -168,7 +168,7 @@ for item in "${MANAGED[@]}"; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd imthemousenow-help imthemousenow-menu; do
+for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd imthemousenow-help imthemousenow-hold imthemousenow-halo imthemousenow-menu; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 
@@ -191,6 +191,13 @@ link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 # run, so the plugin stays fully usable either way.
 "$REPO/bin/imthemousenow-osd" --self-test >/dev/null 2>&1 ||
   warn "The ACTION announcement is unavailable (no quickshell?); set osd.enabled = false to silence this."
+
+# The halo a hold wears is drawn the same way, by the same quickshell, and is
+# checked separately because it is the only thing on screen during a hold: with
+# no overlay drawn, a hold with no halo is a button held down with nothing at
+# all to say so.
+"$REPO/bin/imthemousenow-halo" --self-test >/dev/null 2>&1 ||
+  warn "The hold halo is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
 
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
