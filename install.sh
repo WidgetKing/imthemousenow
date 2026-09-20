@@ -199,6 +199,60 @@ link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 "$REPO/bin/imthemousenow-halo" --self-test >/dev/null 2>&1 ||
   warn "The hold halo is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
 
+# --- 2c. omarchy-ascii --------------------------------------------------------
+# Text drawn large in the font the Omarchy wordmark is drawn in. Omarchy grew
+# `omarchy ascii` after 4.0.0.alpha, so on a machine at or before that release
+# it is simply not there, and the feature that wants it has to bring its own.
+#
+# The copy goes in STATE_DIR rather than ~/.local/bin, and that is the whole
+# point of this section: ~/.local/bin comes before /usr/bin on PATH, so a copy
+# left there would go on shadowing the packaged omarchy-ascii long after
+# Omarchy shipped it -- pinning every user of this plugin to whatever upstream
+# looked like the day they installed. Nothing but this plugin ever resolves the
+# vendored path (see ascii_cmd in bin/imthemousenow-lib.sh), the packaged one
+# always wins when it exists, and uninstall.sh takes STATE_DIR with it.
+#
+# Pinned by commit and checked by hash. A script fetched from a moving branch
+# and run unread is a different program on any two days.
+ASCII_COMMIT="4baae6bf2afb2c07b617100371c07d8b6dea71a5"
+ASCII_SHA256="9640bc210e8cfe016459bc7b4917344403fe49f67ce013f2cff118cdafdcf7c5"
+ASCII_VENDORED="$STATE_DIR/bin/omarchy-ascii"
+
+if command -v omarchy-ascii >/dev/null 2>&1; then
+  # Omarchy caught up. Drop ours rather than leave two, so there is no question
+  # of which one ran.
+  if [[ -e $ASCII_VENDORED ]]; then
+    say "Omarchy now ships omarchy-ascii; removing the copy this plugin vendored"
+    rm -f "$ASCII_VENDORED"
+  fi
+elif [[ -x $ASCII_VENDORED ]] && "$ASCII_VENDORED" Om >/dev/null 2>&1; then
+  say "Using the vendored omarchy-ascii (this Omarchy has none)"
+else
+  say "This Omarchy has no omarchy-ascii; vendoring ${ASCII_COMMIT:0:9}"
+  mkdir -p "$STATE_DIR/bin"
+  ascii_tmp="$(mktemp)"
+  if ! curl -fsSL --retry 2 \
+    "https://raw.githubusercontent.com/basecamp/omarchy/$ASCII_COMMIT/bin/omarchy-ascii" \
+    -o "$ascii_tmp"; then
+    warn "Could not download omarchy-ascii; anything that draws text large will be unavailable."
+    rm -f "$ascii_tmp"
+  elif [[ "$(sha256sum <"$ascii_tmp" | cut -d' ' -f1)" != "$ASCII_SHA256" ]]; then
+    warn "Downloaded omarchy-ascii does not match its pinned checksum; not installing it."
+    rm -f "$ascii_tmp"
+  else
+    chmod 755 "$ascii_tmp"  # mktemp makes it 0600; +x alone would leave it unreadable
+    # Run it before it counts as installed. The font is embedded in the script,
+    # so a copy that renders one word renders every word, and a copy that fails
+    # here would otherwise fail at the first keypress instead.
+    if "$ascii_tmp" Om >/dev/null 2>&1; then
+      mv "$ascii_tmp" "$ASCII_VENDORED"
+    else
+      warn "The downloaded omarchy-ascii does not run here; not installing it."
+      rm -f "$ascii_tmp"
+    fi
+  fi
+fi
+
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
 

@@ -133,14 +133,44 @@ after the key. If that lag ever needs to go, the answer is a pre-warmed process
 -- or a widget inside Omarchy's already-running quickshell instance, the way
 OmaGrid does it -- rather than a faster cold start.
 
-**The font is the Omarchy font, not the Omarchy logo.** There is no logo font to
-borrow: the wordmark ships as outlined SVG paths on a 15px grid
+**The word is drawn as the wordmark is drawn.** This used to say the opposite --
+that there was no logo font to borrow -- and that was true of *fonts*: the
+wordmark ships as outlined SVG paths on a 15px grid
 (`/usr/share/omarchy/logo.svg`) and as block-character ASCII art (`logo.txt`),
 and the font actually named `omarchy` is an icon font whose only glyphs are
-private-use marks -- `U+E900` is the Omarchy mark itself, and there are no
-letters in it. Everywhere Omarchy sets text it uses fontconfig's monospace
-(JetBrainsMono Nerd Font, itself an `omarchy` dependency), which is what
-`osd.font = ""` follows.
+private-use marks (`U+E900` is the Omarchy mark; there are no letters in it).
+What changed is that Omarchy grew `omarchy ascii`, which draws arbitrary text in
+Delta Corps Priest 1 -- the FIGlet font the wordmark itself is set in -- and
+embeds that font in the script, so it needs nothing installed. The announcement
+runs the label through it and draws the block art that comes back.
+
+The text font is therefore still fontconfig's monospace (JetBrainsMono Nerd
+Font, itself an `omarchy` dependency, which `osd.font = ""` follows); it is now
+setting block characters rather than letters, which is why the QML drops the
+letter spacing and the Black weight when it is drawing art -- both break a grid
+-- and tightens the line height to 0.82 so nine rows read as one letter instead
+of nine stripes. `size` is reinterpreted too: it is a cap height for a word but
+a *cell* height for art, so the art takes a quarter of it as its ceiling. At the
+full 120 a nine-row block fills a 4K screen corner to corner.
+
+**Every way of failing to draw the art ends in the plain word.** This is a look,
+not a feature, and a missing announcement is a real loss where a plain one is
+not. `bin/imthemousenow-osd` renders the art itself and hands the finished block
+to the QML, so the QML's rule is simply "art if I was given any". It falls back
+when there is no `omarchy ascii` to run, when the command fails, when what comes
+back is whitespace, and -- before asking at all -- when the label is not letters
+and spaces. That last one is not a failure the tool reports: Delta Corps Priest
+1 has no digits or punctuation and silently drops what it cannot draw, so a
+label like `2X` would come back as a perfectly good picture of `X`. A confidently
+wrong announcement is worse than a plain right one. `osd.ascii = false` turns the
+art off outright.
+
+Omarchy only grew `omarchy ascii` after 4.0.0.alpha, so a machine at or before
+that release does not have it. `install.sh` vendors a copy (pinned by commit and
+checked by hash) into `~/.local/state/imthemousenow/bin/` for those, deletes it
+again once Omarchy ships its own, and deliberately does **not** put it in
+`~/.local/bin`: that directory precedes `/usr/bin` on `PATH`, so a copy there
+would shadow the packaged command forever after.
 
 ## The key sheet (`F1`)
 

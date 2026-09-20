@@ -1,4 +1,9 @@
-// One large word, solid then fading: which ACTION you just moved into.
+// One large word, solid then fading: which ACTION you just moved into -- drawn
+// as block art in the FIGlet font the Omarchy wordmark is set in, so the
+// announcement looks like the desktop it belongs to. bin/imthemousenow-osd does
+// the rendering and hands the finished block over; if it could not, the art is
+// empty and the plain word is drawn instead, which is what every failure to
+// produce art falls back to.
 //
 // Quickshell rather than any toolkit of our own choosing, for one reason: it is
 // a dependency of the `omarchy` package itself, so it is on every Omarchy
@@ -33,6 +38,11 @@ ShellRoot {
   }
 
   readonly property string text: env("MOUSENOW_OSD_TEXT", "")
+  // The rendered block, or "" when there is none to draw. Only the shell knows
+  // whether the art could be made, so this is the single thing that decides
+  // which of the two the label is.
+  readonly property string art: env("MOUSENOW_OSD_ART", "")
+  readonly property bool drawingArt: root.art !== ""
   readonly property color textColor: env("MOUSENOW_OSD_COLOR", "#ffffff")
   readonly property string family: env("MOUSENOW_OSD_FONT", "sans-serif")
   readonly property int size: parseInt(env("MOUSENOW_OSD_SIZE", "120"))
@@ -109,14 +119,32 @@ ShellRoot {
         : root.place === "bottom" ? Text.AlignBottom : Text.AlignVCenter
       // A window can be narrower than the word is wide at 120px. Shrink to fit
       // rather than clip: a truncated ACTION name is worse than a smaller one.
-      fontSizeMode: Text.HorizontalFit
-      minimumPixelSize: 16
-      text: root.text.toUpperCase()
+      // The art is nine rows tall as well as wide, so it has to fit in both
+      // directions; a single line only ever has to fit across.
+      fontSizeMode: root.drawingArt ? Text.Fit : Text.HorizontalFit
+      minimumPixelSize: root.drawingArt ? 4 : 16
+      // Already the right shape: the art is drawn from capitals, and upper-casing
+      // block characters would do nothing but cost a pass over a long string.
+      text: root.drawingArt ? root.art : root.text.toUpperCase()
       color: root.textColor
       font.family: root.family
-      font.pixelSize: root.size
-      font.weight: Font.Black
-      font.letterSpacing: 6
+      // `size` is the height of a WORD, and the art would spend all of it on
+      // each of its nine rows -- 120 there fills a 4K screen corner to corner.
+      // A quarter of it puts the block at about twice the height the plain word
+      // would have had: bigger, because a wordmark is meant to be, but still an
+      // announcement rather than a takeover. Text.Fit shrinks from here to
+      // whatever the surface actually allows, so this is a ceiling, not a size.
+      font.pixelSize: root.drawingArt ? Math.max(4, Math.round(root.size / 4)) : root.size
+      // Block art is a grid, and both of these break the grid: a bold weight
+      // thickens cells until neighbours bleed into each other, and letter
+      // spacing pushes every row out of column with the one above it.
+      font.weight: root.drawingArt ? Font.Normal : Font.Black
+      font.letterSpacing: root.drawingArt ? 0 : 6
+      // The rows of a FIGlet glyph are meant to touch: at the font's natural
+      // line height the stack reads as nine separate stripes rather than one
+      // letter.
+      lineHeight: root.drawingArt ? 0.82 : 1.0
+      lineHeightMode: Text.ProportionalHeight
       renderType: Text.NativeRendering
       // The word lands on whatever happens to be on screen, and the theme
       // foreground alone is not guaranteed to be readable against it.

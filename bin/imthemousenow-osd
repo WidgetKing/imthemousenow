@@ -1,9 +1,17 @@
 #!/bin/bash
 # omarchy:summary=Flash one large word on screen, then fade it out
-# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME]
+# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME] [--no-ascii]
 #
 # Say which ACTION you just switched into, large enough to read without looking
 # for it and gone before it is in the way.
+#
+# The word is drawn the way the Omarchy wordmark is drawn: as block art, in the
+# FIGlet font Omarchy sets its own name in, via `omarchy ascii` (or the copy
+# install.sh vendors when this Omarchy predates that command). That is a look
+# rather than a feature -- a word that cannot be read is worse than a plain one
+# -- so every way of failing to produce the art falls back to plain text and the
+# announcement still happens: no tool, a label the font has no glyphs for, an
+# empty render. `--no-ascii` asks for the plain word outright.
 #
 # The drawing is qml/osd.qml, run by quickshell -- which is a dependency of the
 # `omarchy` package itself, so it is present on every Omarchy machine and this
@@ -35,12 +43,13 @@ Usage: imthemousenow-osd TEXT [options]
   --region R      WxH+X+Y, monitor-relative: place within this box rather than
                   across the whole screen. What window scope passes.
   --output NAME   which monitor the region belongs to
+  --no-ascii      plain text, rather than the Omarchy wordmark's block art
 
 One at a time: starting another replaces the one on screen.
 USAGE
 }
 
-text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output=""
+text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output="" ascii=1
 
 while (($#)); do
   case "$1" in
@@ -60,6 +69,8 @@ while (($#)); do
     --position) position="${2:?--position needs a value}"; shift 2 ;;
     --region) region="${2:?--region needs a value}"; shift 2 ;;
     --output) output="${2:?--output needs a value}"; shift 2 ;;
+    --ascii) ascii=1; shift ;;
+    --no-ascii) ascii=0; shift ;;
     -*) echo "imthemousenow-osd: unknown option $1" >&2; exit 2 ;;
     *)
       [[ -z $text ]] || { echo "imthemousenow-osd: only one TEXT" >&2; exit 2; }
@@ -82,6 +93,44 @@ fi
 # A fade longer than the whole life would never reach zero on screen.
 ((fade_ms > ms)) && fade_ms=$ms
 
+# The block art, or nothing at all. Every way of failing to draw it leads back
+# to the plain word rather than to a blank or a half-written announcement, which
+# is why this is a fallback and not a mode.
+#
+# Letters and spaces only, checked here before the command is asked: the font
+# has no digits or punctuation and silently drops what it cannot draw, so a
+# label like "2X" would come back as a perfectly good picture of "X". A wrong
+# announcement is worse than a plain one, and the tool cannot tell us that in
+# its exit status -- it only fails when NOTHING was drawable.
+# Omarchy's own omarchy-ascii when this machine has one -- it arrived after
+# 4.0.0.alpha, so plenty do not -- and otherwise the copy install.sh vendored
+# into the state directory. Resolved here rather than in imthemousenow-lib.sh,
+# and deliberately: sourcing the lib loads the whole config and exits if it
+# cannot, and an announcement must not be lost over a decoration. This script
+# stays standalone.
+ascii_cmd() {
+  if command -v omarchy-ascii >/dev/null 2>&1; then
+    echo omarchy-ascii
+  else
+    local vendored="${MOUSENOW_STATE_DIR:-$HOME/.local/state/imthemousenow}/bin/omarchy-ascii"
+    [[ -x $vendored ]] && echo "$vendored"
+  fi
+}
+
+# Rendered here rather than in the QML because only the shell can decide whether
+# there is art to be had at all. It costs one process and about 18ms for a word
+# this short -- once per ACTION switch, not per frame, and small beside the
+# quickshell start that follows it.
+art=""
+if ((ascii)) && [[ $text =~ ^[A-Za-z[:space:]]+$ ]]; then
+  if ascii_bin="$(ascii_cmd)" && [[ -n $ascii_bin ]]; then
+    art="$("$ascii_bin" "$text" 2>/dev/null || true)"
+    # Backstop for anything the check above did not anticipate: art that is all
+    # whitespace is a blank announcement.
+    [[ -n ${art//[[:space:]]/} ]] || art=""
+  fi
+fi
+
 # Replace whatever is on screen rather than stacking on top of it: two switches
 # in quick succession are normal (`;` cycles), and two words both fading would
 # be one unreadable over the other. The runtime directory is the session's own,
@@ -100,6 +149,7 @@ echo $$ >"$PIDFILE"
 
 # exec, so the pid recorded above is the process that owns the surface.
 export MOUSENOW_OSD_TEXT="$text" \
+  MOUSENOW_OSD_ART="$art" \
   MOUSENOW_OSD_COLOR="$color" \
   MOUSENOW_OSD_FONT="$font" \
   MOUSENOW_OSD_SIZE="$size" \

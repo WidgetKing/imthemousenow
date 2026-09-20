@@ -149,6 +149,9 @@ osd_action() {
   color="$(setting "action.${act}.color")"
 
   [[ -n $color ]] && args+=(--color "$color")
+  # Only the negative is passed: the art is the default, and the OSD falls back
+  # to plain text on its own whenever it cannot draw it.
+  [[ $(setting osd.ascii) == false ]] && args+=(--no-ascii)
   [[ -n $(setting osd.ms) ]] && args+=(--ms "$(setting osd.ms)")
   [[ -n $(setting osd.fade_ms) ]] && args+=(--fade-ms "$(setting osd.fade_ms)")
   [[ -n $(setting osd.size) ]] && args+=(--size "$(setting osd.size)")

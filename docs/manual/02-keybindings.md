@@ -26,8 +26,15 @@ announced too, because by then it is a choice rather than the default.
 `SUPER + ;` says nothing, because a left click is what a pointer does when you
 have not told it otherwise. `osd.on_start = true` names that one as well, which
 is the setting to turn on while the four actions are still new; `osd.enabled =
-false` turns the whole thing off. The word is set in the Omarchy font unless
-`osd.font` names another.
+false` turns the whole thing off.
+
+The word is drawn the way the Omarchy wordmark is drawn -- as block art, in the
+FIGlet font Omarchy sets its own name in -- at about twice the height a plain
+word would be. `osd.ascii = false` gives you the plain word instead, and so does
+an action label with a digit or a punctuation mark in it: that font has letters
+and spaces only, and announcing half a label would be worse than announcing a
+plain one. Either way the text is set in the Omarchy font unless `osd.font`
+names another.
 
 Where it appears follows the overlay: `osd.position` (`top`, `center`,
 `bottom`) is relative to the focused window in `window` scope and to the screen

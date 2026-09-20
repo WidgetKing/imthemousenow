@@ -114,6 +114,16 @@ setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 check "timings and placement come from the config" left-click monitor \
   "--ms 500" "--fade-ms 250" "--position top" "--size 120"
 
+# The wordmark is the default, so the flag that turns it off is the only one
+# that should ever appear -- and it must appear the moment the config says so.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "the art is on by default, so no flag is passed" left-click monitor "LEFT" "" "--no-ascii"
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+mkdir -p "$HOME/.config/omarchy/imthemousenow"
+printf '[imthemousenow.osd]\nascii = false\n' >"$HOME/.config/omarchy/imthemousenow/config.toml"
+check "ascii = false asks for the plain word" left-click monitor "LEFT" "--no-ascii"
+rm -f "$HOME/.config/omarchy/imthemousenow/config.toml"
+
 echo
 if ((failures)); then
   echo "$failures failing"
