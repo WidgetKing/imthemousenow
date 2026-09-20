@@ -107,6 +107,20 @@ section() {
     '. + [{ title: $t, rows: $r }]' <<<"$sections_json")"
 }
 
+# Double click is the same gesture in both modes -- press again what you just
+# pressed -- but the key it is said with is whatever that mode commits on, so
+# each sheet has to name its own. Listed only when it would actually work: the
+# ACTION has to want it, the window has to be non-zero, and the binary has to
+# know the option. A key that does nothing is worse on a sheet than off it.
+dbl=()
+if double_click_armed "$action"; then
+  if [[ $mode == grid ]]; then
+    dbl=("Space / Return again" "double click: press it twice")
+  else
+    dbl=("last letter again" "double click: type it twice")
+  fi
+fi
+
 # What wl-kbptr itself reads. These are the keys that actually select
 # something; everything below them only changes what selecting will do.
 if [[ $mode == grid ]]; then
@@ -114,11 +128,13 @@ if [[ $mode == grid ]]; then
     "a . . z ," "type a cell's label to zoom into it" \
     "home row" "halve the area again, eight ways" \
     "Space / Return" "commit the area you have narrowed to" \
+    "${dbl[@]}" \
     "BackSpace" "undo the last step" \
     "Escape" "close the overlay without clicking"
 else
   section "Aim" \
     "a . . z ," "type a label to pick that target" \
+    "${dbl[@]}" \
     "Space (hold)" "fade the overlay to read what is under it" \
     "BackSpace" "undo the last letter" \
     "Escape" "close the overlay without clicking"

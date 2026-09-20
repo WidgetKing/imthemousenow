@@ -22,13 +22,14 @@ source=(
   0004-Say-a-drag-path-in-layout-coordinates-so-it-can-leav.patch
   0005-dim-the-overlay-while-a-key-is-held.patch
   0006-Hold-a-button-down-and-be-steered-so-a-drag-can-be-f.patch
+  0007-Click-twice-when-the-committing-key-is-pressed-again.patch
 )
 # Every patch is listed above and applied below in that order; adding one is a
 # single line here. Each patch's own header says what it does and whether it is
-# headed upstream (0001 is a bug fix and should land there; 0002 through 0006
+# headed upstream (0001 is a bug fix and should land there; 0002 through 0007
 # are ours, and the drag pair and the peek are worth offering).
 # One entry per source, so a new patch needs a 'SKIP' here too or makepkg refuses.
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)

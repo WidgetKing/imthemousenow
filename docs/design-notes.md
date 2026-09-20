@@ -611,3 +611,62 @@ Off by default, and it needs the patched wl-kbptr: `bin/imthemousenow` looks
 for the environment variable's name inside the installed binary and stays on
 the ordinary submap when it is not there, because relay binds with nothing
 reading them would be a keyboard that does nothing at all.
+
+## Double click, and why the first click is not held back
+
+The gesture is "press again the key that just selected". Which key that is
+falls out of the MODE without either mode knowing about it: `grid` commits on
+`Space` or `Return`, `hints` on the last letter of a label, and both already
+funnel through the single point in `main.c` where `has_last_mode_returned()`
+goes true. That is where the window opens, so neither `mode_bisect.c` nor
+`mode_floating.c` was touched, and a mode added later gets the gesture for
+free by committing the way the others do.
+
+The real decision was *when the first click goes out*, and there were only two
+answers.
+
+**Hold it back** until the window closes, then emit one click or two. Nothing
+is ever swallowed, and the gap between the two clicks is ours to pick, so the
+application is guaranteed to read them as a double. The price is a flat delay
+in front of **every** click in the session — some 340ms — to buy the occasional
+double one.
+
+**Emit it immediately**, then click again if the key repeats. This is what
+ships. The first click of a double click *is* a single click; a mouse does not
+know which one it is making either, and neither does the application until the
+second one arrives. So there is nothing to decide and nothing to wait for, and
+double click costs a single click exactly nothing.
+
+Two consequences follow from that choice and are worth naming, because both
+are real:
+
+- **The window has to be shorter than the desktop's double-click time**, not
+  equal to it. The second click goes out when the key is pressed, not when the
+  window closes, so a press at the very edge of the system's time would land
+  just past it and read as two separate clicks. Hence `guard_ms`, taken off
+  the number `gsettings` reports rather than baked into a constant here —
+  that number is what the applications are measuring against, and it is a
+  setting the desktop already owns.
+- **One keystroke can be eaten.** The overlay still holds the keyboard while
+  the window is open, so a key typed in that instant does not reach what was
+  just clicked. It is bounded at one: any key that is not the committing one
+  closes the window immediately rather than being swallowed for the rest of
+  it. Clicking into a text field and typing in the same breath is the case
+  where it shows, and `ms = 0` is the way out for anyone who hits it.
+
+What is on screen during the window is not the overlay. Leaving the labels up
+would hide the thing just clicked — which is also the thing being decided
+about — so the surface is cleared and a ring is drawn round the selection
+instead, the same three fading rings `imthemousenow-halo` puts round the
+pointer during a hold. A hold and this window are the same kind of moment: the
+desktop looks normal while the keyboard does not mean what it usually does,
+and that ought to look the same both times.
+
+Two things inside `wl-kbptr` had to move to make room. The **two main loops
+became one** — the bare `wl_display_dispatch()` used when the keyboard was the
+only event source cannot be given a deadline, and rather than keep two loops
+and teach only one of them to wake up on time, the `poll()` loop the key
+channel already needed now runs in both cases, with its second fd simply `-1`
+when there is no channel. And **clicks are emitted by the loop**, not by the
+key handler that decided on one: `move_pointer()` round-trips the display, and
+a round trip from inside a dispatch is a dispatch inside a dispatch.

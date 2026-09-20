@@ -234,6 +234,61 @@ binary_knows() {
   grep -qa -- "$1" "$binary"
 }
 
+has_double_click() { binary_knows double_click_ms; }
+
+# How long the second press has to land, in ms, or 0 for "do not arm it".
+#
+# `system` follows the desktop's own double-click time, because that is the
+# number the application being clicked is measuring against -- one setting, in
+# the place the desktop already keeps it, rather than a number here to be kept
+# in sync with one there. The guard comes off it because the second click goes
+# out when the key is pressed and not when the window closes: a press at the
+# very edge of the system's time would land just past it and read as two
+# separate clicks rather than one double one.
+#
+# Anything gsettings cannot answer -- not installed, schema absent, a value
+# that is not a number -- turns the feature off rather than refusing to open an
+# overlay. It is a nicety, and a chord that does nothing would be worse than a
+# chord that cannot be double clicked.
+#
+# Asked once per run and remembered: gsettings is a process, and build_args
+# runs again for every ACTION a switch moves through.
+double_click_cache=""
+double_click_window() {
+  if [[ -n $double_click_cache ]]; then
+    echo "$double_click_cache"
+    return
+  fi
+
+  local want system guard
+  want="$(setting double_click.ms)"
+  [[ -n $want ]] || want=system
+
+  if [[ $want == system ]]; then
+    system="$(gsettings get org.gnome.desktop.peripherals.mouse double-click 2>/dev/null || true)"
+    [[ $system =~ ^[0-9]+$ ]] || system=0
+    guard="$(setting double_click.guard_ms)"
+    [[ $guard =~ ^[0-9]+$ ]] || guard=0
+    ((system > guard)) && want=$((system - guard)) || want=0
+  elif [[ ! $want =~ ^[0-9]+$ ]]; then
+    want=0
+  fi
+
+  double_click_cache="$want"
+  echo "$want"
+}
+
+# Whether a double click is on the table for this ACTION right now: it has a
+# button to press twice, it wants the window, the window is not 0, and the
+# binary knows what to do with it. Asked by the launcher, to decide what to
+# pass, and by the key sheet, to decide whether to say so.
+double_click_armed() {
+  [[ -n $(setting "action.$1.button") ]] || return 1
+  [[ $(setting "action.$1.double_click") == true ]] || return 1
+  (($(double_click_window) > 0)) || return 1
+  has_double_click
+}
+
 # Whether this build can do what an ACTION needs of it. An action that names no
 # `requires` works on any build, which is most of them.
 action_supported() {

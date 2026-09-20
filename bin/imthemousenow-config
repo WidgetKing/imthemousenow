@@ -538,6 +538,34 @@ def cmd_check(args):
             f"[imthemousenow.action.drag].duration_ms = '{duration}' is not a positive whole number"
         )
 
+    # The double-click window, which fails silently in a way that reads as the
+    # feature not existing: a `ms` that is neither `system` nor a number turns
+    # into 0 at launch, and 0 is also how it is deliberately switched off, so
+    # a typo and a decision look identical from the outside.
+    dbl = merged.get("imthemousenow", {}).get("double_click", {})
+    ms = dbl.get("ms")
+    if ms is not None and ms != "system" and (
+        not isinstance(ms, int) or isinstance(ms, bool) or ms < 0
+    ):
+        problems.append(
+            f"[imthemousenow.double_click].ms = '{ms}' is not `system` or a positive whole number"
+        )
+    for field in ("guard_ms", "radius"):
+        value = dbl.get(field)
+        if value is not None and (
+            not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0
+        ):
+            problems.append(f"[imthemousenow.double_click].{field} = '{value}' is not a positive number")
+    # A window shorter than the guard is a window of 0, which is off. Worth
+    # saying out loud, because the two numbers are set in different places and
+    # only their difference does anything.
+    if isinstance(ms, int) and not isinstance(ms, bool) and isinstance(dbl.get("guard_ms"), int):
+        if 0 < ms <= dbl["guard_ms"]:
+            problems.append(
+                f"[imthemousenow.double_click].guard_ms ({dbl['guard_ms']}) "
+                f"leaves nothing of ms ({ms}); the window would be 0"
+            )
+
     keys = merged.get("general", {}).get("home_row_keys", "")
     if keys and len(keys) != 11:
         problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")

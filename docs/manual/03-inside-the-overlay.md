@@ -24,6 +24,61 @@ one-offs: after the pointer lands, the overlay returns to whatever ACTION the
 chord asked for, even in a continuous lifetime. So a right click or a bare move
 costs one extra keypress and neither changes what the next click does.
 
+## Double click: press it again
+
+Make the selection, then press the very key that made it a second time.
+
+Which key that is falls out of the MODE, and it is the same sentence either
+way — *press again what you just pressed*:
+
+| MODE | The key that selects | Double click |
+|---|---|---|
+| `grid` | `Space` or `Return` commits the area | `Space`, `Space` |
+| `hints` | the last letter of the label | hint `bd` → `b`, `d`, `d` |
+
+So the hint `xyz` is double clicked by typing `x`, `y`, `z`, `z`, and there is
+nothing new to learn in the second mode once you know it in the first.
+
+The first click goes out the instant you commit, exactly as it always did.
+Nothing is held back waiting to see whether a second one is coming — the first
+click of a double click *is* a single click, and a mouse does not know which
+one it is making either. So a double click costs nothing that a single click
+does not, and this adds no delay to anything.
+
+What is on screen while the second press is possible is not the overlay: it
+would hide the thing you just clicked, which is the thing you are deciding
+about. The overlay goes and a **ring** is drawn round the selection instead,
+in the ACTION's own colour, for exactly as long as a second press would land.
+It is the same three fading rings the pointer wears during a
+[hold](04-dragging.md), and for the same reason — the desktop looks normal
+while the keyboard does not mean what it usually does.
+
+**The catch.** While that ring is up the overlay still has the keyboard, so a
+key typed in that instant is eaten rather than reaching what you clicked. Any
+key that is not the committing one closes the window immediately, so it is one
+keystroke at worst — but if you click into a text field and start typing in the
+same breath, that is where the first letter went. Set `ms = 0` under
+`[imthemousenow.double_click]` to turn the whole thing off and never pay it.
+
+**How long you have** comes from the desktop rather than from this plugin:
+
+```
+gsettings get org.gnome.desktop.peripherals.mouse double-click
+```
+
+That is the number the applications being clicked are measuring against, so
+following it is the point — one setting, in the place the desktop already keeps
+it. A small guard comes off it, because the second click goes out when you
+press the key rather than when the window closes, and a press right at the edge
+would land just past it and read as two separate clicks. Put a number in place
+of `system` to fix the window yourself.
+
+Only `left-click` arms it. A double right click is not a thing anything
+listens for, and `move`, `drag` and `hold` have no click to double. It also
+needs the `wl-kbptr` this plugin builds — on a stock one the setting is inert
+and everything else works as before. See
+[Configuration](07-configuration.md).
+
 ## Seeing through the overlay: hold `Space`
 
 The overlay covers the thing you are aiming at. That is the whole point of it

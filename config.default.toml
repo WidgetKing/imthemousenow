@@ -149,6 +149,59 @@ font = ""
 # Body text, in px. The keys and the headings are sized off this.
 size = 15
 
+# Double click: make the selection, then press the very key that made it again.
+#
+# Which key that is falls out of the MODE, and neither mode had to be taught
+# anything. A grid commits on SPACE or Return, so a second SPACE is the double
+# click. A hint commits on the last character of its label, so the hint `bd` is
+# double clicked by typing `b`, `d`, `d`, and `xyz` by `x`, `y`, `z`, `z`. In
+# both cases the rule is the same one sentence: press again what you just
+# pressed.
+#
+# The first click goes out the instant you commit, exactly as it always did --
+# nothing is held back waiting to see whether a second one is coming, because
+# the first click of a double click IS a single click and a mouse does not know
+# which one it is making either. So a double click costs nothing that a single
+# click does not, and this window adds no delay to anything.
+#
+# What it does cost is the keyboard. While the window is open the overlay still
+# has it, so a key typed straight after a click is eaten rather than reaching
+# what was clicked. Any key other than the committing one shuts the window
+# immediately, so that is one keystroke in the worst case -- but if you click
+# into a text field and type in the same breath, that is where it went. Set
+# `ms = 0` to turn the whole thing off and never pay it.
+#
+# The overlay is not what you see while the window is open: it would hide the
+# thing you just clicked, which is the thing you are deciding about. It goes,
+# and a ring is drawn around the selection for as long as a second press would
+# land -- the same three fading rings imthemousenow-halo draws around the
+# pointer during a hold, and for the same reason: the desktop looks normal
+# while the keyboard does not mean what it usually does.
+#
+# Needs the wl-kbptr this plugin's install.sh builds
+# (pkg/0007-Click-twice-*.patch). On a stock build this is not passed through
+# at all -- an option it does not know would make it reject the whole config --
+# so the setting is simply inert.
+[imthemousenow.double_click]
+# How long the second press has to land, in ms.
+#
+# `system` follows the desktop's own double-click time
+# (`gsettings get org.gnome.desktop.peripherals.mouse double-click`), which is
+# the number the applications being clicked are measuring against, minus a
+# small guard: the second click goes out when the key is pressed rather than
+# when the window closes, so a press right at the edge of the system's time
+# would land just past it and register as two separate clicks. Following the
+# system is the point -- one setting, in the place the desktop already keeps
+# it, rather than a number here to be kept in sync with one there.
+#
+# A number instead of `system` is that many ms flat, and 0 turns it off.
+ms = "system"
+# Taken off the system's double-click time to get the window above, in ms. Not
+# a preference: it is the room the second click needs to get out and be seen.
+guard_ms = 60
+# The ring's outer radius in px. The two inner rings are drawn inside it.
+radius = 22
+
 # =============================================================================
 # ADVANCED
 # =============================================================================
@@ -204,15 +257,24 @@ keep_open = false
 #               message says what to go and build.
 #   switchable  whether `;` `:` `'` `"` can switch INTO this action from inside
 #               an overlay. False for one that is only ever arrived at.
+#   double_click  whether pressing the key that committed the selection again
+#               clicks a second time. Only means anything for an action that
+#               has a `button` to press twice; see [imthemousenow.double_click]
+#               above for what the gesture is and what it costs.
 [imthemousenow.action.left-click]
 label = "left"
 button = "left"
 switchable = true
+double_click = true
 
+# Off, and not because it could not work -- the gesture is the same one and the
+# binary would do it. A double right click is not a thing any application
+# listens for, so arming the window would only buy the eaten keystroke it costs.
 [imthemousenow.action.right-click]
 label = "right"
 button = "right"
 switchable = true
+double_click = false
 
 [imthemousenow.action.move]
 label = "move"

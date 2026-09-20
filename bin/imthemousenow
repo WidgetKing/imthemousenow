@@ -81,7 +81,6 @@ has_opencv() {
 # field, which is the same question with the name coming from the config.
 has_key_channel() { binary_knows WL_KBPTR_KEY_CHANNEL; }
 has_peek() { binary_knows peek_alpha; }
-
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
 # $1 must be one of the remaining arguments.
 expect_one_of() {
@@ -225,6 +224,19 @@ them.
   F5     rebuild the overlay against the screen as it is now
   Tab    in --scope window: swap this window with one you pick
   Space  hold to fade the overlay and see what is under it
+
+Double click: press again the key that just selected. Which key that is falls
+out of the MODE -- a grid commits on Space or Return, so a second Space is the
+double click; a hint commits on the last letter of its label, so the hint bd
+is double clicked by typing b, d, d. The overlay goes the moment you commit,
+and a ring is left round the selection for as long as a second press lands.
+
+The first click goes out at once either way, so this costs a single click
+nothing. What it does cost is that the overlay still holds the keyboard while
+the ring is up, so a key typed in that instant is eaten instead of reaching
+what you clicked -- one keystroke, and only if you type that fast. The window
+follows the desktop's own double-click time; set double_click.ms = 0 in the
+config to turn it off.
 
 Space is the peek. Hold it and the whole overlay fades almost away; let go and
 it comes back. Nothing moves and nothing is selected, so the labels are still
@@ -454,6 +466,23 @@ EOF
     if [[ -n $button ]]; then
       modes="$modes,click"
       opts="$opts mode_click.button=$button"
+
+      # Double click, which is the registry's to say as well: an action with no
+      # button has nothing to press twice, and one that has a button may still
+      # not want the window (a double right click is not a thing anything
+      # listens for). The binary is asked too -- an option it has never heard
+      # of takes the whole config down with it, not just this feature.
+      if double_click_armed "$act"; then
+        opts="$opts mode_click.double_click_ms=$(double_click_window)"
+        local radius
+        radius="$(setting double_click.radius)"
+        [[ -n $radius ]] && opts="$opts mode_click.double_click_radius=$radius"
+        # The ring is the ACTION's own colour, so what is left on screen after
+        # the overlay goes is the colour the overlay was.
+        local ring
+        ring="$(setting "action.${act}.color")"
+        [[ -n $ring ]] && opts="$opts mode_click.double_click_color=${ring}ee"
+      fi
     fi
 
     args=()
