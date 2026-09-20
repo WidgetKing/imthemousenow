@@ -19,7 +19,15 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 THEMES="${OMARCHY_THEMES:-/usr/share/omarchy/themes}"
 
-MOUSENOW_PLUGIN_DIR="$REPO" python3 - "$REPO" "$THEMES" <<'PY'
+# A home of this test's own, for the reason the other tests have one: a colour
+# pinned by hand in the tester's config.toml is a decision the config tool is
+# required to leave alone, so it would quietly replace one of the five derived
+# colours being measured here and the separation asserted below would be of a
+# set nobody ships.
+WORK="$(mktemp -d)"
+trap 'rm -rf "$WORK"' EXIT
+
+HOME="$WORK" MOUSENOW_PLUGIN_DIR="$REPO" python3 - "$REPO" "$THEMES" <<'PY'
 import glob, importlib.machinery, importlib.util, math, os, re, sys
 
 repo, themes_dir = sys.argv[1], sys.argv[2]

@@ -18,6 +18,13 @@ set -uo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+
+# A home of this test's own, so the tester's config.toml and whichever theme
+# they have on are not merged in underneath the assertions below. Without it
+# these pass or fail according to whose machine is running them, and the
+# failure reads as damage from whatever was last changed.
+export HOME="$WORK/home"
+mkdir -p "$HOME"
 failures=0
 
 export XDG_RUNTIME_DIR="$WORK/run"

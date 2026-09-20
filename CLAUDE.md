@@ -59,6 +59,14 @@ follows from the table.
 `tests/` is one script per feature, run directly (`./tests/hold-args.sh`), no
 runner. Most assert against `--dry-run` output rather than a live overlay.
 
+Every one of them exports a `HOME` of its own. That is not tidiness: all three
+config layers hang off `HOME`, so without it a test reads whatever the tester
+has in their own `config.toml` and whichever theme they have on, and then
+passes or fails according to whose machine is running it -- as a failure that
+reads like damage from whatever was last changed. A new test needs the same
+line, and a fixture that wants settings of its own writes them into that `HOME`
+rather than reaching for the real one.
+
 The install is a dev install: edits to this repo are live, but Lua needs
 `hyprctl reload`, the theme template needs a re-render, and `wl-kbptr` needs
 `./install.sh --dev --rebuild`. Anything desktop-facing is not done until it
