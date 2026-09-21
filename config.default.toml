@@ -54,7 +54,7 @@ theme_font = true
 # it can.
 #
 # Needs the wl-kbptr this plugin's install.sh builds
-# (pkg/0005-dim-the-overlay-while-a-key-is-held.patch). On a stock build this
+# (the fork's "Dim the overlay while a key is held" commit). On a stock build this
 # is not passed through at all -- an option it does not know would make it
 # reject the whole config -- so the setting is simply inert.
 peek_alpha = 0.1
@@ -179,7 +179,7 @@ size = 15
 # while the keyboard does not mean what it usually does.
 #
 # Needs the wl-kbptr this plugin's install.sh builds
-# (pkg/0007-Click-twice-*.patch). On a stock build this is not passed through
+# (the fork's "Click twice when the committing key is pressed again" commit). On a stock build this is not passed through
 # at all -- an option it does not know would make it reject the whole config --
 # so the setting is simply inert.
 [imthemousenow.double_click]
@@ -219,7 +219,7 @@ radius = 22
 # The cost is that every key the overlay uses must be a binding: they live in
 # their own submap, and anything not bound there is swallowed rather than
 # reaching the window underneath. Needs the wl-kbptr built by this plugin's
-# install.sh (pkg/0002-read-keys-from-a-channel-*.patch); with a stock wl-kbptr
+# install.sh (the fork's "Take keys from a channel" commit); with a stock wl-kbptr
 # this is ignored and the overlay behaves as it always did.
 [imthemousenow.popups]
 keep_open = false
@@ -253,8 +253,8 @@ keep_open = false
 #               a stock one. The binary is asked for it before the chord opens
 #               anything, because the alternative is finding out after you have
 #               aimed. Absent means the action works on any build.
-#   patch       which patch supplies `requires`, named in the refusal so the
-#               message says what to go and build.
+#   patch       which commit in the fork supplies `requires`, named in the
+#               refusal so the message says what the build is missing.
 #   switchable  whether `;` `:` `'` `"` can switch INTO this action from inside
 #               an overlay. False for one that is only ever arrived at.
 #   double_click  whether pressing the key that committed the selection again
@@ -299,7 +299,7 @@ label = "drag"
 button = ""
 switchable = true
 requires = "--drag"
-patch = "pkg/0003-walk-a-path-*.patch and pkg/0004-Say-a-drag-path-*.patch"
+patch = "the fork's \"Walk a path with a button held\" and \"Say a drag path in layout coordinates\" commits"
 # How long the pointer takes to travel from the thing it picked up to where it
 # is dropped. It cannot be instant: a client reads drag-and-drop out of the
 # stream of motion events under a held button, and one jump from A to B is a
@@ -328,7 +328,7 @@ drop_mode = "same"
 # swept over text you are reading as you go.
 #
 # Needs the wl-kbptr this plugin's install.sh builds
-# (pkg/0006-Hold-a-button-*.patch); on a stock build the chord refuses up front
+# (the fork's "Hold a button down and be steered" commit); on a stock build the chord refuses up front
 # rather than aiming twice and failing at the press.
 [imthemousenow.action.hold]
 label = "hold"
@@ -338,7 +338,7 @@ label = "hold"
 button = ""
 switchable = true
 requires = "--hold"
-patch = "pkg/0006-Hold-a-button-*.patch"
+patch = "the fork's \"Hold a button down and be steered\" commit"
 # Pixels per keypress. The keys repeat while they are held, so `step` is also
 # a speed: 40px about twenty-five times a second is a pointer crossing a 1080p
 # screen in under two seconds, which is fast enough to get somewhere and slow

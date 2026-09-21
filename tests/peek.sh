@@ -3,7 +3,7 @@
 # wl-kbptr that has never heard of it?
 #
 # Holding SPACE fades the overlay so the target under it can be read. The
-# dimming itself is wl-kbptr's (pkg/0005-*.patch) and is not testable from
+# dimming itself is wl-kbptr's (the fork's "Dim the overlay while a key is held" commit) and is not testable from
 # here; what is testable is everything that has to line up for the key to reach
 # it, and every one of those fails silently or catastrophically:
 #
@@ -186,16 +186,6 @@ fi
 grep -q 'RELAY_KEYS=(.*\bspace\b' "$REPO/bin/imthemousenow" &&
   ok "bin/imthemousenow still mirrors space in RELAY_KEYS" ||
   no "bin/imthemousenow still mirrors space in RELAY_KEYS"
-
-# --- 6. the patch that does the dimming is in the build ----------------------
-# pkg/patch-stamp only hashes what is on disk; PKGBUILD has to list it too, or
-# the build silently omits it and every check above still passes.
-grep -q '0005-dim-the-overlay-while-a-key-is-held.patch' "$REPO/pkg/PKGBUILD" &&
-  ok "the peek patch is listed in PKGBUILD's source()" ||
-  no "the peek patch is listed in PKGBUILD's source()"
-patches="$(ls "$REPO"/pkg/*.patch | wc -l)"
-skips="$(sed -n 's/^sha256sums=(\(.*\))$/\1/p' "$REPO/pkg/PKGBUILD" | tr -cd "'" | wc -c)"
-check "and has a sha256sums entry (1 source + $patches patches)" "$((skips / 2))" "$((patches + 1))"
 
 echo
 if ((fails)); then

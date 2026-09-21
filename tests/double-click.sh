@@ -3,7 +3,7 @@
 # a wl-kbptr that has never heard of it?
 #
 # The gesture itself -- commit a selection, press the committing key again,
-# get a second click -- is wl-kbptr's (pkg/0007-*.patch) and is not testable
+# get a second click -- is wl-kbptr's (the fork's "Click twice when the committing key is pressed again" commit) and is not testable
 # from here: it needs a compositor, an overlay and a keyboard. What IS testable
 # is everything that has to line up for the key to reach it, and every one of
 # those fails silently or catastrophically:
@@ -199,16 +199,6 @@ case "$(dry_run --mode hints)" in
   *"modes=floating"*"click"*) ok "and the chord still builds a working command" ;;
   *) no "and the chord still builds a working command (got: $(dry_run --mode hints))" ;;
 esac
-
-# --- 7. the patch that does the clicking is in the build ---------------------
-# pkg/patch-stamp only hashes what is on disk; PKGBUILD has to list it too, or
-# the build silently omits it and every check above still passes.
-grep -q '0007-Click-twice-when-the-committing-key-is-pressed-again.patch' "$REPO/pkg/PKGBUILD" &&
-  ok "the double-click patch is listed in PKGBUILD's source()" ||
-  no "the double-click patch is listed in PKGBUILD's source()"
-patches="$(ls "$REPO"/pkg/*.patch | wc -l)"
-skips="$(sed -n 's/^sha256sums=(\(.*\))$/\1/p' "$REPO/pkg/PKGBUILD" | tr -cd "'" | wc -c)"
-check "and has a sha256sums entry (1 source + $patches patches)" "$((skips / 2))" "$((patches + 1))"
 
 echo
 if ((fails)); then

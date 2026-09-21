@@ -1,29 +1,26 @@
 # Which wl-kbptr to build. install.sh reads this.
 #
-# mode = "commit"  build the pinned git commit (the default, and what the
-#                  patches in this directory are written against)
-#        "aur"     install the AUR package instead of building -- unpatched,
-#                  so the popup fix and anything else in pkg/*.patch is gone
+# mode = "fork"  build the tip of `branch` in `repo` (the default)
+#        "aur"   install the AUR package instead of building -- stock
+#                upstream, so popup-safe mode, drag, hold, peek and double
+#                click are all gone
 #
-# The patches are not written here. They are commits in the fork,
-# github.com/WidgetKing/wl-kbptr, on the `imthemousenow` branch, which is
-# upstream at `commit` below with those commits on top; pkg/sync-patches
-# exports them into this directory and refuses if the branch is built on
-# anything other than `commit`.
+# The fork is WidgetKing/wl-kbptr: moverest's wl-kbptr with imthemousenow's
+# changes committed on top, on the `imthemousenow` branch. Its tip is what
+# gets built, and it is trusted to be right -- run the fork's
+# imthemousenow/test.sh before pushing to that branch, because a push there
+# is what the next install or update on any machine builds. install.sh asks
+# GitHub for the tip's commit and rebuilds only when it is not the one
+# already installed.
 #
-# The pin is deliberate and there is no "track the latest release" mode: the
-# patches here are written against one tree, and a new upstream tree must be
-# rebased onto and tested by hand before it reaches anyone. Moving is a commit
-# to this repo -- rebase the fork's branch, bump `commit` below, re-sync --
-# never something that happens on a
-# user's machine during an update.
-#
-# The OpenCV 5 build fix (upstream 0854a51, fixes issue #99) is NOT in any
-# tagged release yet, and the AUR package is still 0.4.1 -- which does not
-# build against Arch's opencv 5. So "commit" is also the only mode that gets
-# you OpenCV target detection on this system.
-mode = "commit"
-commit = "0854a51cfa5b3d74c0f81f0a4da9b5bb11c9b9f1"
+# The fork itself stays on a pinned upstream commit (tag pin/<commit> in the
+# fork) and moves only by a deliberate rebase there. The OpenCV 5 build fix
+# (upstream 0854a51, issue #99) is in that pin and in no tagged release, and
+# the AUR package is still 0.4.1, which does not build against Arch's opencv
+# 5 -- so "fork" is also the only mode that gets OpenCV target detection.
+mode = "fork"
+repo = "https://github.com/WidgetKing/wl-kbptr"
+branch = "imthemousenow"
 
 # false builds without OpenCV: hints then label windows instead of detecting,
 # and the build loses a 100MB+ dependency.

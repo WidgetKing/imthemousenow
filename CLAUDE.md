@@ -12,10 +12,9 @@ The manual is `docs/manual/`. Why things are the way they are is
 `bin/imthemousenow` is the wrapper. Every invocation is four independent
 choices -- MODE, SCOPE, ACTION, LIFETIME -- and the wrapper's whole job is to
 turn those into a `wl-kbptr` command, run it, and decide what happens after it
-exits. `wl-kbptr` is a patched upstream binary (`pkg/*.patch`); the patches are
-what make drag, hold, peek and popup-safe mode possible at all. They are
-written in a fork, not here: `../wl-kbptr`, branch `imthemousenow`, one commit
-per patch, exported by `pkg/sync-patches`.
+exits. `wl-kbptr` is built from a fork of upstream (`../wl-kbptr`, branch
+`imthemousenow`); the fork's commits are what make drag, hold, peek and
+popup-safe mode possible at all. `install.sh` builds the branch's tip.
 
 While an overlay is up, Hyprland is in a submap, and the keys bound there run
 `bin/imthemousenow-steer`, which writes to the session state the wrapper's run
@@ -32,7 +31,7 @@ and they talk through `bin/imthemousenow-session.sh`.
 | A key pressed outside the overlay | `hypr/imthemousenow.lua`, the chord section. Chords compose by `--flip AXIS`; they do not each hardcode a combination. |
 | Config: layering, validation, compiling | `bin/imthemousenow-config` only. It is Python despite the name. Layers, later winning: `config.default.toml`, the rendered theme template, `~/.config/omarchy/imthemousenow/config.toml`. `config.local` is raw `wl-kbptr` override lines and is applied by the wrapper, not here. |
 | Colours, opacity, theming | `bin/imthemousenow-config` (derivation and opacity) and `templates/wl-kbptr.conf.tpl` (what the theme renders). `hooks/theme-set` only warns; Omarchy does the rendering. |
-| The patched wl-kbptr | The fork (`../wl-kbptr`, branch `imthemousenow`): commit there, run its `imthemousenow/test.sh`, then `pkg/sync-patches` here. Never edit `pkg/*.patch` by hand -- the next sync overwrites it. Every patched feature also needs a `has_*()` probe in `bin/imthemousenow`, and its contract test in the fork -- see the warning below. |
+| The patched wl-kbptr | The fork (`../wl-kbptr`, branch `imthemousenow`): commit there, run its `imthemousenow/test.sh`, push. A push is live -- the next install anywhere builds the tip. `pkg/PKGBUILD` and `pkg/source.toml` only say how and where to build it. Every fork feature also needs a `has_*()` probe in `bin/imthemousenow`, and its contract test in the fork -- see the warning below. |
 | On-screen word, halo, menus | `bin/imthemousenow-osd` + `qml/osd.qml`; `bin/imthemousenow-halo` + `qml/halo.qml`; `bin/imthemousenow-menu`. |
 | The key sheet | `bin/imthemousenow-help` + `qml/help.qml`, and the `--help` heredoc in `bin/imthemousenow`. The prose lives in both, plus `docs/manual/`. Changing one means changing the others. |
 | The bar widget | `shell/Panel.qml` and `shell/Model.js`. |
@@ -42,7 +41,7 @@ and they talk through `bin/imthemousenow-session.sh`.
 
 **An unknown key kills every chord.** `wl-kbptr` rejects a config it does not
 recognise, so one option the installed binary has never heard of takes the
-whole plugin down rather than that one feature. Anything a patch adds must be
+whole plugin down rather than that one feature. Anything the fork adds must be
 gated on a `has_*()` probe in `bin/imthemousenow` and only passed when the
 probe says yes.
 

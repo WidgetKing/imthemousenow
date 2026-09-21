@@ -1,59 +1,38 @@
 # Built by imthemousenow's install.sh, which exports MOUSENOW_* from pkg/source.toml.
 # pacman owns the binary, so uninstalling is `pacman -Rns wl-kbptr-omarchy`.
 pkgname=wl-kbptr-omarchy
-# The patch set is part of the version, because it is part of the binary: two
-# builds of the same upstream commit with different patches are different
-# programs, and `pacman -Q` has to be able to tell them apart. See pkg/patch-stamp.
-pkgver="${MOUSENOW_PKGVER:-0.4.1.r${MOUSENOW_COMMIT:0:7}}.$("$startdir/patch-stamp" "$startdir")"
+# Overwritten by pkgver() once the source is checked out.
+pkgver=0.4.1
 pkgrel=1
+# The version scheme changed when the build moved from patch files to the
+# fork, and the old one (0.4.1.r0854a51.p7...) sorts above the new
+# (0.4.1.r184.g...). The epoch puts every fork build above every patch build,
+# so moving over is an upgrade and not a downgrade pacman warns about.
+epoch=1
 pkgdesc="Control the mouse pointer with the keyboard on Wayland (Omarchy build)"
 arch=(x86_64 aarch64)
-url="https://github.com/moverest/wl-kbptr"
+url="${MOUSENOW_REPO:-https://github.com/WidgetKing/wl-kbptr}"
 license=('GPL-3.0-or-later')
 depends=(wayland libxkbcommon cairo)
 makedepends=(git meson ninja wayland-protocols)
 provides=(wl-kbptr)
 conflicts=(wl-kbptr wl-kbptr-git)
-source=(
-  "wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT}"
-  0001-destroy-pending-frame-callback-before-teardown.patch
-  0002-read-keys-from-a-channel-instead-of-the-keyboard.patch
-  0003-walk-a-path-with-a-button-held.patch
-  0004-Say-a-drag-path-in-layout-coordinates-so-it-can-leav.patch
-  0005-dim-the-overlay-while-a-key-is-held.patch
-  0006-Hold-a-button-down-and-be-steered-so-a-drag-can-be-f.patch
-  0007-Click-twice-when-the-committing-key-is-pressed-again.patch
-)
-# The patch lines above and the SKIPs below are written by pkg/sync-patches,
-# which exports them from the fork (github.com/WidgetKing/wl-kbptr, branch
-# imthemousenow), one commit per patch. Change the fork and re-sync; an edit
-# made here by hand is gone at the next sync. Each patch's own header says
-# what it does and why.
-# One entry per source, so every patch needs a 'SKIP' or makepkg refuses.
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+# The exact commit install.sh resolved the branch to, not the branch: that
+# commit is what the build id records, so the fork moving on between asking
+# and cloning must not build something else under its name.
+source=("wl-kbptr::git+${url}.git#commit=${MOUSENOW_COMMIT:?install.sh sets MOUSENOW_COMMIT}")
+sha256sums=('SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then
   depends+=(opencv pixman)
 fi
 
-prepare() {
-  local p
-  # Every patch next to this PKGBUILD must be listed above. pkg/patch-stamp
-  # counts the files on disk and that count becomes the pkgver, so a patch left
-  # out of `source` builds a binary that calls itself p<n> while containing
-  # n-1 patches -- which is a build id that lies, and the failure shows up as
-  # a feature silently missing at runtime. Cheaper to refuse to build.
-  for p in "$startdir"/*.patch; do
-    [[ -e $p ]] || continue
-    if [[ " ${source[*]} " != *" ${p##*/} "* ]]; then
-      echo "PKGBUILD: ${p##*/} is not in source=(); add it and a 'SKIP'" >&2
-      return 1
-    fi
-  done
-  for p in "${source[@]}"; do
-    [[ $p == *.patch ]] || continue
-    patch -d wl-kbptr -Np1 -i "$srcdir/$p"
-  done
+# 0.4.1.r<commits>.g<hash>: the count makes pacman order one build after the
+# next, and the hash makes `pacman -Q wl-kbptr-omarchy` say exactly which
+# commit of the fork is installed.
+pkgver() {
+  cd wl-kbptr
+  printf '0.4.1.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
 }
 
 build() {

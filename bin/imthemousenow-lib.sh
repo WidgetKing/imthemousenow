@@ -299,10 +299,10 @@ action_supported() {
 }
 
 # Why it cannot, in the one sentence a person gets. The patch comes from the
-# registry rather than the message, so an action that moves to another patch
-# does not leave the wrong filename behind in two scripts.
+# registry rather than the message, so an action that moves to another commit
+# does not leave the wrong name behind in two scripts.
 action_requirement() {
   local patch
   patch="$(setting "action.$1.patch")"
-  echo "--action $1 needs the wl-kbptr built by install.sh (${patch:-see pkg/})"
+  echo "--action $1 needs the wl-kbptr built by install.sh (${patch:-see pkg/source.toml})"
 }

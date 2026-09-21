@@ -112,13 +112,13 @@ clone` of wl-kbptr's source, and pacman for the packages it needs to build.
   a directory only you can read. That mode is off by default and experimental.
 - **Nothing runs as root** except pacman during the install, which is the
   ordinary package-manager prompt.
-- **wl-kbptr is pinned, not tracked.** `pkg/source.toml` names one upstream
-  commit, `pkg/*.patch` are the changes made to it (kept as commits in
-  [a fork](https://github.com/WidgetKing/wl-kbptr) and exported here), and `pkg/patch-stamp`
-  hashes those patches into the installed package version — so
-  `pacman -Q wl-kbptr-omarchy` tells you exactly which source produced your
-  binary. The pin only moves in a commit to this repository, never on your
-  machine during an update.
+- **wl-kbptr is built from a fork, and the version says which commit.**
+  [WidgetKing/wl-kbptr](https://github.com/WidgetKing/wl-kbptr) is moverest's
+  wl-kbptr at a pinned upstream commit with this plugin's changes on top, and
+  the install builds the tip of its `imthemousenow` branch. The commit ends up
+  in the package version, so `pacman -Q wl-kbptr-omarchy` tells you exactly
+  which source produced your binary. Upstream only moves under the fork by a
+  deliberate rebase there, never on your machine during an update.
 - **Your config is validated before it is used.** One option wl-kbptr does not
   recognise makes it reject the entire config file, which would leave every
   chord silently doing nothing; `imthemousenow-config check` catches that, and

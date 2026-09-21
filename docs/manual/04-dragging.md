@@ -54,8 +54,8 @@ which you just did — while one end of a path is already held. So the ambiguity
 is removed rather than explained: no key changes workspace while a drag is
 half-finished.
 
-Drag needs the `wl-kbptr` this plugin builds (`pkg/0003-walk-a-path-*.patch`
-and `pkg/0004-Say-a-drag-path-*.patch`);
+Drag needs the `wl-kbptr` this plugin builds (the fork's "Walk a path with a button held"
+and "Say a drag path in layout coordinates" commits);
 with a stock one the chord says so rather than half-running.
 
 ## Holding
@@ -98,7 +98,7 @@ A hold can cross a monitor boundary: the pointer is steered in layout
 coordinates, and the halo follows it onto the next screen.
 
 Hold needs the `wl-kbptr` this plugin builds
-(`pkg/0006-Hold-a-button-*.patch`); with a stock one the chord says so rather
+(the fork's "Hold a button down and be steered" commit); with a stock one the chord says so rather
 than aiming at something it cannot then take hold of.
 
 ---

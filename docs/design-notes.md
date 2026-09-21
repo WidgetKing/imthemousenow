@@ -86,7 +86,7 @@ Two constraints shaped the QML, and both are easy to get wrong:
   surface were not there.
 - **It must not take the keyboard.** Keyboard focus is exactly what dismisses
   the popup you were aiming at -- the whole subject of
-  `pkg/0002-read-keys-from-a-channel-*.patch` -- and it would also steal the
+  the fork's "Take keys from a channel" commit -- and it would also steal the
   keys the overlay's submap is bound to. `WlrKeyboardFocus.None`. Note that
   OmaGrid, the obvious QML reference for this, uses
   `WlrKeyboardFocus.Exclusive`: it *is* the thing being driven, where this only
@@ -269,11 +269,11 @@ device sidesteps Wayland and makes the landing position approximate, which is
 the one thing this tool exists to get exact. A small standalone Wayland client
 would work but duplicates the registry, seat, output and transform setup
 wl-kbptr already carries, and adds a second compiled artifact to build,
-version and uninstall. So: `pkg/0003-walk-a-path-with-a-button-held.patch`
+version and uninstall. So: the fork's "Walk a path with a button held" commit
 adds `--drag x1,y1,x2,y2,duration_ms`, which stops before any surface is
-created and reuses everything above that point. `pkg/patch-stamp` makes the
-rebuild automatic, which is what made this the cheap option rather than the
-expensive one.
+created and reuses everything above that point. The rebuild being automatic
+(then `pkg/patch-stamp`; now the fork's tip commit, which `install.sh` checks)
+is what made this the cheap option rather than the expensive one.
 
 **The travel is not instant, and could not be.** A client reads drag-and-drop
 out of the stream of motion events under a held button. One jump from A to B is
@@ -293,7 +293,7 @@ pointer does in between can move the overlay out from under a half-finished
 drag.
 
 **A drag can cross monitors, because the path is said in layout coordinates.**
-`pkg/0004-Say-a-drag-path-in-layout-coordinates-*.patch` creates the virtual
+the fork's "Say a drag path in layout coordinates" commit creates the virtual
 pointer WITHOUT an output. A pointer bound to an output has its absolute motion
 mapped into that output and can never leave it, whatever coordinates it is
 given; unbound, the same motion is mapped over the box every output sits
@@ -584,7 +584,7 @@ keyboard. In this mode *every* key the overlay needs is a binding:
   with the ordinary overlay binds plus one relay bind per label key, plus
   `Escape`, `BackSpace` and `Return`.
 - Each relay bind appends its keysym name to `$XDG_RUNTIME_DIR/imthemousenow/keys`.
-- `pkg/0002-read-keys-from-a-channel-*.patch` teaches wl-kbptr to take
+- the fork's "Take keys from a channel" commit teaches wl-kbptr to take
   `WL_KBPTR_KEY_CHANNEL`: with it set, the layer surface asks for no keyboard
   interactivity and the keys come from that file instead, through the same
   `mode_handle_key()` a real keypress goes through.

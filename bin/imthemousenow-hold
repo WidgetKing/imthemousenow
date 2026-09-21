@@ -11,7 +11,7 @@
 # is happening -- so there is no overlay at all while a hold is on.
 #
 # The press lives in one wl-kbptr --hold, which holds the button for exactly as
-# long as it runs and cannot return with it down (pkg/0006-Hold-a-button-*.patch).
+# long as it runs and cannot return with it down (the fork's "Hold a button down and be steered" commit).
 # This script starts it, feeds it points, and waits. The keys that produce those
 # points are compositor bindings in a submap of their own -- there is no overlay
 # to read them -- and they run this script again, which is why `move` and

@@ -46,49 +46,61 @@ link_or_copy() {
 mkdir -p "$PLUGIN_DIR" "$BIN_DIR" "$USER_DIR" "$STATE_DIR" "$THEMED_DIR"
 
 # --- 1. wl-kbptr itself -------------------------------------------------------
-# What identifies a build: the upstream commit, the patch set applied to it, and
-# whether OpenCV is in. Change any one of those and the installed binary is a
-# different program, so all three are recorded and compared. The patch set is
-# the reason this is not just the commit -- a new patch against an unmoved pin
-# is the normal way this repo changes wl-kbptr, and it has to force a rebuild.
-build_id() { printf '%s %s opencv=%s\n' "$1" "$2" "$3"; }
-PATCH_STAMP="$("$REPO/pkg/patch-stamp" "$REPO/pkg")"
+# Built from the tip of the fork's branch (pkg/source.toml). What identifies a
+# build is that commit plus whether OpenCV is in; install.sh asks GitHub which
+# commit the tip is, and rebuilds only when that is not what is installed.
+build_id() { printf '%s opencv=%s\n' "$1" "$2"; }
+
+eval "$(awk -F'=' '
+  /^[[:space:]]*(mode|repo|branch|opencv)[[:space:]]*=/ {
+    key = $1; gsub(/[[:space:]]/, "", key)
+    val = $2; sub(/#.*/, "", val); gsub(/[[:space:]"]/, "", val)
+    printf "SRC_%s=%s\n", toupper(key), val
+  }' "$REPO/pkg/source.toml")"
+((lite)) && SRC_OPENCV=false
+have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
+
+# The commit the branch points at right now, or nothing if GitHub cannot be
+# reached.
+fork_tip() {
+  git ls-remote "$SRC_REPO" "refs/heads/$SRC_BRANCH" 2>/dev/null | cut -f1
+}
 
 if ((build)); then
-  eval "$(awk -F'=' '
-    /^[[:space:]]*(mode|commit|opencv)[[:space:]]*=/ {
-      key = $1; gsub(/[[:space:]]/, "", key)
-      val = $2; sub(/#.*/, "", val); gsub(/[[:space:]"]/, "", val)
-      printf "SRC_%s=%s\n", toupper(key), val
-    }' "$REPO/pkg/source.toml")"
-  ((lite)) && SRC_OPENCV=false
-
-  if [[ ${SRC_MODE:-commit} == aur ]]; then
+  if [[ ${SRC_MODE:-fork} == aur ]]; then
     say "Installing wl-kbptr from the AUR"
     warn "The AUR package is 0.4.1, which does not build against opencv 5."
-    warn "It is also unpatched: the popup fix in pkg/*.patch is not in it."
+    warn "It is also stock upstream: popup-safe mode, drag, hold, peek and double click are gone."
     omarchy pkg aur add wl-kbptr
-    build_id aur - "${SRC_OPENCV:-true}" >"$STATE_DIR/build-id"
+    build_id aur "${SRC_OPENCV:-true}" >"$STATE_DIR/build-id"
   else
-    [[ -n ${SRC_COMMIT:-} ]] || { warn "pkg/source.toml has no commit to build"; exit 1; }
-    want="$(build_id "$SRC_COMMIT" "$PATCH_STAMP" "$SRC_OPENCV")"
-    have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
+    [[ -n ${SRC_REPO:-} && -n ${SRC_BRANCH:-} ]] ||
+      { warn "pkg/source.toml needs a repo and a branch to build"; exit 1; }
+    tip="$(fork_tip)"
 
     # Re-running install.sh after editing the bash or the Lua is the common
     # case, and it should not cost a compile. Skipping is only safe when the
     # binary that build id describes is still there and still links.
-    skip=0
-    if ((rebuild == 0)) && [[ $want == "$have" ]] &&
-      pacman -Qq wl-kbptr-omarchy >/dev/null 2>&1 &&
+    installed_ok=0
+    if pacman -Qq wl-kbptr-omarchy >/dev/null 2>&1 &&
       command -v wl-kbptr >/dev/null 2>&1 &&
       ! ldd "$(command -v wl-kbptr)" 2>/dev/null | grep -q "not found"; then
-      skip=1
+      installed_ok=1
     fi
 
-    if ((skip)); then
-      say "wl-kbptr ${SRC_COMMIT:0:9} ($PATCH_STAMP) is already installed; skipping the build (--rebuild forces it)"
+    if [[ -z $tip ]]; then
+      # Offline, or the fork is gone. Keeping a working build beats failing
+      # the whole install over a rebuild that may not even be due.
+      if ((installed_ok)); then
+        warn "Could not reach $SRC_REPO; keeping the installed wl-kbptr (${have:-unknown build})."
+      else
+        warn "Could not reach $SRC_REPO to find the $SRC_BRANCH branch, and no wl-kbptr is installed."
+        exit 1
+      fi
+    elif ((rebuild == 0 && installed_ok)) && [[ $(build_id "$tip" "$SRC_OPENCV") == "$have" ]]; then
+      say "wl-kbptr ${tip:0:9} ($SRC_BRANCH) is already installed; skipping the build (--rebuild forces it)"
     else
-      say "Building wl-kbptr at ${SRC_COMMIT:0:9} with $PATCH_STAMP (opencv=${SRC_OPENCV})"
+      say "Building wl-kbptr from $SRC_BRANCH at ${tip:0:9} (opencv=${SRC_OPENCV})"
       for dep in git meson ninja; do
         command -v "$dep" >/dev/null 2>&1 || missing+=" $dep"
       done
@@ -99,19 +111,17 @@ if ((build)); then
 
       build_dir="$(mktemp -d)"
       trap 'rm -rf "$build_dir"' EXIT
-      # patch-stamp goes along: PKGBUILD calls it to build pkgver, and it must
-      # see the same patches makepkg is about to apply, not this checkout's.
-      cp "$REPO/pkg/PKGBUILD" "$REPO/pkg/patch-stamp" "$REPO"/pkg/*.patch "$build_dir/"
+      cp "$REPO/pkg/PKGBUILD" "$build_dir/"
       (
         cd "$build_dir"
-        MOUSENOW_COMMIT="$SRC_COMMIT" \
+        MOUSENOW_REPO="$SRC_REPO" MOUSENOW_COMMIT="$tip" \
           MOUSENOW_OPENCV="$([[ $SRC_OPENCV == true ]] && echo 1 || echo 0)" \
           makepkg -si --noconfirm
       )
       # After the build, not before: a failed build must leave the id of what
       # is actually installed, or the next run would skip a build that never
       # happened.
-      echo "$want" >"$STATE_DIR/build-id"
+      build_id "$tip" "$SRC_OPENCV" >"$STATE_DIR/build-id"
     fi
   fi
   touch "$STATE_DIR/installed"
@@ -132,11 +142,14 @@ else
   # --no-build with a stale binary is how the wrapper ends up newer than the
   # thing it drives -- and a wl-kbptr option the installed build does not know
   # makes it reject the whole config file, so every chord silently dies. Say so
-  # here rather than leaving it to be discovered at the first keypress.
-  have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
-  if [[ -n $have && $have != *" $PATCH_STAMP "* ]]; then
-    warn "Installed wl-kbptr was built from a different patch set ($have)."
-    warn "This checkout is at $PATCH_STAMP. Re-run without --no-build to rebuild."
+  # here rather than leaving it to be discovered at the first keypress. Only if
+  # GitHub answers: --no-build must not fail for being offline.
+  if [[ ${SRC_MODE:-fork} != aur ]]; then
+    tip="$(fork_tip)"
+    if [[ -n $tip && -n $have && $have != "$tip "* ]]; then
+      warn "Installed wl-kbptr (${have%% *}) is not the tip of $SRC_BRANCH (${tip:0:9})."
+      warn "Re-run without --no-build to rebuild."
+    fi
   fi
 fi
 

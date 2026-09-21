@@ -19,7 +19,7 @@
 //      an empty input region: the compositor routes pointer events as though
 //      the surface were not there.
 //   2. It must not take the keyboard. An overlay that takes keyboard focus is
-//      what dismisses the popup you were aiming at (pkg/0002-*.patch), and it
+//      what dismisses the popup you were aiming at (the fork's "Take keys from a channel" commit), and it
 //      would steal the keys the overlay's own submap is bound to.
 //      WlrKeyboardFocus.None, never Exclusive.
 //

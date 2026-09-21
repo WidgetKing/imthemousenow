@@ -7,46 +7,41 @@ still packages — does not build against it (upstream issue #99). Upstream
 commit `0854a51` makes meson accept opencv 4 **or** 5, but it is not in any
 release yet.
 
-So `pkg/source.toml` pins that commit and `install.sh` builds it with
-`makepkg`, which means pacman owns the binary (`wl-kbptr-omarchy`, which
-`provides`/`conflicts` with `wl-kbptr`, so it swaps cleanly with the AUR
-package later). There is no mode that tracks the latest release: the patches in
-`pkg/` are written against one upstream tree, so moving the pin is a change to
-this repo — rebase the fork, test, bump `commit`, re-sync — and never something
-that happens on your machine during an update. `mode = "aur"` is there for when the
-AUR catches up and you want the unpatched upstream package instead.
-
-The patch set is part of the built version: `pkg/patch-stamp` hashes `pkg/*.patch`
-into a `pN.<hash>` component, so `pacman -Q wl-kbptr-omarchy` reports which
-patches a binary was built with, and `install.sh` rebuilds when that hash moves
-even though the pinned commit has not. It also skips the build when the recorded
-build is the one already installed, so re-running after a bash edit is cheap;
-`--rebuild` forces it, and `--no-build` warns when the installed binary was
-built from different patches than this checkout carries.
+So imthemousenow builds wl-kbptr from source, with `makepkg`, which means pacman
+owns the binary (`wl-kbptr-omarchy`, which `provides`/`conflicts` with
+`wl-kbptr`, so it swaps cleanly with the AUR package later). `mode = "aur"` in
+`pkg/source.toml` is there for when the AUR catches up and you want stock
+upstream instead — without any of the features below.
 
 ## The fork
 
-The patches are not written in `pkg/`. They live as commits in a fork,
-[WidgetKing/wl-kbptr](https://github.com/WidgetKing/wl-kbptr), on the
-`imthemousenow` branch: upstream's history untouched up to the pinned commit
-(tagged `pin/<commit>`), then one commit per patch. The fork is labelled as a
-fork of [moverest/wl-kbptr](https://github.com/moverest/wl-kbptr) and its README
-says so first — the program is moverest's; the branch only carries what this
-plugin needs, and none of it is headed upstream.
+What gets built is not upstream directly but a fork,
+[WidgetKing/wl-kbptr](https://github.com/WidgetKing/wl-kbptr), labelled as a
+fork of [moverest/wl-kbptr](https://github.com/moverest/wl-kbptr), whose README
+says so first: the program is moverest's. Its `imthemousenow` branch is
+upstream's history untouched up to a pinned commit (tagged `pin/<commit>`),
+with this plugin's changes committed on top — popup-safe mode, drag, hold,
+peek, double click, and one crash fix. None of it is headed upstream.
 
-`pkg/sync-patches` exports that branch into `pkg/`, so `makepkg` still builds
-from files in this repo and no second clone is needed at install time. It
-refuses if the branch is not built on the pinned commit, keeps each patch's
-filename (docs and config name them), leaves out the fork's own commits — its
-README note and its tests — and writes the output byte-stable, so the stamp
-only moves when the code does.
+`pkg/source.toml` names the fork and the branch, and `install.sh` builds the
+branch's **tip**. It asks GitHub which commit that is, builds exactly that
+commit, and records it; a later run rebuilds only when the tip has moved, and
+skips the compile otherwise, so re-running after a bash edit is cheap.
+`--rebuild` forces it. Offline, it keeps the installed build rather than
+failing. `--no-build` warns when the installed binary is not the tip.
 
-The fork's `imthemousenow/test.sh` builds the patched binary and checks it
-against what this plugin sends it: that every capability probe finds its
-string, that every option and argument the wrapper builds is accepted, and —
-given this checkout next to it — that the wrapper's real `--dry-run` commands
-all parse. A change on either side that breaks the other shows up there
-rather than as chords that silently do nothing.
+The package version carries the commit — `1:0.4.1.r<count>.g<hash>` — so
+`pacman -Q wl-kbptr-omarchy` names exactly which commit of the fork is
+installed.
+
+Trusting the tip means a push to that branch is what the next install or
+update everywhere builds. So the fork carries its own tests,
+`imthemousenow/test.sh`, to run before pushing: it builds the branch and
+checks it against what this plugin sends it — that every capability probe
+finds its string, that every option and argument the wrapper builds is
+accepted, and, given this checkout next to it, that the wrapper's real
+`--dry-run` commands all parse. Moving the pin is a rebase in the fork, then
+those tests, then a push; nothing changes in this repository.
 
 The fix is a **build** fix. One reporter on #99 says floating mode still dims
 the screen without drawing labels under OpenCV 5 — so `hints` degrades cleanly:
@@ -76,9 +71,7 @@ templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
 hypr/imthemousenow.lua      keybindings + layer rules
 hooks/{theme-set,font-set,post-update}
 tests/                      run them directly; no framework
-pkg/{PKGBUILD,source.toml}  from-source build
-pkg/*.patch                 what that build changes about wl-kbptr, exported
-                            from the fork by pkg/sync-patches; not edited here
+pkg/{PKGBUILD,source.toml}  from-source build of the fork's branch
 install.sh / uninstall.sh
 ```
 

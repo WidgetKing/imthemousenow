@@ -20,7 +20,7 @@ keep_open = true
 Experimental, and off by default. What to know before turning it on:
 
 - It needs the wl-kbptr this plugin builds (`./install.sh` applies
-  `pkg/0002-read-keys-from-a-channel-*.patch`). With a stock wl-kbptr the
+  the fork's "Take keys from a channel" commit). With a stock wl-kbptr the
   setting is ignored and nothing changes.
 - Every key the overlay uses is a binding, in its own submap. Plain keys it
   does not use are swallowed rather than reaching the window underneath;
