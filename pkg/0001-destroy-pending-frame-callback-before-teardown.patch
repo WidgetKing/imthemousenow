@@ -1,5 +1,8 @@
-From: imthemousenow <https://github.com/moverest/wl-kbptr>
-Subject: [PATCH] Destroy the pending frame callback before tearing the surface down
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
+Date: Mon, 21 Sep 2026 21:00:15 +0800
+Subject: [PATCH] Destroy the pending frame callback before tearing the surface
+ down
 
 At exit `main()` destroys the layer surface, the wl_surface and the buffer
 pool, then calls `wl_display_roundtrip()`. If a frame callback is still armed
@@ -18,14 +21,17 @@ when the user commits a selection. When it does, the crash happens before
 dropped.
 
 Disarm the callback before destroying what it points at.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/main.c | 8 ++++++++
  1 file changed, 8 insertions(+)
 
 diff --git a/src/main.c b/src/main.c
+index 71bed7a..94384d1 100644
 --- a/src/main.c
 +++ b/src/main.c
-@@ -910,6 +910,14 @@
+@@ -909,6 +909,14 @@ int main(int argc, char **argv) {
      wl_surface_commit(state.wl_surface);
      while (state.running && wl_display_dispatch(state.wl_display)) {}
  

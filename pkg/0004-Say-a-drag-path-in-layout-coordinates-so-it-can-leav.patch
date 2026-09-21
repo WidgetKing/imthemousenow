@@ -1,5 +1,5 @@
-From 0ecd104bff8879de2873d4870de5e9d2a6083c6f Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 18:10:08 +0800
 Subject: [PATCH] Say a drag path in layout coordinates, so it can leave the
  monitor
@@ -23,6 +23,8 @@ are allowed, because a layout may put an output left of or above the
 origin.
 
 Not sent upstream yet; it goes with the --drag option itself.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/main.c          |  25 ++++-----
  src/utils_wayland.c | 130 ++++++++++++++++++++++++++++++++------------
@@ -280,6 +282,3 @@ index 3797ef3..485a598 100644
      uint32_t duration_ms, enum click click
  );
  
--- 
-2.55.0
-

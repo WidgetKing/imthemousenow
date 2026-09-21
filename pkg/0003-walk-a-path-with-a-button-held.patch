@@ -1,5 +1,5 @@
-From 3b674d172703a8036331bccfaf667bb73494585b Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 12:00:00 +0800
 Subject: [PATCH] Walk a path with a button held, so a drag is a thing this can
  do
@@ -28,6 +28,8 @@ a function that can leave the desktop unusable.
 
 Not sent upstream yet; the option is small and backwards compatible, so
 it is worth offering.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/main.c          |  45 +++++++++++++++-
  src/utils_wayland.c | 121 ++++++++++++++++++++++++++++++++++++++++++++
@@ -271,6 +273,3 @@ index 59dccc1..3797ef3 100644
 +);
 +
  #endif
--- 
-2.55.0
-

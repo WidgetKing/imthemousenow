@@ -5,10 +5,17 @@
 #        "aur"     install the AUR package instead of building -- unpatched,
 #                  so the popup fix and anything else in pkg/*.patch is gone
 #
+# The patches are not written here. They are commits in the fork,
+# github.com/WidgetKing/wl-kbptr, on the `imthemousenow` branch, which is
+# upstream at `commit` below with those commits on top; pkg/sync-patches
+# exports them into this directory and refuses if the branch is built on
+# anything other than `commit`.
+#
 # The pin is deliberate and there is no "track the latest release" mode: the
 # patches here are written against one tree, and a new upstream tree must be
 # rebased onto and tested by hand before it reaches anyone. Moving is a commit
-# to this repo -- bump `commit` below -- never something that happens on a
+# to this repo -- rebase the fork's branch, bump `commit` below, re-sync --
+# never something that happens on a
 # user's machine during an update.
 #
 # The OpenCV 5 build fix (upstream 0854a51, fixes issue #99) is NOT in any

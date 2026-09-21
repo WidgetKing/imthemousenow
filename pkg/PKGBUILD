@@ -24,11 +24,12 @@ source=(
   0006-Hold-a-button-down-and-be-steered-so-a-drag-can-be-f.patch
   0007-Click-twice-when-the-committing-key-is-pressed-again.patch
 )
-# Every patch is listed above and applied below in that order; adding one is a
-# single line here. Each patch's own header says what it does and whether it is
-# headed upstream (0001 is a bug fix and should land there; 0002 through 0007
-# are ours, and the drag pair and the peek are worth offering).
-# One entry per source, so a new patch needs a 'SKIP' here too or makepkg refuses.
+# The patch lines above and the SKIPs below are written by pkg/sync-patches,
+# which exports them from the fork (github.com/WidgetKing/wl-kbptr, branch
+# imthemousenow), one commit per patch. Change the fork and re-sync; an edit
+# made here by hand is gone at the next sync. Each patch's own header says
+# what it does and why.
+# One entry per source, so every patch needs a 'SKIP' or makepkg refuses.
 sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 if [[ ${MOUSENOW_OPENCV:-1} == 1 ]]; then

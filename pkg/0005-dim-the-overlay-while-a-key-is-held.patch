@@ -1,5 +1,5 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Sat, 19 Sep 2026 19:54:55 +0800
 Subject: [PATCH] Dim the overlay while a key is held, to see what is under it
 
@@ -34,6 +34,8 @@ so an existing config behaves exactly as it did.
 The key channel gained a release: a bare keysym name is still a press,
 and a leading '-' marks the new case, so a compositor that only knows
 how to write presses keeps working and its keys are not reinterpreted.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/config.c      |  3 +-
  src/config.h      |  4 +++

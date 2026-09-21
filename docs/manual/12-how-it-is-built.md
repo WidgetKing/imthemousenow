@@ -12,8 +12,8 @@ So `pkg/source.toml` pins that commit and `install.sh` builds it with
 `provides`/`conflicts` with `wl-kbptr`, so it swaps cleanly with the AUR
 package later). There is no mode that tracks the latest release: the patches in
 `pkg/` are written against one upstream tree, so moving the pin is a change to
-this repo — rebase the patches, test, bump `commit` — and never something that
-happens on your machine during an update. `mode = "aur"` is there for when the
+this repo — rebase the fork, test, bump `commit`, re-sync — and never something
+that happens on your machine during an update. `mode = "aur"` is there for when the
 AUR catches up and you want the unpatched upstream package instead.
 
 The patch set is part of the built version: `pkg/patch-stamp` hashes `pkg/*.patch`
@@ -23,6 +23,30 @@ even though the pinned commit has not. It also skips the build when the recorded
 build is the one already installed, so re-running after a bash edit is cheap;
 `--rebuild` forces it, and `--no-build` warns when the installed binary was
 built from different patches than this checkout carries.
+
+## The fork
+
+The patches are not written in `pkg/`. They live as commits in a fork,
+[WidgetKing/wl-kbptr](https://github.com/WidgetKing/wl-kbptr), on the
+`imthemousenow` branch: upstream's history untouched up to the pinned commit
+(tagged `pin/<commit>`), then one commit per patch. The fork is labelled as a
+fork of [moverest/wl-kbptr](https://github.com/moverest/wl-kbptr) and its README
+says so first — the program is moverest's; the branch only carries what this
+plugin needs, and none of it is headed upstream.
+
+`pkg/sync-patches` exports that branch into `pkg/`, so `makepkg` still builds
+from files in this repo and no second clone is needed at install time. It
+refuses if the branch is not built on the pinned commit, keeps each patch's
+filename (docs and config name them), leaves out the fork's own commits — its
+README note and its tests — and writes the output byte-stable, so the stamp
+only moves when the code does.
+
+The fork's `imthemousenow/test.sh` builds the patched binary and checks it
+against what this plugin sends it: that every capability probe finds its
+string, that every option and argument the wrapper builds is accepted, and —
+given this checkout next to it — that the wrapper's real `--dry-run` commands
+all parse. A change on either side that breaks the other shows up there
+rather than as chords that silently do nothing.
 
 The fix is a **build** fix. One reporter on #99 says floating mode still dims
 the screen without drawing labels under OpenCV 5 — so `hints` degrades cleanly:
@@ -53,7 +77,8 @@ hypr/imthemousenow.lua      keybindings + layer rules
 hooks/{theme-set,font-set,post-update}
 tests/                      run them directly; no framework
 pkg/{PKGBUILD,source.toml}  from-source build
-pkg/*.patch                 what that build changes about wl-kbptr
+pkg/*.patch                 what that build changes about wl-kbptr, exported
+                            from the fork by pkg/sync-patches; not edited here
 install.sh / uninstall.sh
 ```
 

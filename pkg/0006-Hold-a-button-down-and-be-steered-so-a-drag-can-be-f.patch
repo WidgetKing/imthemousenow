@@ -1,5 +1,5 @@
-From 9fc9a8675221db601a7251bff1b7454c380eaf72 Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Sun, 20 Sep 2026 18:20:50 +0800
 Subject: [PATCH] Hold a button down and be steered, so a drag can be flown by
  hand
@@ -31,6 +31,8 @@ Layout coordinates and an unbound virtual pointer, exactly as --drag
 uses them, so a hold can be steered across a monitor boundary.
 
 Not sent upstream yet; it goes with the --drag option itself.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/main.c          |  31 +++++++++++-
  src/utils_wayland.c | 114 ++++++++++++++++++++++++++++++++++++++++++++

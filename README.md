@@ -113,7 +113,8 @@ clone` of wl-kbptr's source, and pacman for the packages it needs to build.
 - **Nothing runs as root** except pacman during the install, which is the
   ordinary package-manager prompt.
 - **wl-kbptr is pinned, not tracked.** `pkg/source.toml` names one upstream
-  commit, `pkg/*.patch` are the changes made to it, and `pkg/patch-stamp`
+  commit, `pkg/*.patch` are the changes made to it (kept as commits in
+  [a fork](https://github.com/WidgetKing/wl-kbptr) and exported here), and `pkg/patch-stamp`
   hashes those patches into the installed package version — so
   `pacman -Q wl-kbptr-omarchy` tells you exactly which source produced your
   binary. The pin only moves in a commit to this repository, never on your

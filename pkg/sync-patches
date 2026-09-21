@@ -1,0 +1,127 @@
+#!/bin/bash
+# Regenerate pkg/*.patch from the fork. The patches are not edited here.
+#
+# The code for wl-kbptr lives in a fork, github.com/WidgetKing/wl-kbptr, on the
+# `imthemousenow` branch: upstream at the pinned commit, with one commit per
+# patch on top. This directory is that branch exported, so makepkg can build it
+# without cloning a second repository. Change the fork, then run this.
+#
+#   pkg/sync-patches [FORK]     FORK defaults to a wl-kbptr checkout next to
+#                               this repo (../wl-kbptr)
+#
+# What it guarantees, each one because getting it wrong fails silently:
+#
+#   - the branch sits on the commit pkg/source.toml pins. Patches exported
+#     against any other base apply to the wrong tree, or do not apply at all,
+#     and the failure lands in makepkg on someone else's machine.
+#   - the output is byte-stable. patch-stamp hashes these files to decide when
+#     install.sh must rebuild, so the export leaves out everything that changes
+#     without the code changing: the commit hash in the `From` line
+#     (--zero-commit) and the git version at the foot (--no-signature).
+#   - a patch keeps its filename. The docs, the config's `patch` fields and the
+#     tests all name patches by file, so a commit that already has a file here
+#     gets that file back. Matched by number and then checked by subject, so a
+#     reordered branch is refused rather than exported under the wrong names.
+#   - commits that only touch the fork's own files -- its README note and its
+#     imthemousenow/ tests -- are not patches. They mean nothing to the build,
+#     and exporting them would churn the stamp and rebuild for nothing.
+#   - PKGBUILD's source=() is rewritten to match, so its prepare() audit
+#     cannot trip over a file this script added.
+set -euo pipefail
+
+PKG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FORK="$(cd "${1:-$PKG/../../wl-kbptr}" && pwd)"
+BRANCH=imthemousenow
+
+die() { printf 'sync-patches: %s\n' "$*" >&2; exit 1; }
+
+git -C "$FORK" rev-parse --verify -q "$BRANCH" >/dev/null ||
+  die "$FORK has no '$BRANCH' branch"
+
+pin="$(awk -F'=' '/^[[:space:]]*commit[[:space:]]*=/ {
+  v = $2; sub(/#.*/, "", v); gsub(/[[:space:]"]/, "", v); print v }' "$PKG/source.toml")"
+[[ -n $pin ]] || die "pkg/source.toml has no commit"
+git -C "$FORK" cat-file -e "$pin^{commit}" 2>/dev/null ||
+  die "the fork does not have the pinned commit ${pin:0:9}; git fetch upstream"
+[[ $(git -C "$FORK" merge-base "$pin" "$BRANCH") == "$pin" ]] ||
+  die "'$BRANCH' is not built on the pinned commit ${pin:0:9}; rebase it or move the pin"
+
+# A commit is fork-only when every path it touches is the fork's own.
+fork_only() {
+  local path
+  while read -r path; do
+    [[ $path == README.md || $path == imthemousenow/* ]] || return 1
+  done < <(git -C "$FORK" diff-tree --no-commit-id --name-only -r "$1")
+}
+
+# Subject as git reads it back out of a patch, so a folded Subject: line in a
+# file compares equal to the one-line subject of its commit.
+file_subject() { git mailinfo /dev/null /dev/null <"$1" | sed -n 's/^Subject: //p'; }
+
+out="$(mktemp -d)"
+trap 'rm -rf "$out"' EXIT
+
+n=0
+names=()
+while read -r sha; do
+  if fork_only "$sha"; then
+    printf 'skip  %s  (fork only)\n' "$(git -C "$FORK" log -1 --format=%s "$sha")"
+    continue
+  fi
+  n=$((n + 1))
+  subject="$(git -C "$FORK" log -1 --format=%s "$sha")"
+  num="$(printf '%04d' "$n")"
+
+  existing=("$PKG/$num"-*.patch)
+  if [[ -e ${existing[0]} ]]; then
+    ((${#existing[@]} == 1)) || die "more than one $num-*.patch in pkg/"
+    [[ $(file_subject "${existing[0]}") == "$subject" ]] ||
+      die "$num is '$subject' on the branch but ${existing[0]##*/} here is '$(file_subject "${existing[0]}")'
+  the branch has been reordered or a commit reworded. Rename the files in pkg/
+  to match the branch (and every doc that names them), or delete the stale one
+  if it is really gone, then run this again."
+    name="${existing[0]##*/}"
+  else
+    # A new patch: take the name git itself would give it, from an export
+    # into scratch that is used for nothing else.
+    name="$(git -C "$FORK" format-patch --start-number "$n" -1 -o "$out/names" "$sha")"
+    name="${name##*/}"
+  fi
+
+  git -C "$FORK" format-patch --zero-commit --no-numbered --no-signature \
+    -1 --stdout "$sha" >"$out/$name"
+  names+=("$name")
+done < <(git -C "$FORK" rev-list --reverse "$pin..$BRANCH")
+
+before="$("$PKG/patch-stamp" "$PKG")"
+
+rm -f "$PKG"/*.patch
+for name in "${names[@]}"; do cp "$out/$name" "$PKG/$name"; done
+
+# Rewrite the patch lines of source=() and the matching sha256sums. Everything
+# else in PKGBUILD is left exactly as it is.
+awk -v list="$(printf '%s\n' "${names[@]}")" -v count="${#names[@]}" '
+  /^source=\(/ { print; in_src = 1; next }
+  in_src && /\.patch[[:space:]]*$/ { next }
+  in_src && /^\)/ {
+    n = split(list, p, "\n")
+    for (i = 1; i <= n; i++) if (p[i] != "") print "  " p[i]
+    print; in_src = 0; next
+  }
+  /^sha256sums=/ {
+    s = "sha256sums=('"'"'SKIP'"'"'"
+    for (i = 0; i < count; i++) s = s " '"'"'SKIP'"'"'"
+    print s ")"; next
+  }
+  { print }
+' "$PKG/PKGBUILD" >"$out/PKGBUILD"
+cat "$out/PKGBUILD" >"$PKG/PKGBUILD"
+
+after="$("$PKG/patch-stamp" "$PKG")"
+printf '%d patches from %s (%s) onto %s\n' "${#names[@]}" "$BRANCH" \
+  "$(git -C "$FORK" rev-parse --short "$BRANCH")" "${pin:0:9}"
+if [[ $before == "$after" ]]; then
+  printf 'stamp %s, unchanged: nothing to rebuild\n' "$after"
+else
+  printf 'stamp %s -> %s: ./install.sh will rebuild wl-kbptr\n' "$before" "$after"
+fi

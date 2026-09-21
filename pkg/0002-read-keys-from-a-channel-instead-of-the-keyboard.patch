@@ -1,5 +1,5 @@
-From 01f4ea27e8a3cc25d6b4ac08131d72f6af2029cf Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Fri, 18 Sep 2026 22:13:57 +0800
 Subject: [PATCH] Take keys from a channel instead of the keyboard, so popups
  survive
@@ -17,6 +17,8 @@ where its keys come from.
 
 A plain file rather than a fifo: opening a fifo with no reader blocks the
 writer, and the writer here is the compositor.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/main.c | 162 ++++++++++++++++++++++++++++++++++++++++++++++++++++-
  1 file changed, 160 insertions(+), 2 deletions(-)
@@ -223,6 +225,3 @@ index 94384d1..424c0f0 100644
  
      // The frame callback holds a pointer to the surface and to the buffer
      // pool, both destroyed just below. Left armed, it is still dispatched by
--- 
-2.55.0
-

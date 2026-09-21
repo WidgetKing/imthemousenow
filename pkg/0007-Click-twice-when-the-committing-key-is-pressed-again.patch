@@ -1,5 +1,5 @@
-From 6ca81dbca0d26c2cb234c8481488f5fe39265b87 Mon Sep 17 00:00:00 2001
-From: t <t@e>
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tristan Ward <14697631+WidgetKing@users.noreply.github.com>
 Date: Sun, 20 Sep 2026 21:21:20 +0800
 Subject: [PATCH] Click twice when the committing key is pressed again
 
@@ -64,6 +64,8 @@ display and a round trip inside a dispatch is a dispatch inside a
 dispatch.
 
 Not sent upstream yet.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 ---
  src/config.c |  12 ++-
  src/config.h |  15 ++++
