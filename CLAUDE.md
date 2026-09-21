@@ -31,7 +31,7 @@ and they talk through `bin/imthemousenow-session.sh`.
 | A key pressed outside the overlay | `hypr/imthemousenow.lua`, the chord section. Chords compose by `--flip AXIS`; they do not each hardcode a combination. |
 | Config: layering, validation, compiling | `bin/imthemousenow-config` only. It is Python despite the name. Layers, later winning: `config.default.toml`, the rendered theme template, `~/.config/omarchy/imthemousenow/config.toml`. `config.local` is raw `wl-kbptr` override lines and is applied by the wrapper, not here. |
 | Colours, opacity, theming | `bin/imthemousenow-config` (derivation and opacity) and `templates/wl-kbptr.conf.tpl` (what the theme renders). `hooks/theme-set` only warns; Omarchy does the rendering. |
-| The patched wl-kbptr | The fork (`../wl-kbptr`, branch `imthemousenow`): commit there, run its `imthemousenow/test.sh`, push. A push is live -- the next install anywhere builds the tip. `pkg/PKGBUILD` and `pkg/source.toml` only say how and where to build it. Every fork feature also needs a `has_*()` probe in `bin/imthemousenow`, and its contract test in the fork -- see the warning below. |
+| Changing wl-kbptr itself | Not in this repo: in the fork, `../wl-kbptr`, and read its `CLAUDE.md` first. In short: never commit to its `imthemousenow` branch directly, because a push there is what the next install everywhere builds. Work on a `work/<name>` branch, run its `imthemousenow/test.sh`, push the work branch, install it here with `./install.sh --dev --branch work/<name>` and check it on the compositor, and only then fast-forward it into `imthemousenow`. `pkg/PKGBUILD` and `pkg/source.toml` only say where and how to build. A new fork feature also needs a `has_*()` probe in `bin/imthemousenow` -- see the warning below. |
 | On-screen word, halo, menus | `bin/imthemousenow-osd` + `qml/osd.qml`; `bin/imthemousenow-halo` + `qml/halo.qml`; `bin/imthemousenow-menu`. |
 | The key sheet | `bin/imthemousenow-help` + `qml/help.qml`, and the `--help` heredoc in `bin/imthemousenow`. The prose lives in both, plus `docs/manual/`. Changing one means changing the others. |
 | The bar widget | `shell/Panel.qml` and `shell/Model.js`. |
@@ -69,6 +69,8 @@ line, and a fixture that wants settings of its own writes them into that `HOME`
 rather than reaching for the real one.
 
 The install is a dev install: edits to this repo are live, but Lua needs
-`hyprctl reload`, the theme template needs a re-render, and `wl-kbptr` needs
-`./install.sh --dev --rebuild`. Anything desktop-facing is not done until it
+`hyprctl reload`, the theme template needs a re-render, and a `wl-kbptr` change
+needs `./install.sh --dev --branch work/<name>` (a plain `./install.sh --dev`
+goes back to the fork's `imthemousenow` branch). Both need sudo, so Tristan
+runs them in a real terminal; a tool call cannot. Anything desktop-facing is not done until it
 has been seen working on the running compositor.

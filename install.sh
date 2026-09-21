@@ -6,6 +6,8 @@
 #   ./install.sh --no-build skip building wl-kbptr (wire up integration only)
 #   ./install.sh --rebuild  rebuild wl-kbptr even if this build is already installed
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
+#   ./install.sh --branch B build the fork's branch B instead, to try it live
+#                           before it is merged; a plain run goes back
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,14 +22,15 @@ HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
 REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
 
-dev=0 build=1 lite=0 rebuild=0
+dev=0 build=1 lite=0 rebuild=0 branch=""
 while (($#)); do
   case "$1" in
     --dev) dev=1 ;;
     --no-build) build=0 ;;
     --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
-    -h | --help) sed -n '2,11p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --branch) branch="${2:-}"; [[ -n $branch ]] || { echo "install.sh: --branch needs a name" >&2; exit 2; }; shift ;;
+    -h | --help) sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -58,6 +61,10 @@ eval "$(awk -F'=' '
     printf "SRC_%s=%s\n", toupper(key), val
   }' "$REPO/pkg/source.toml")"
 ((lite)) && SRC_OPENCV=false
+# A work branch in the fork, pushed but not merged: build it to see it on the
+# compositor. The build id records its commit like any other, so the next
+# plain run finds the tip of the real branch differs and builds that again.
+[[ -n $branch ]] && SRC_BRANCH="$branch"
 have="$(cat "$STATE_DIR/build-id" 2>/dev/null || echo)"
 
 # The commit the branch points at right now, or nothing if GitHub cannot be
@@ -88,7 +95,10 @@ if ((build)); then
       installed_ok=1
     fi
 
-    if [[ -z $tip ]]; then
+    if [[ -z $tip && -n $branch ]] && git ls-remote "$SRC_REPO" >/dev/null 2>&1; then
+      warn "The fork has no branch '$branch' on GitHub. Push it first: git push -u origin $branch"
+      exit 1
+    elif [[ -z $tip ]]; then
       # Offline, or the fork is gone. Keeping a working build beats failing
       # the whole install over a rebuild that may not even be due.
       if ((installed_ok)); then
