@@ -225,6 +225,16 @@ them.
   Tab    in --scope window: swap this window with one you pick
   Space  hold to fade the overlay and see what is under it
 
+Tapped on their own, the modifiers on the left of the keyboard are commands:
+Shift flips SCOPE, Alt flips MODE and Ctrl flips LIFETIME. The ones on the
+right are held for the click: tap Ctrl there and the click is a Ctrl click,
+tap it again and it is not. They stack -- the word on screen says what is on,
+always as Ctrl + Alt + Shift + Super + the ACTION -- and they last for one
+press, then are forgotten. A drag keeps what its pick-up pass had into the drop
+pass, where more can be added or taken away, and holds them for the whole
+drag; a hold holds them for as long as the button is down. Not for a move,
+which presses nothing. keyboard_modifier_side = "left" swaps the two sides.
+
 Double click: press again the key that just selected. Which key that is falls
 out of the MODE -- a grid commits on Space or Return, so a second Space is the
 double click; a hint commits on the last letter of its label, so the hint bd
@@ -512,6 +522,23 @@ EOF
     local opt
     for opt in $opts; do args+=(-o "$opt"); done
 
+    # The modifiers the modifier side of the keyboard toggled on, held down
+    # around the click. Only for an ACTION with a click in this overlay: the
+    # ones that press later -- drag, hold -- are handed them when they do. And
+    # only when the binary knows the flag, which steer has already refused to
+    # toggle without, so a stock build never sees it. A build that can read
+    # the session's file is pointed at it whether or not anything is on yet,
+    # so a toggle made after it opened still reaches the click.
+    local mods
+    mods="$(session_get modifiers)"
+    if [[ -n $button && $(setting "action.$act.modifiers") == true ]]; then
+      if has_modifiers_file; then
+        args+=(--modifiers-file "$SESSION_DIR/modifiers")
+      elif [[ -n $mods ]] && has_modifiers; then
+        args+=(--modifiers "$(modifiers_arg "$mods")")
+      fi
+    fi
+
     # The peek, only if this binary knows the option. 1 is "already fully
     # drawn", which is how wl-kbptr itself spells off, so there is nothing to
     # pass in that case either.
@@ -579,7 +606,7 @@ EOF
   mkdir -p "$STATE_DIR"
   # Everything the overlay's own keys read and write. One call, so a run can
   # never start half-initialised.
-  session_begin "$mode" "$scope" "$base_action"
+  session_begin "$mode" "$scope" "$base_action" "$lifetime"
 
   # Name the ACTION this chord opens in. Once per run, not once per pass: a
   # continuous lifetime relaunches the overlay after every click, and a word
@@ -662,9 +689,11 @@ EOF
 
   while :; do
     ensure_submap_binds
-    # SHIFT and ALT can have rewritten either of these since the last pass.
+    # A command-side SHIFT, ALT or CTRL tap can have rewritten these since the
+    # last pass.
     scope="$(session_get scope)"
     mode="$(session_get mode)"
+    lifetime="$(session_get lifetime)"
     resolve_mode
     compute_geometry
     build_args "$current_action"
@@ -751,7 +780,7 @@ EOF
       # The drop overlay looks exactly like the one before it, so the word is
       # the only thing that says which half of the drag you are in. Monitor,
       # because that is where the drop pass is drawn whatever SCOPE says.
-      osd_action drop monitor
+      osd_action drop monitor "$(session_get modifiers)"
       continue
     fi
 
@@ -779,6 +808,12 @@ EOF
       # output, walks the whole path, so the client holding the drag sees one
       # unbroken stream of motion across the boundary.
       drag_args+=(--drag "$anchor_x,$anchor_y,$drop_x,$drop_y,$drag_ms")
+      # Whatever is toggled on by now -- carried over from the pick-up pass
+      # and changed in the drop pass as you like -- is held for the whole
+      # press, travel and release.
+      local drag_mods
+      drag_mods="$(session_get modifiers)"
+      [[ -n $drag_mods ]] && has_modifiers && drag_args+=(--modifiers "$(modifiers_arg "$drag_mods")")
 
       wl-kbptr "${drag_args[@]}" || notify "The drag did not complete"
 
@@ -808,7 +843,9 @@ EOF
       # trap below has a pid to signal: a run loop that is killed -- the panic
       # key, a session ending -- must take the hold down with it, and a hold
       # left running is a button left down.
-      MOUSENOW_SUBMAP="$SUBMAP" "$HOLD_CMD" begin "$hold_x" "$hold_y" &
+      # The modifiers go with it, held down for as long as the button is.
+      MOUSENOW_SUBMAP="$SUBMAP" MOUSENOW_MODIFIERS="$(session_get modifiers)" \
+        "$HOLD_CMD" begin "$hold_x" "$hold_y" &
       hold_pid=$!
       wait "$hold_pid" || true
       hold_pid=""
@@ -818,6 +855,10 @@ EOF
 
     passes=$((passes + 1))
 
+    # A press used the modifiers up. The next one, in a continuous lifetime,
+    # starts plain like the first did; one Ctrl click is what was asked for.
+    session_clear modifiers
+
     # One off: a switched-to ACTION lasts exactly one click, then the overlay
     # goes back to what the chord originally asked for.
     if [[ $current_action != "$base_action" ]]; then
@@ -825,6 +866,8 @@ EOF
       session_set action "$base_action"
     fi
 
+    # A command-side CTRL tap can have flipped it since the run began.
+    lifetime="$(session_get lifetime)"
     [[ $lifetime == continuous ]] || break
 
     elapsed=$((($(date +%s%N) - started) / 1000000))
@@ -846,6 +889,7 @@ EOF
     fi
   done
 
+  lifetime="$(session_get lifetime)"
   # Escape is how you leave a continuous lifetime, so it is a success.
   [[ $lifetime == continuous && $status -eq 1 && $passes -gt 0 ]] && status=0
 

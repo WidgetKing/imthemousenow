@@ -114,16 +114,21 @@ not cost you the peek — it would cost you every chord. `bin/imthemousenow` ask
 the installed binary whether it knows the option and stays quiet if it does
 not, the same way it gates `--drag` and the popup-safe overlay.
 
-## Retuning the overlay: `SHIFT` and `ALT`
+## Retuning the overlay: `SHIFT`, `ALT` and `CTRL`
 
-**SHIFT and ALT retune the overlay**, tapped on their own with nothing else
-held. They flip the same axis they flip in the chords, so there is nothing new
+**SHIFT, ALT and CTRL retune the overlay**, tapped on their own with nothing
+else held, on the command side of the keyboard (the left, unless
+`keyboard_modifier_side` says otherwise). They flip the same axis they flip in the chords, so there is nothing new
 to remember:
 
 ```
-SHIFT   SCOPE   window  <->  monitor
-ALT     MODE    hints   <->  grid
+SHIFT   SCOPE      window  <->  monitor
+ALT     MODE       hints   <->  grid
+CTRL    LIFETIME   single  <->  continuous
 ```
+
+`CTRL` changes nothing on screen: it decides what happens after the next
+selection, so there is nothing to relaunch.
 
 That is the whole point of the modifiers being one-axis-each: the overlay in
 front of you can become the one you meant without closing it and re-chording.
@@ -136,6 +141,45 @@ configuration at startup and cannot be reconfigured while it holds the
 keyboard. You will see a flicker, and anything you had already typed is
 discarded — the trade for being able to decide *after* seeing the overlay
 rather than before.
+
+## Clicking with modifiers held
+
+The modifier keys on the two sides of the keyboard do different jobs inside
+the overlay. The **command side** (left, as shipped) is the section above:
+`SHIFT` flips SCOPE, `ALT` flips MODE, and `CTRL` flips LIFETIME between
+`single` and `continuous`. `SUPER` there does nothing yet.
+
+The **modifier side** (right, as shipped) holds modifiers down for the click.
+Tap `CTRL` there and the next click is a Ctrl click; tap it again and it is
+not. They stack: tap `CTRL`, `ALT` and `SHIFT` and the click is made with all
+three held. The action word comes up to say what is on, always in the order
+`Ctrl + Alt + Shift + Super`, whatever order you tapped them in — `CTRL + ALT +
+RIGHT` — and comes up again without one when you take it off.
+
+- They last for **one press**. In a continuous lifetime the next click starts
+  plain, and every overlay starts with none.
+- Switching ACTION keeps them, and the word for the new ACTION shows them.
+- A **drag** carries them from the pick-up pass into the drop pass, where you
+  can add more or tap one off again; whatever is on at the drop is held for
+  the whole press, travel and release.
+- A **hold** holds them for as long as the button is down.
+- A **double click** holds them for both clicks.
+- A **move** presses nothing, so the toggles do nothing there.
+
+Toggling one relaunches a clicking overlay, with the same flicker as `SHIFT`
+and `ALT`, because the click is told its modifiers when it starts.
+
+To swap the sides — once the right hand is used to it, the left is the more
+natural place for held modifiers — set it in `config.toml`:
+
+```toml
+[imthemousenow]
+keyboard_modifier_side = "left"
+```
+
+Needs the wl-kbptr this plugin builds, which holds the modifiers with a
+virtual keyboard on the same seat. On a stock build a toggle is refused with a
+notification rather than clicking without what you asked for.
 
 ## The keys, on screen: `F1`
 

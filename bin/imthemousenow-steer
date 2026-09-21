@@ -26,6 +26,11 @@ Usage: imthemousenow-steer <verb> [value]
   action <a>     switch ACTION to left-click|right-click|move|drag|hold, or back
   scope          flip SCOPE between window and monitor
   mode           flip MODE between hints and grid
+  lifetime       flip LIFETIME between single and continuous
+  modkey <ctrl|alt|shift|super> <left|right>
+                 a bare modifier tap: on the command side, the axis it flips;
+                 on the modifier side (keyboard_modifier_side), toggle holding
+                 it down for the next press
   arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window;
                  during a drop, move to the monitor that way
   digit <1-9>    in monitor scope, go to that workspace; in window scope, send
@@ -161,6 +166,36 @@ swap_restore_axes() {
   session_set action "$raction"
 }
 
+# Flip one of the axes a bare command-side modifier tap flips: SCOPE, MODE or
+# LIFETIME. SCOPE and MODE change what the overlay IS, so the run loop re-reads
+# both every pass and the overlay is put back up around the new one. LIFETIME
+# changes only what happens after the next selection, which the loop also
+# reads back, so there is nothing to rebuild.
+#
+# A modifier release also ends a combo like `:` (SHIFT + SEMICOLON). Hyprland
+# may or may not suppress the release bind in that case, so do not rely on it:
+# any other bind of ours firing a moment ago means this release finished a
+# chord and is not a tap.
+flip_axis() {
+  local axis="$1" next
+  session_recent_bind "$(setting switch.tap_debounce_ms)" && exit 0
+  # No overlay, nothing to switch.
+  session_has "$axis" || exit 0
+  case "$axis" in
+    scope) [[ $(session_get scope) == monitor ]] && next="window" || next="monitor" ;;
+    mode) [[ $(session_get mode) == grid ]] && next="hints" || next="grid" ;;
+    lifetime) [[ $(session_get lifetime) == continuous ]] && next="single" || next="continuous" ;;
+  esac
+  session_set "$axis" "$next"
+  if [[ $axis == lifetime ]]; then
+    # Nothing on screen changes, so the word is the only way to know the tap
+    # landed -- in the colour of the overlay it applies to.
+    osd_word "$next" "$(session_get scope)" "$(setting "action.$(session_get action).color")"
+    return 0
+  fi
+  session_relaunch geometry
+}
+
 # Moving the view under the overlay is meaningless in window scope -- the
 # overlay is tied to one window there -- so it is a no-op rather than a
 # surprise.
@@ -242,7 +277,7 @@ case "$verb" in
       session_clear drop-monitor
       session_stamp_bind
       session_set action "$base"
-      osd_action "$base" "$(session_get scope)"
+      osd_action "$base" "$(session_get scope)" "$(session_get modifiers)"
       session_relaunch action
       exit 0
     fi
@@ -256,29 +291,57 @@ case "$verb" in
     # Before the relaunch, not after: the tint on the new overlay is the only
     # other thing that says what changed, and the word should be up by the time
     # the overlay it describes is drawn.
-    osd_action "$next" "$(session_get scope)"
+    osd_action "$next" "$(session_get scope)" "$(session_get modifiers)"
     session_relaunch action
     ;;
 
-  scope | mode)
-    # Bound to a bare SHIFT and ALT tap. Same relaunch trick as `;`, but these
-    # change what the overlay IS, so the run loop re-reads both every pass
-    # rather than resolving them once at startup.
-    #
-    # A modifier release also ends a combo like `:` (SHIFT + SEMICOLON).
-    # Hyprland may or may not suppress the release bind in that case, so do not
-    # rely on it: any other bind of ours firing a moment ago means this release
-    # finished a chord and is not a tap.
-    session_recent_bind "$(setting switch.tap_debounce_ms)" && exit 0
-    # No overlay, nothing to switch.
-    session_has "$verb" || exit 0
-    if [[ $verb == scope ]]; then
-      [[ $(session_get scope) == monitor ]] && next="window" || next="monitor"
-    else
-      [[ $(session_get mode) == grid ]] && next="hints" || next="grid"
+  scope | mode | lifetime)
+    flip_axis "$verb"
+    ;;
+
+  modkey)
+    # Bound to a bare tap of every modifier on both sides of the keyboard. The
+    # lua cannot tell the two sides' jobs apart -- it reads no config, by
+    # choice -- so it says which key and which side, and the side is decided
+    # here against keyboard_modifier_side.
+    mod="${1:?modkey needs a modifier}"
+    side="${2:?modkey needs a side}"
+    if [[ $side != "$(setting keyboard_modifier_side)" ]]; then
+      # The command side. SUPER has no axis yet, and is left free for one.
+      case "$mod" in
+        shift) flip_axis scope ;;
+        alt) flip_axis mode ;;
+        ctrl) flip_axis lifetime ;;
+      esac
+      exit 0
     fi
-    session_set "$verb" "$next"
-    session_relaunch geometry
+
+    # The modifier side: switch one modifier in or out of what the next press
+    # holds down. Same debounce as a command tap, for the same reason -- the
+    # right SHIFT released after a `:` typed with it ended a chord.
+    session_recent_bind "$(setting switch.tap_debounce_ms)" && exit 0
+    act="$(session_get action)"
+    # An ACTION that presses nothing has nothing to hold a modifier around:
+    # move, and the swap picker, which is move. Nothing happens rather than a
+    # word that promises a Ctrl click that is not coming.
+    [[ $(setting "action.$act.modifiers") == true ]] || exit 0
+    if ! has_modifiers; then
+      notify "Holding modifiers needs the wl-kbptr this plugin builds; run its install.sh"
+      exit 0
+    fi
+    next="$(modifiers_toggle "$(session_get modifiers)" "$mod")"
+    if [[ -n $next ]]; then session_set modifiers "$next"; else session_clear modifiers; fi
+    # The drop pass is drawn over a whole monitor whatever SCOPE says, so its
+    # word goes there too, as it did when the drop pass opened.
+    scope_now="$(session_get scope)"
+    session_has drag-anchor && scope_now=monitor
+    osd_action "$act" "$scope_now" "$next"
+    # An overlay that clicks reads the session's file at the click, when the
+    # build can; an older one was told its modifiers at launch, so a change
+    # means launching it again. One that does not click -- either half of a
+    # drag, a hold -- reads them when it presses, after the overlay is gone,
+    # and is left alone: nothing about it has changed yet.
+    [[ -n $(setting "action.$act.button") ]] && ! has_modifiers_file && session_relaunch modifiers
     ;;
 
   resize)

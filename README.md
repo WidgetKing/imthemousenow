@@ -101,7 +101,7 @@ clone` of wl-kbptr's source, and pacman for the packages it needs to build.
 - **It moves your pointer and clicks things.** That is the feature. It does so
   through Wayland's virtual-pointer protocol, as the user, on the compositor you
   are already logged into — it cannot reach another user's session.
-- **The overlay takes the keyboard while it is up**, because that is how it can
+- **The overlay holds the keyboard while it is up**, because that is how it can
   read a label without the window underneath getting it. Only one overlay ever
   runs (a lock file enforces it), so a second chord can never stack an
   unreachable grab on top of a live one. `imthemousenow --stop` and
@@ -109,7 +109,8 @@ clone` of wl-kbptr's source, and pacman for the packages it needs to build.
   [Getting unstuck](docs/manual/11-troubleshooting.md).
 - **In [popup-safe mode](docs/manual/10-popup-safe-mode.md) it takes no
   keyboard focus at all** and reads its keys from a file in `$XDG_RUNTIME_DIR`,
-  a directory only you can read. That mode is off by default and experimental.
+  a directory only you can read. That mode is experimental but on by default;
+  `keep_open = false` under `[imthemousenow.popups]` turns it off.
 - **Nothing runs as root** except pacman during the install, which is the
   ordinary package-manager prompt.
 - **wl-kbptr is built from a fork, and the version says which commit.**

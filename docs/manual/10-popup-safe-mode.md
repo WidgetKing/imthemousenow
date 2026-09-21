@@ -1,23 +1,25 @@
 # Popup-safe mode
 
-`popups.keep_open`, and experimental.
+`popups.keep_open`: on by default, and experimental.
 
 Opening the overlay closes a context menu or a browser extension popup, which
 is often the very thing you wanted to click. That is the compositor, not the
 app: a layer surface that asks for keyboard focus makes Hyprland drop the grab
 the popup holds, and the client is told its popup is done.
 
-Turn `popups.keep_open` on and the overlay asks for no keyboard focus at all.
+With `popups.keep_open` on, as it ships, the overlay asks for no keyboard focus at all.
 Its keys come from compositor bindings instead — the same mechanism that
 already gets `;`, `F5` and the arrows to it — relayed through a file wl-kbptr
 reads, so the menu underneath keeps its focus and stays open to be aimed at.
 
+To turn it off, and have the overlay take the keyboard the ordinary way:
+
 ```toml
 [imthemousenow.popups]
-keep_open = true
+keep_open = false
 ```
 
-Experimental, and off by default. What to know before turning it on:
+Experimental, but on by default. What to know about it:
 
 - It needs the wl-kbptr this plugin builds (`./install.sh` applies
   the fork's "Take keys from a channel" commit). With a stock wl-kbptr the

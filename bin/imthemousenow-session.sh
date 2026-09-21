@@ -8,7 +8,7 @@
 # is the only place that knows their names, their defaults, and what it means
 # for a run to be over.
 #
-#   session_begin <mode> <scope> <action>   start a run
+#   session_begin <mode> <scope> <action> <lifetime>   start a run
 #   session_get <field>                     a field, or its default
 #   session_set <field> <value>             write a field
 #   session_has <field>                     false when nothing has been written
@@ -21,8 +21,8 @@
 #   session_take_relaunch                   consume that request; prints the reason
 #   session_stamp_bind / session_recent_bind <ms>   chord-vs-tap debouncing
 #
-# Fields: mode, scope, action, base-action, switch, last-bind, swap-from,
-# swap-restore, drag-anchor, drag-restore, drop-monitor.
+# Fields: mode, scope, action, base-action, lifetime, modifiers, switch,
+# last-bind, swap-from, swap-restore, drag-anchor, drag-restore, drop-monitor.
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 
@@ -34,6 +34,13 @@ _session_default() {
     mode) echo hints ;;
     scope) echo window ;;
     action | base-action) echo left-click ;;
+    # A command-side CTRL tap flips it, so the loop reads it back after every
+    # pass rather than deciding once at the start.
+    lifetime) echo single ;;
+    # The modifiers the next press holds down, toggled by the modifier side of
+    # the keyboard: "ctrl alt", always in that order. Empty is a plain press,
+    # and what every run starts with and every press leaves behind.
+    modifiers) echo "" ;;
     last-bind) echo 0 ;;
     switch) echo "" ;;
     # The window a swap started from, and the mode/scope/action to put back
@@ -95,14 +102,15 @@ session_begin() {
   session_set scope "$2"
   session_set action "$3"
   session_set base-action "$3"
-  rm -f "$SESSION_DIR"/{switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
+  session_set lifetime "${4:-single}"
+  rm -f "$SESSION_DIR"/{modifiers,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
 }
 
 # Every field goes, action included: a run that is over must leave nothing a
 # later one could read back. Teardown lived in two hand-written lists before
 # this and they had already drifted apart.
 session_end() {
-  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
+  rm -f "$SESSION_DIR"/{mode,scope,action,base-action,lifetime,modifiers,switch,last-bind,swap-from,swap-restore,drag-anchor,drag-restore,drop-monitor}
 }
 
 # Ask the run loop to tear the overlay down and put it back up. $1 says why,
@@ -135,7 +143,13 @@ session_recent_bind() {
   # A relaunch already in flight means a chord fired and the overlay has not
   # come back yet -- the SHIFT being released is that chord's, however long it
   # was held. This is what catches `:` when the debounce window has passed.
-  session_has switch && return 0
+  #
+  # Except a relaunch a modifier toggle asked for. That one is no chord, and
+  # stacking toggles is tapping them in quick succession: Ctrl then Alt must
+  # both land, not the second be read as the tail of the first.
+  if session_has switch && [[ $(session_get switch) != modifiers ]]; then
+    return 0
+  fi
   session_has last-bind || return 1
   local stamp now
   stamp="$(session_get last-bind)"

@@ -121,13 +121,79 @@ ascii_cmd() {
 # there is art to be had at all. It costs one process and about 18ms for a word
 # this short -- once per ACTION switch, not per frame, and small beside the
 # quickshell start that follows it.
+#
+# The one piece of punctuation an announcement uses is the ` + ` between held
+# modifiers and the ACTION ("CTRL + ALT + RIGHT"), and the font has no glyph
+# for it. So a text with ` + ` in it is drawn a word at a time, and a plus of
+# our own, drawn in the font's own blocks, is set between them. The font draws
+# every letter from the same top row down (it has no lowercase), so the pieces
+# line up row for row once each is padded to the tallest and to its own width.
+PLUS_ART=(
+  "           "
+  "    ███    "
+  "    ███    "
+  "▄▄▄▄███▄▄▄▄"
+  "▀▀▀▀███▀▀▀▀"
+  "    ███    "
+  "    ███    "
+)
+
+# Pieces of art, side by side, with a gap between. Each is one argument, rows
+# separated by newlines. Every row comes out the same width, trailing spaces
+# and all, so the block is a clean rectangle. (What keeps its rows in column on
+# screen is osd.qml laying art out from the left; see there.)
+join_art() {
+  local piece
+  for piece in "$@"; do printf '%s\0' "$piece"; done |
+    LC_ALL=C.UTF-8 awk -v RS='\0' -v gap="   " '
+      {
+        n = split($0, rows, "\n")
+        width = 0
+        for (r = 1; r <= n; r++) if (length(rows[r]) > width) width = length(rows[r])
+        for (r = 1; r <= n; r++) cell[NR, r] = rows[r]
+        w[NR] = width; h[NR] = n; if (n > height) height = n; count = NR
+      }
+      END {
+        for (r = 1; r <= height; r++) {
+          line = ""
+          for (p = 1; p <= count; p++) {
+            text = (r <= h[p]) ? cell[p, r] : ""
+            line = line (p > 1 ? gap : "") sprintf("%-" w[p] "s", text)
+          }
+          print line
+        }
+      }'
+}
+
+# The art for one run of letters and spaces, or nothing.
+word_art() {
+  [[ $1 =~ ^[A-Za-z[:space:]]+$ ]] || return 1
+  local out
+  out="$("$ascii_bin" "$1" 2>/dev/null || true)"
+  # Backstop for anything the check above did not anticipate: art that is all
+  # whitespace is a blank announcement.
+  [[ -n ${out//[[:space:]]/} ]] || return 1
+  printf '%s' "$out"
+}
+
 art=""
-if ((ascii)) && [[ $text =~ ^[A-Za-z[:space:]]+$ ]]; then
-  if ascii_bin="$(ascii_cmd)" && [[ -n $ascii_bin ]]; then
-    art="$("$ascii_bin" "$text" 2>/dev/null || true)"
-    # Backstop for anything the check above did not anticipate: art that is all
-    # whitespace is a blank announcement.
-    [[ -n ${art//[[:space:]]/} ]] || art=""
+if ((ascii)) && ascii_bin="$(ascii_cmd)" && [[ -n $ascii_bin ]]; then
+  if [[ $text == *" + "* ]]; then
+    pieces=() ok=1 rest="$text"
+    plus="$(printf '%s\n' "${PLUS_ART[@]}")"
+    while :; do
+      word="${rest%% + *}"
+      if piece="$(word_art "$word")"; then pieces+=("$piece"); else ok=0; break; fi
+      [[ $rest == *" + "* ]] || break
+      rest="${rest#* + }"
+      pieces+=("$plus")
+    done
+    # A word that cannot be drawn sinks the whole thing to plain text rather
+    # than leaving a hole in the announcement.
+    ((ok)) && art="$(join_art "${pieces[@]}")"
+  else
+    piece="$(word_art "$text" || true)"
+    [[ -n $piece ]] && art="$(join_art "$piece")"
   fi
 fi
 

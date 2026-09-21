@@ -196,8 +196,14 @@ local function overlay_binds()
     })
   end
 
-  -- A bare SHIFT or ALT tap flips the axis its chord modifier flips, which is
-  -- the same thing it means outside the overlay: SHIFT is SCOPE, ALT is MODE.
+  -- A bare modifier tap, on either side of the keyboard. One side is the
+  -- command side: SHIFT flips SCOPE, ALT flips MODE and CTRL flips LIFETIME,
+  -- the same things they flip in the chords outside the overlay (SUPER flips
+  -- nothing yet). The other side is the modifier side: a tap there switches
+  -- that modifier in or out of what the next press holds down, so CTRL then
+  -- the label is a Ctrl click. Which side is which is keyboard_modifier_side,
+  -- and it is decided in imthemousenow-steer, not here -- this file reads no
+  -- config, so every key says only which modifier it is and which side.
   --
   -- The modifier must appear in its OWN bind, as `SHIFT + Shift_L` rather than
   -- a bare `Shift_L`: at the moment Shift_L is released, SHIFT is still held,
@@ -207,21 +213,24 @@ local function overlay_binds()
   -- `bindr = SUPER, SUPER_L` idiom.
   --
   -- `release` makes it a tap rather than a press, and `non_consuming` is what
-  -- keeps SHIFT working as a modifier -- without it `:` would be unreachable.
-  -- Both sides of the keyboard, because neither is the "real" one.
-  for _, key in ipairs({ "Shift_L", "Shift_R" }) do
-    hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow-steer scope"), {
-      release = true,
-      non_consuming = true,
-      description = "Pointer: switch between window and monitor scope",
-    })
-  end
-  for _, key in ipairs({ "Alt_L", "Alt_R" }) do
-    hl.bind("ALT + " .. key, hl.dsp.exec_cmd("imthemousenow-steer mode"), {
-      release = true,
-      non_consuming = true,
-      description = "Pointer: switch between hints and grid",
-    })
+  -- keeps the modifier working as a modifier -- without it `:` would be
+  -- unreachable.
+  local modifier_taps = {
+    { "SHIFT", "Shift", "shift" },
+    { "ALT", "Alt", "alt" },
+    { "CTRL", "Control", "ctrl" },
+    { "SUPER", "Super", "super" },
+  }
+  for _, tap in ipairs(modifier_taps) do
+    local mask, keysym, name = tap[1], tap[2], tap[3]
+    for _, side in ipairs({ { "L", "left" }, { "R", "right" } }) do
+      hl.bind(mask .. " + " .. keysym .. "_" .. side[1],
+        hl.dsp.exec_cmd("imthemousenow-steer modkey " .. name .. " " .. side[2]), {
+        release = true,
+        non_consuming = true,
+        description = "Pointer: " .. side[2] .. " " .. name .. " -- a command, or held for the next press",
+      })
+    end
   end
 
   -- An overlay is measured once, when it opens: the window's geometry, and in

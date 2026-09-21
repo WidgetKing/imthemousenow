@@ -112,7 +112,7 @@ check "no focused window falls back to the screen" left-click window "LEFT" "" "
 # The axes the config owns, which a caller must not have to repeat.
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 check "timings and placement come from the config" left-click monitor \
-  "--ms 500" "--fade-ms 250" "--position top" "--size 120"
+  "--ms 1000" "--fade-ms 250" "--position top" "--size 120"
 
 # The wordmark is the default, so the flag that turns it off is the only one
 # that should ever appear -- and it must appear the moment the config says so.

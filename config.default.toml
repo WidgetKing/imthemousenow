@@ -59,6 +59,22 @@ theme_font = true
 # reject the whole config -- so the setting is simply inert.
 peek_alpha = 0.1
 
+# Which side of the keyboard holds modifiers down for the click. While an
+# overlay is up the modifier keys on one side are commands -- SHIFT flips
+# SCOPE, ALT flips MODE, CTRL flips LIFETIME -- and the ones on the other side
+# are toggles: tap CTRL there and the next click is a Ctrl click, tap it again
+# and it is not. They stack, and the word on screen says what is on
+# ("Ctrl + Alt + right"). They are forgotten once the click is made, and every
+# overlay starts with none.
+#
+# "right" keeps the left hand where it already is for SUPER + ;. "left" swaps
+# the two sides over.
+#
+# Needs the wl-kbptr this plugin's install.sh builds (the fork's "Hold
+# modifiers down around a press" commit); on a stock build the toggles are
+# refused with a notification rather than silently clicking without them.
+keyboard_modifier_side = "right"
+
 # What you get when a flag is not given. These are the base chord, SUPER + ;.
 [imthemousenow.defaults]
 mode = "hints"
@@ -106,11 +122,11 @@ on_start = false
 # Solid first, then a fade. The solid part is when the word gets read; the fade
 # is what says "this is telling you something, not asking you for something",
 # so it can be ignored rather than dismissed. Total time on screen, and how much
-# of that total is the fade out. Half a second all told: long enough to register
-# a word you already know the shape of, short enough that it is gone before you
-# have aimed. This is a reminder of a state you just chose, not a message to be
+# of that total is the fade out. A second all told: long enough to register a
+# word you already know the shape of, and to read the modifiers in front of it,
+# short enough that it is gone before you have aimed. This is a reminder of a state you just chose, not a message to be
 # read.
-ms = 500
+ms = 1000
 fade_ms = 250
 # Font size in px. Large on purpose: it is meant to be read without looking for
 # it, from wherever on screen your eyes already were.
@@ -208,8 +224,8 @@ radius = 22
 # Past this line nothing needs changing to use the plugin. These are tuning
 # constants, escape hatches, and the definitions of the MODEs themselves.
 
-# EXPERIMENTAL, and the one thing down here with a reason to be turned on. An
-# overlay normally takes keyboard focus, and that is what closes a context menu
+# EXPERIMENTAL, and on by default; set it to false to go back to an overlay that
+# takes the keyboard the ordinary way. An overlay normally takes keyboard focus, and that is what closes a context menu
 # or a browser extension popup the moment it appears -- the compositor drops the
 # popup's grab and tells the client it is done. Turn this on and the overlay
 # asks for no keyboard focus at all: the keys come from compositor bindings
@@ -222,7 +238,7 @@ radius = 22
 # install.sh (the fork's "Take keys from a channel" commit); with a stock wl-kbptr
 # this is ignored and the overlay behaves as it always did.
 [imthemousenow.popups]
-keep_open = false
+keep_open = true
 
 # --- per-MODE opacity --------------------------------------------------------
 # A MODE named here overrides [imthemousenow.opacity].default, so `windows` can
@@ -265,6 +281,10 @@ keep_open = false
 label = "left"
 button = "left"
 switchable = true
+# Whether the modifier toggles (keyboard_modifier_side) mean anything here:
+# they are held down around the press, so an ACTION that presses nothing has
+# nothing to hold them around.
+modifiers = true
 double_click = true
 
 # Off, and not because it could not work -- the gesture is the same one and the
@@ -274,6 +294,7 @@ double_click = true
 label = "right"
 button = "right"
 switchable = true
+modifiers = true
 double_click = false
 
 [imthemousenow.action.move]
@@ -281,6 +302,8 @@ label = "move"
 # No click stage: the pointer lands where you aimed and stays there.
 button = ""
 switchable = true
+# Presses nothing, so there is nothing to hold a modifier down around.
+modifiers = false
 
 # Drag is two passes: one to say what to pick up, one to say where to put it.
 # Both of them only move the pointer -- nothing is pressed until both ends are
@@ -298,6 +321,7 @@ label = "drag"
 # be a click rather than a drag.
 button = ""
 switchable = true
+modifiers = true
 requires = "--drag"
 patch = "the fork's \"Walk a path with a button held\" and \"Say a drag path in layout coordinates\" commits"
 # How long the pointer takes to travel from the thing it picked up to where it
@@ -337,6 +361,7 @@ label = "hold"
 # it had been steered anywhere.
 button = ""
 switchable = true
+modifiers = true
 requires = "--hold"
 patch = "the fork's \"Hold a button down and be steered\" commit"
 # Pixels per keypress. The keys repeat while they are held, so `step` is also
@@ -363,6 +388,7 @@ halo_size = 44
 label = "drop"
 button = ""
 # Not switchable: you arrive at a drop by picking something up, and there is
+modifiers = true
 # nothing sensible for a key to mean that would switch you into one.
 switchable = false
 

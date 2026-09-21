@@ -566,6 +566,10 @@ def cmd_check(args):
                 f"leaves nothing of ms ({ms}); the window would be 0"
             )
 
+    side = merged.get("imthemousenow", {}).get("keyboard_modifier_side")
+    if side is not None and side not in ("left", "right"):
+        problems.append(f"[imthemousenow].keyboard_modifier_side = '{side}' is not `left` or `right`")
+
     keys = merged.get("general", {}).get("home_row_keys", "")
     if keys and len(keys) != 11:
         problems.append(f"general.home_row_keys is {len(keys)} characters; wl-kbptr requires exactly 11")
@@ -679,6 +683,8 @@ def settable_enum(path: str, merged: dict):
         return axes.get(path.split(".", 1)[1])
     if path == "osd.position":
         return ["top", "center", "bottom"]
+    if path == "keyboard_modifier_side":
+        return ["left", "right"]
     if path == "action.drag.drop_mode":
         return ["same"] + axes["mode"]
     return None

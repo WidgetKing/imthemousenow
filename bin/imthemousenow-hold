@@ -212,6 +212,10 @@ press_args=()
 compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
 [[ -n $compiled && -f $compiled ]] && press_args+=(-c "$compiled")
 press_args+=(--hold "$anchor_x,$anchor_y")
+# The modifiers the overlay had toggled on, held down with the button and let
+# go with it. Passed as the run loop hands them over, so a hold started any
+# other way is a plain one.
+[[ -n ${MOUSENOW_MODIFIERS:-} ]] && press_args+=(--modifiers "${MOUSENOW_MODIFIERS// /,}")
 
 # Held open here, read-write, for the whole hold. Two things depend on it: the
 # fifo has a writer, so wl-kbptr's open for reading does not block waiting for

@@ -114,7 +114,13 @@ ShellRoot {
       anchors.fill: parent
       anchors.topMargin: root.place === "top" ? root.inset : 0
       anchors.bottomMargin: root.place === "bottom" ? root.inset : 0
-      horizontalAlignment: Text.AlignHCenter
+      // Qt centres each line on its own, and leaves a line's trailing spaces
+      // out of its width when it does, so centred art is sheared row by row.
+      // The art is laid out from the left instead, where every row starts in
+      // the same column, and the block is moved to the middle as one piece by
+      // the Translate below.
+      horizontalAlignment: root.drawingArt ? Text.AlignLeft : Text.AlignHCenter
+      transform: Translate { x: root.drawingArt ? Math.max(0, (label.width - label.contentWidth) / 2) : 0 }
       verticalAlignment: root.place === "top" ? Text.AlignTop
         : root.place === "bottom" ? Text.AlignBottom : Text.AlignVCenter
       // A window can be narrower than the word is wide at 120px. Shrink to fit

@@ -164,11 +164,16 @@ section "If you take hold" \
   "Space / Return / Escape" "let go of the button"
 
 
-# The two axes a modifier flips outside the overlay flip the same way inside
-# it, on a bare tap.
+# The axes a modifier flips outside the overlay flip the same way inside it,
+# on a bare tap -- on the command side. The other side's taps are toggles for
+# the next press, and which side is which is a setting, so the sheet names the
+# sides as they are set rather than as they ship.
+mod_side="$(setting keyboard_modifier_side)"
+[[ $mod_side == left ]] && cmd_side=right || { mod_side=right; cmd_side=left; }
 section "This overlay" \
-  "Shift (tap)" "the other scope: window <-> monitor" \
-  "Alt (tap)" "the other mode: hints <-> grid" \
+  "${cmd_side^} Shift (tap)" "the other scope: window <-> monitor" \
+  "${cmd_side^} Alt (tap)" "the other mode: hints <-> grid" \
+  "${cmd_side^} Ctrl (tap)" "the other lifetime: single <-> continuous" \
   "F5" "measure the screen again and redraw" \
   "F1" "this sheet"
 
@@ -194,6 +199,13 @@ else
     "left / right" "previous or next workspace" \
     "up / down" "previous or next monitor" \
     "1 . . 9" "go to that workspace"
+fi
+
+# Not in a move, which presses nothing for them to be held around.
+if [[ $action != move && $stage != swap ]]; then
+  section "Held for the click" \
+    "${mod_side^} Ctrl / Alt / Shift / Super" "tap to hold it for the click; again to drop it" \
+    "several" "they stack: Ctrl + Alt + right"
 fi
 
 section "Out" \

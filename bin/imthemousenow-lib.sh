@@ -131,22 +131,31 @@ notify() {
   fi
 }
 
-# Announce an ACTION: one large word, solid then fading. Fire and forget --
-# `setsid` and a detached background job, because this must not hold up the
-# overlay by even a frame, and the run loop must not wait on it or inherit it.
-# A missing OSD is not an error: the plugin works without it, so a system with
-# no quickshell loses the announcement and nothing else.
+# Announce an ACTION: one large word, solid then fading.
+#   $3  the modifiers toggled on, as the session keeps them: said in front of
+#       the word ("Ctrl + Alt + right") when the ACTION holds them at all.
 osd_action() {
-  local act="$1" scope="${2:-}"
-  [[ $(setting osd.enabled) == false ]] && return 0
-  command -v "${OSD_CMD%% *}" >/dev/null 2>&1 || [[ -x $OSD_CMD ]] || return 0
-
-  local label color args=()
+  local act="$1" scope="${2:-}" mods="${3:-}" label
   label="$(setting "action.${act}.label")"
   # No label configured: the action's own name is already close enough to a
   # word, and a missing entry must not mean a silent OSD.
   [[ -n $label ]] || label="${act%-click}"
-  color="$(setting "action.${act}.color")"
+  [[ $(setting "action.${act}.modifiers") == true ]] && label="$(modifiers_label "$mods")$label"
+  osd_word "$label" "$scope" "$(setting "action.${act}.color")"
+}
+
+# One large word on screen, solid then fading. Fire and forget -- `setsid` and
+# a detached background job, because this must not hold up the overlay by even
+# a frame, and the run loop must not wait on it or inherit it. A missing OSD is
+# not an error: the plugin works without it, so a system with no quickshell
+# loses the announcement and nothing else.
+#   $1  the word
+#   $2  the SCOPE, which decides where it is drawn
+#   $3  its colour, or empty for the OSD's own
+osd_word() {
+  local label="$1" scope="${2:-}" color="${3:-}" args=()
+  [[ $(setting osd.enabled) == false ]] && return 0
+  command -v "${OSD_CMD%% *}" >/dev/null 2>&1 || [[ -x $OSD_CMD ]] || return 0
 
   [[ -n $color ]] && args+=(--color "$color")
   # Only the negative is passed: the art is the default, and the OSD falls back
@@ -188,6 +197,48 @@ osd_action() {
 
   setsid "$OSD_CMD" "${label^^}" "${args[@]}" >/dev/null 2>&1 &
   disown 2>/dev/null || true
+}
+
+# --- modifiers -----------------------------------------------------------------
+# The modifiers toggled on for the next press, as the session keeps them: a
+# space-separated list, always in this order whatever order they were tapped
+# in, so the word on screen and the flag passed are the same every time.
+MODIFIER_ORDER=(ctrl alt shift super)
+
+has_modifiers() { binary_knows --modifiers; }
+# A build that reads them from a file at the press, so a toggle while the
+# overlay is up needs no relaunch (and so no flicker).
+has_modifiers_file() { binary_knows --modifiers-file; }
+
+# $1 with $2 switched: added if it was off, removed if it was on. Prints the
+# result in MODIFIER_ORDER, empty when nothing is left on.
+modifiers_toggle() {
+  local list=" $1 " name out=()
+  if [[ $list == *" $2 "* ]]; then list="${list/ $2 / }"; else list="$list $2 "; fi
+  for name in "${MODIFIER_ORDER[@]}"; do
+    [[ $list == *" $name "* ]] && out+=("$name")
+  done
+  echo "${out[*]}"
+}
+
+# What goes in front of the ACTION's word: "Ctrl + Alt + ", or nothing.
+modifiers_label() {
+  local name out=""
+  for name in $1; do
+    case "$name" in
+      ctrl) out+="Ctrl + " ;;
+      alt) out+="Alt + " ;;
+      shift) out+="Shift + " ;;
+      super) out+="Super + " ;;
+    esac
+  done
+  echo "$out"
+}
+
+# wl-kbptr's spelling of the same list: --modifiers ctrl,alt.
+modifiers_arg() {
+  local list="$1"
+  echo "${list// /,}"
 }
 
 die() {
