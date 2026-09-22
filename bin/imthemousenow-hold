@@ -224,7 +224,7 @@ hyprctl dispatch "hl.dsp.submap(\"$SUBMAP_HOLD\")" >/dev/null 2>&1 || true
 # mode_click.button. A hold with the middle button is then a config change
 # rather than an option nothing else would ever pass.
 press_args=()
-compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
+compiled="$MOUSENOW_COMPILED"
 [[ -n $compiled && -f $compiled ]] && press_args+=(-c "$compiled")
 press_args+=(--hold "$anchor_x,$anchor_y")
 # The modifiers the overlay had toggled on, held down with the button and let

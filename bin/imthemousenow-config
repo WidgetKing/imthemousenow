@@ -17,7 +17,8 @@ Subcommands:
   set <key> <value>   write one setting to the user's config.toml
   toggle <key>        flip one true/false setting
   opacity <mode>      that MODE's opacity as section.key=value override lines
-  env                 every setting and mode as MOUSENOW_CFG_* shell assignments
+  env                 every setting and mode as MOUSENOW_CFG_* shell assignments,
+                      plus MOUSENOW_COMPILED and MOUSENOW_OPACITY_<MODE>
   check               parse every layer and report problems
   path                where each layer lives
 """
@@ -627,6 +628,25 @@ def cmd_env(args):
 
     for path, value in sorted(flat.items()):
         print(f"{env_name(path)}={shlex.quote(value)}")
+
+    # What the launcher used to ask for in two more processes of its own --
+    # `compile` once, `opacity` on every pass -- when this one has already
+    # merged the layers they are both made from. Outside MOUSENOW_CFG_, so the
+    # bar's parser, which reads that prefix, never sees them. A failure in
+    # either is what it was as its own subcommand: no config file, or no
+    # opacity lines, rather than no settings at all.
+    try:
+        compiled = str(compile_config())
+    except SystemExit:
+        compiled = ""
+    print(f"MOUSENOW_COMPILED={shlex.quote(compiled)}")
+    for name in merged.get("mode", {}):
+        try:
+            lines = opacity_overrides(merged, name)
+        except SystemExit:
+            lines = []
+        var = "MOUSENOW_OPACITY_" + name.replace("-", "_").upper()
+        print(f"{var}={shlex.quote(' '.join(lines))}")
 
 
 # --- writing a setting -------------------------------------------------------

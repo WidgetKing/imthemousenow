@@ -252,9 +252,50 @@ die() {
 # Assigned first, then evalled: `eval "$(...)"` succeeds even when the command
 # substitution failed, which turns a broken config into empty settings and a
 # baffling error several lines later.
-_cfg_env="$("$CONFIG_CMD" env)" || die "the config did not load; try: imthemousenow-config check"
-eval "$_cfg_env"
-unset _cfg_env
+#
+# And kept, in the runtime directory, until one of the layers it was made from
+# changes: every script sources this, imthemousenow-steer on every overlay key,
+# and a Python start is most of what one of those costs. The first line is a
+# key -- which HOME and plugin, and which layers were there -- because tests
+# run with a HOME of their own against the same runtime directory, and a layer
+# that is deleted has no mtime left to be newer than the cache.
+_cfg_cache="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/env.sh"
+_cfg_layers=(
+  "$PLUGIN_DIR/config.default.toml"
+  "$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
+  "$HOME/.config/omarchy/imthemousenow/config.toml"
+  "$PLUGIN_DIR/bin/imthemousenow-config"
+)
+_cfg_key="# $HOME|$PLUGIN_DIR|"
+for _cfg_layer in "${_cfg_layers[@]}"; do
+  [[ -e $_cfg_layer ]] && _cfg_key+=1 || _cfg_key+=0
+done
+_cfg_fresh() {
+  local first layer
+  [[ -f $_cfg_cache ]] || return 1
+  IFS= read -r first <"$_cfg_cache" || return 1
+  [[ $first == "$_cfg_key" ]] || return 1
+  for layer in "${_cfg_layers[@]}"; do
+    [[ $layer -nt $_cfg_cache ]] && return 1
+  done
+  return 0
+}
+if _cfg_fresh; then
+  source "$_cfg_cache"
+  # The compiled file lives beside the cache but can be cleaned up without it.
+  [[ -z $MOUSENOW_COMPILED || -f $MOUSENOW_COMPILED ]] ||
+    MOUSENOW_COMPILED="$("$CONFIG_CMD" compile 2>/dev/null || true)"
+else
+  _cfg_env="$("$CONFIG_CMD" env)" || die "the config did not load; try: imthemousenow-config check"
+  eval "$_cfg_env"
+  if mkdir -p "${_cfg_cache%/*}" 2>/dev/null; then
+    printf '%s\n%s\n' "$_cfg_key" "$_cfg_env" >"$_cfg_cache.$$" 2>/dev/null &&
+      mv -f "$_cfg_cache.$$" "$_cfg_cache" 2>/dev/null || rm -f "$_cfg_cache.$$"
+  fi
+  unset _cfg_env
+fi
+unset _cfg_layer _cfg_layers _cfg_key
+unset -f _cfg_fresh
 
 # One setting, by its dotted name: `continuous.guard_ms`, `mode.hints.chain`,
 # `action.right-click.color`. Unset reads as empty -- the shipped
@@ -304,12 +345,18 @@ has_double_click() { binary_knows double_click_ms; }
 #
 # Asked once per run and remembered: gsettings is a process, and build_args
 # runs again for every ACTION a switch moves through.
+#
+# Remembered in the calling shell only if it is resolved there: a `$(...)`
+# around it is a subshell, and the answer dies with it. So double_click_resolve
+# sets the cache without printing, and the callers that can call it directly
+# do, before anything reads it through a substitution.
 double_click_cache=""
 double_click_window() {
-  if [[ -n $double_click_cache ]]; then
-    echo "$double_click_cache"
-    return
-  fi
+  double_click_resolve
+  echo "$double_click_cache"
+}
+double_click_resolve() {
+  [[ -n $double_click_cache ]] && return 0
 
   local want system guard
   want="$(setting double_click.ms)"
@@ -326,7 +373,6 @@ double_click_window() {
   fi
 
   double_click_cache="$want"
-  echo "$want"
 }
 
 # Whether a double click is on the table for this ACTION right now: it has a
@@ -336,7 +382,8 @@ double_click_window() {
 double_click_armed() {
   [[ -n $(setting "action.$1.button") ]] || return 1
   [[ $(setting "action.$1.double_click") == true ]] || return 1
-  (($(double_click_window) > 0)) || return 1
+  double_click_resolve
+  ((double_click_cache > 0)) || return 1
   has_double_click
 }
 

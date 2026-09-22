@@ -124,7 +124,7 @@ SUBMAP_KEYS=(
 
 ensure_submap_binds() {
   local present present_keys body="" entry bind key mask cmd description
-  # Twice, because the two lists below ask different questions of it. The
+  # Two lists out of it, because the two loops below ask different questions. The
   # chords need `modmask:key` pairs: `'` and `"` are one key with two binds on
   # it, and a list of names alone cannot tell them apart -- the chord would
   # look present whenever the bare key was, and a dropped one would never come
@@ -138,10 +138,11 @@ ensure_submap_binds() {
   # a doubly-bound label key relays each press twice, so one keypress eats both
   # characters of a two-letter label and the NEXT key falls through to the
   # window underneath.
-  present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
-    '[.[] | select(.submap == $s) | "\(.modmask):\(.key)"] | join(" ")' 2>/dev/null || true)"
-  present_keys="$(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
-    '[.[] | select(.submap == $s) | .key] | join(" ")' 2>/dev/null || true)"
+  {
+    IFS= read -r present
+    IFS= read -r present_keys
+  } < <(hyprctl -j binds | jq -r --arg s "$SUBMAP" \
+    '[.[] | select(.submap == $s)] | ([.[] | "\(.modmask):\(.key)"] | join(" ")), ([.[] | .key] | join(" "))' 2>/dev/null || true)
   # The relay binds are the whole keyboard in popup-safe mode, so a dropped
   # one is a label that cannot be typed. They are re-asserted by name through
   # the function hypr/imthemousenow.lua exposes, rather than rebuilt here.
@@ -409,7 +410,8 @@ EOF
   # Geometry is settled once; ACTION is not, because `;` can switch it while
   # the overlay is up, so the flags are rebuilt for every launch.
   local compiled font=""
-  compiled="$("$CONFIG_CMD" compile 2>/dev/null || true)"
+  # Written by the same `imthemousenow-config env` the settings came from.
+  compiled="$MOUSENOW_COMPILED"
   if [[ $(setting theme_font) == true ]]; then
     command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
   fi
@@ -489,7 +491,7 @@ EOF
       # wl-kbptr draws nothing while the window is open. Where the click went
       # is marked by bin/imthemousenow-pool, started with the run, not here.
       if double_click_armed "$act"; then
-        opts="$opts mode_click.double_click_ms=$(double_click_window)"
+        opts="$opts mode_click.double_click_ms=$double_click_cache"
       fi
     fi
 
@@ -551,9 +553,13 @@ EOF
     # and arrives here as override lines. Before config.local, because a colour
     # written out by hand is a decision and should not be scaled by a number
     # meant for the ones it replaced.
-    while IFS= read -r line; do
-      [[ -n $line ]] && args+=(-o "$line")
-    done < <("$CONFIG_CMD" opacity "$mode" 2>/dev/null || true)
+    # Worked out with the rest of the settings, one space-separated list per
+    # MODE, rather than by a process of its own on every pass.
+    local opacity_var="MOUSENOW_OPACITY_${mode//-/_}"
+    opacity_var="${opacity_var^^}"
+    for line in ${!opacity_var-}; do
+      args+=(-o "$line")
+    done
 
     # User overrides last: one `section.key=value` per line.
     if [[ -f $USER_DIR/config.local ]]; then
