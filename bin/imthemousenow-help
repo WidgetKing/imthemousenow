@@ -161,7 +161,8 @@ fi
 section "If you take hold" \
   "arrows / wasd / hjkl" "move the pointer with the button down" \
   "Shift + those" "move in big steps" \
-  "Space / Return / Escape" "let go of the button"
+  "Space / Return / Escape" "let go of the button" \
+  "a real mouse click" "let go too, and the click goes through"
 
 
 # The axes a modifier flips outside the overlay flip the same way inside it,

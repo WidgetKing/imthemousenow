@@ -68,4 +68,15 @@ done
 export MOUSENOW_HALO_COLOR="$color" \
   MOUSENOW_HALO_SIZE="$size" \
   MOUSENOW_HALO_POS="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/hold-pos"
+# The pointer wears the click mark instead of the rings when there is one to
+# wear. Only quickshell is asked about: a hold reports no clicks, so it has no
+# use for the build's click report.
+if [[ $(setting pool.enabled) != false ]]; then
+  export MOUSENOW_HALO_POOL=1 \
+    MOUSENOW_POOL_RADIUS="$(setting pool.radius)" \
+    MOUSENOW_POOL_CELL="$(setting pool.cell)" \
+    MOUSENOW_POOL_COLORS="$(pool_colors)" \
+    MOUSENOW_POOL_SHADE="$(setting pool.shade)" \
+    MOUSENOW_POOL_STYLE="$(setting pool.style)"
+fi
 exec quickshell --no-color -p "$QML"

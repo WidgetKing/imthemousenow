@@ -47,13 +47,22 @@ does not, and this adds no delay to anything.
 
 What is on screen while the second press is possible is not the overlay: it
 would hide the thing you just clicked, which is the thing you are deciding
-about. The overlay goes and a **ring** is drawn round the selection instead,
-in the ACTION's own colour, for exactly as long as a second press would land.
-It is the same three fading rings the pointer wears during a
-[hold](04-dragging.md), and for the same reason — the desktop looks normal
-while the keyboard does not mean what it usually does.
+about. The overlay goes and the spot you clicked is marked instead, for
+exactly as long as a second press would land: a patch of **LCD pooling**, the
+chunky rainbow bruise a thumb leaves pressing into a screen, in the theme's
+own colours. The point itself is left clear, so what you clicked can still be
+read; it is everything around it that goes wrong. Every click leaves one, a
+right click as well, so it is also simply how you see where a click went. The
+pointer wears the same thing during a [hold](04-dragging.md), and for the same
+reason — the desktop looks normal while the keyboard does not mean what it
+usually does. `[imthemousenow.pool]` sets its size and chunkiness and its
+`style`: `pool` (the ring), `patchy` (the ring with big chunks dead), `lines`
+(colour bleeding down the screen in columns), `cross` (a dead row and column
+through the point), or `random` for a different one every click. Each keeps
+the point itself clear and centred. `enabled = false` turns it off, and a
+click then leaves no mark.
 
-**The catch.** While that ring is up the overlay still has the keyboard, so a
+**The catch.** While that mark is up the overlay still has the keyboard, so a
 key typed in that instant is eaten rather than reaching what you clicked. Any
 key that is not the committing one closes the window immediately, so it is one
 keystroke at worst — but if you click into a text field and start typing in the

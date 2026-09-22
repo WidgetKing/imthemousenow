@@ -189,10 +189,8 @@ size = 15
 #
 # The overlay is not what you see while the window is open: it would hide the
 # thing you just clicked, which is the thing you are deciding about. It goes,
-# and a ring is drawn around the selection for as long as a second press would
-# land -- the same three fading rings imthemousenow-halo draws around the
-# pointer during a hold, and for the same reason: the desktop looks normal
-# while the keyboard does not mean what it usually does.
+# and the spot is marked instead for as long as a second press would land --
+# see [imthemousenow.pool] below.
 #
 # Needs the wl-kbptr this plugin's install.sh builds
 # (the fork's "Click twice when the committing key is pressed again" commit). On a stock build this is not passed through
@@ -215,8 +213,35 @@ ms = "system"
 # Taken off the system's double-click time to get the window above, in ms. Not
 # a preference: it is the room the second click needs to get out and be seen.
 guard_ms = 60
-# The ring's outer radius in px. The two inner rings are drawn inside it.
-radius = 22
+
+# The mark a click leaves where it landed: a patch of chunky LCD pooling, the
+# rainbow bruise a thumb makes pressing into a screen, around a middle left
+# clear so the thing clicked can still be read. It lasts as long as a second
+# press would still count as a double click. A hold wears the same thing on the
+# pointer for as long as the button is down.
+#
+# The colours are the theme's, rendered by the theme template; `colors` (a
+# space-separated list, drawn outward from the middle) and `shade` (the dark of
+# the bruise) set here win over it.
+#
+# Needs the wl-kbptr this plugin's install.sh builds (the fork's "Say where each
+# click went" commit) and quickshell. Without either, or with enabled = false,
+# a click leaves no mark at all, and a hold's pointer wears the plain pulsing
+# halo instead.
+[imthemousenow.pool]
+enabled = true
+# Outer radius at full strength, in px.
+radius = 56
+# The size of one of its pixels, in px. Bigger is chunkier.
+cell = 6
+# How it goes wrong. Every one leaves the pressed point clear and is centred
+# on it; they differ in how loudly, and in what shape:
+#   pool    a lobed ring of colour bands round the point
+#   patchy  the same ring with big square chunks of it dead
+#   lines   colour bleeding down the panel in columns from the point
+#   cross   a dead row and column through the point, breaking up far out
+#   random  a different one every click, never the same twice running
+style = "random"
 
 # =============================================================================
 # ADVANCED

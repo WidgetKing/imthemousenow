@@ -42,6 +42,20 @@ ShellRoot {
   readonly property color ringColor: env("MOUSENOW_HALO_COLOR", "#89b4fa")
   readonly property int ringSize: parseInt(env("MOUSENOW_HALO_SIZE", "44"))
   readonly property string posPath: env("MOUSENOW_HALO_POS", "")
+  // LCD pooling instead of the rings: the same mark a click leaves (see
+  // qml/PoolSpot.qml), worn by the pointer for as long as the button is down,
+  // so a hold and a click say "pressed here" the same way. Off when the pool is
+  // turned off, and the rings below are drawn as they always were.
+  readonly property bool pool: env("MOUSENOW_HALO_POOL", "") === "1"
+  // Chosen once per hold: a hold is one press, and a mark that changed shape
+  // partway through it would read as a second one.
+  readonly property string poolStyle: {
+    const style = env("MOUSENOW_POOL_STYLE", "pool");
+    if (style !== "random") return style;
+    const styles = ["pool", "patchy", "lines", "cross"];
+    return styles[Math.floor(Math.random() * styles.length)];
+  }
+  readonly property var poolColours: env("MOUSENOW_POOL_COLORS", "").split(/\s+/).filter(c => c !== "")
 
   // Layout coordinates -- the space the monitors are laid out in, which is what
   // the file is written in and the only space that can name a point on any
@@ -50,14 +64,93 @@ ShellRoot {
   property real pointerY: 0
   property bool located: false
 
+  // Whether the compositor has told us where the pointer really is. Once it
+  // has, the file is no longer read for position: see `cursor` below.
+  property bool tracking: false
+
   function readPosition() {
     const text = positionFile.text();
     if (text === undefined || text === null) return;
     const match = /(-?\d+)\s+(-?\d+)/.exec(text);
     if (!match) return;
+    root.filedX = parseInt(match[1]);
+    root.filedY = parseInt(match[2]);
+    if (root.tracking) return;
     root.pointerX = parseInt(match[1]);
     root.pointerY = parseInt(match[2]);
     root.located = true;
+  }
+
+  // What the file last said, kept apart from where the halo is drawn so the
+  // two can be compared.
+  property int filedX: 0
+  property int filedY: 0
+
+  // Where the pointer really is, asked of Hyprland every 30 ms.
+  //
+  // The file only knows about the moves the hold's keys make. Someone with a
+  // real mouse can take hold of something by keyboard and then carry it with
+  // the mouse -- the button stays down, the drag goes on -- and a halo read
+  // from the file would sit where the keys last left it while the thing being
+  // dragged went elsewhere. So the compositor is asked instead: its own
+  // socket, the request `hyprctl cursorpos` makes, answered in a line with no
+  // process started, which is what makes asking this often affordable. The
+  // socket closes after every answer, so each ask is a new connection.
+  //
+  // With no Hyprland socket to ask, `tracking` never comes on and the halo
+  // follows the file as it always did.
+  readonly property string hyprSocket: {
+    const sig = Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE");
+    const run = Quickshell.env("XDG_RUNTIME_DIR");
+    return sig && run ? run + "/hypr/" + sig + "/.socket.sock" : "";
+  }
+
+  Socket {
+    id: cursor
+    path: root.hyprSocket
+    // The answer has no newline on the end; an empty marker takes whatever
+    // arrives as it arrives.
+    parser: SplitParser {
+      splitMarker: ""
+      onRead: data => root.cursorRead(data)
+    }
+    onConnectedChanged: {
+      if (connected) { write("cursorpos"); flush(); }
+    }
+  }
+
+  Timer {
+    running: root.hyprSocket !== ""
+    interval: 30
+    repeat: true
+    onTriggered: if (!cursor.connected) cursor.connected = true
+  }
+
+  // How long the pointer has sat still, in polls.
+  property int stillFor: 0
+
+  function cursorRead(data) {
+    const match = /(-?\d+),\s*(-?\d+)/.exec(data);
+    if (!match) return;
+    const x = parseInt(match[1]), y = parseInt(match[2]);
+    const moved = !root.tracking || x !== root.pointerX || y !== root.pointerY;
+    root.pointerX = x;
+    root.pointerY = y;
+    root.tracking = true;
+    root.located = true;
+    root.stillFor = moved ? 0 : root.stillFor + 1;
+
+    // The mouse took the pointer somewhere the keys did not, and has let it
+    // rest there. Tell the hold, or the next key steps from where the file
+    // says the pointer is -- and wl-kbptr, which is told where to go rather
+    // than how far, snaps it back there. Only once it has rested ~150 ms: a
+    // key's own move is walked in steps, and a pointer caught partway through
+    // one must not be written back over the place it is on its way to.
+    if (root.stillFor === 5 && (x !== root.filedX || y !== root.filedY)) {
+      root.filedX = x;
+      root.filedY = y;
+      positionFile.setText(x + " " + y + "\n");
+    }
   }
 
   FileView {
@@ -106,6 +199,26 @@ ShellRoot {
       // during a hold there is a button down going through it.
       mask: Region {}
 
+      PoolSpot {
+        visible: root.pool && halo.visible
+        centerX: root.pointerX - panel.screen.x
+        centerY: root.pointerY - panel.screen.y
+        radius: parseFloat(root.env("MOUSENOW_POOL_RADIUS", "56"))
+        cell: parseInt(root.env("MOUSENOW_POOL_CELL", "6"))
+        colours: root.poolColours
+        style: root.poolStyle
+        seed: Math.random() * 1000
+        shade: root.env("MOUSENOW_POOL_SHADE", "#000000")
+        // A press that stays pressed: never let go, but never quite still,
+        // so it reads as a state rather than a stain left on the screen.
+        SequentialAnimation on intensity {
+          running: root.pool
+          loops: Animation.Infinite
+          NumberAnimation { from: 0.8; to: 1.0; duration: 700; easing.type: Easing.InOutSine }
+          NumberAnimation { from: 1.0; to: 0.8; duration: 700; easing.type: Easing.InOutSine }
+        }
+      }
+
       Item {
         id: halo
         width: root.ringSize * 2
@@ -124,7 +237,7 @@ ShellRoot {
         // Qt5Compat.GraphicalEffects, which is a module this cannot assume is
         // installed, and three circles of falling alpha read as a glow anyway.
         Repeater {
-          model: [
+          model: root.pool ? [] : [
             { scale: 1.00, alpha: 0.22, thickness: 2 },
             { scale: 0.70, alpha: 0.45, thickness: 3 },
             { scale: 0.42, alpha: 0.95, thickness: 3 },

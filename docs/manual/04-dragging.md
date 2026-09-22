@@ -74,6 +74,7 @@ steer the pointer by hand:
 | `←` `→` `↑` `↓`, `wasd`, `hjkl` | move the pointer, button still down |
 | `Shift` + any of those | move in big steps |
 | `Space`, `Return`, `Escape` | let go of the button |
+| a click of a real mouse button | let go too; the click still reaches what it was aimed at |
 
 Three sets of direction keys because there is no one right set, and no key has
 another meaning to lose: a hold reads the whole keyboard and nothing else is
@@ -83,9 +84,11 @@ by default, and five of those with Shift. One number sets both:
 
 **There is no overlay during a hold.** That is the point of it: you are watching
 the thing you are moving, not a grid of labels drawn over it. So the only sign
-that a button is down is the pointer itself, which wears a pulsing halo for as
-long as the hold lasts — `action.hold.halo_size` is how big, and its colour is
-the hold ACTION's own.
+that a button is down is the pointer itself, which wears a patch of LCD pooling
+for as long as the hold lasts — the same mark a click leaves, following the
+pointer wherever it is steered. With `[imthemousenow.pool] enabled = false` it
+is a pulsing halo instead: `action.hold.halo_size` is how big, and its colour
+is the hold ACTION's own.
 
 Every key is a compositor binding while a hold is on, and the ones that are not
 listed above are swallowed rather than passed through: a mistyped key must not
@@ -95,7 +98,7 @@ it ends, including under a signal, so nothing can leave the desktop with a
 button down.
 
 A hold can cross a monitor boundary: the pointer is steered in layout
-coordinates, and the halo follows it onto the next screen.
+coordinates, and the mark follows it onto the next screen.
 
 Hold needs the `wl-kbptr` this plugin builds
 (the fork's "Hold a button down and be steered" commit); with a stock one the chord says so rather

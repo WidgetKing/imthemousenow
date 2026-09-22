@@ -127,33 +127,19 @@ case "$(dry_run --mode grid)" in
   *"mode_click.double_click_ms=340"*) ok "and so does grid -- one gesture, both modes" ;;
   *) no "and so does grid -- one gesture, both modes" ;;
 esac
-case "$(dry_run --mode hints)" in
-  *"mode_click.double_click_radius="*) ok "the ring gets a radius" ;;
-  *) no "the ring gets a radius" ;;
-esac
 
-# The ring is the ACTION's own colour, so what is left on screen once the
-# overlay goes is the colour the overlay was. An 8-digit value, because
-# wl-kbptr wants the alpha on it.
-#
-# This HOME has no theme rendered into it, so there is no colour to derive one
-# from until it is pinned -- which is also the case worth checking, because a
-# colour set by hand is exactly what [imthemousenow.action.*].color is for.
+# Nothing about how the window looks is wl-kbptr's any more: it draws nothing,
+# and bin/imthemousenow-pool marks the click. The ring options it used to take
+# are gone from the fork, and one passed now would be an unknown option -- which
+# takes the whole config down, not just the ring.
 mkdir -p "$HOME/.config/omarchy/imthemousenow"
 printf '[imthemousenow.action.left-click]\ncolor = "#ff8800"\n' \
   >"$HOME/.config/omarchy/imthemousenow/config.toml"
 case "$(dry_run --mode hints)" in
-  *"mode_click.double_click_color=#ff8800ee"*) ok "and the ACTION's colour, with an alpha on it" ;;
-  *) no "and the ACTION's colour, with an alpha on it (got: $(dry_run --mode hints))" ;;
+  *double_click_color* | *double_click_radius*) no "no ring option is passed, even with a colour to give it" ;;
+  *) ok "no ring option is passed, even with a colour to give it" ;;
 esac
-
-# No colour anywhere is not a reason to pass an empty one: wl-kbptr has its own
-# default and an option with nothing after it would be rejected outright.
 rm -f "$HOME/.config/omarchy/imthemousenow/config.toml"
-case "$(dry_run --mode hints)" in
-  *double_click_color*) no "and no colour at all means the option is left off" ;;
-  *) ok "and no colour at all means the option is left off" ;;
-esac
 
 # --- 4. the actions that must NOT be armed -----------------------------------
 # An action with no `button` never reaches mode_click at all; one with a button

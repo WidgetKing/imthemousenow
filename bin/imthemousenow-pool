@@ -1,0 +1,65 @@
+#!/bin/bash
+# omarchy:summary=Leave a patch of LCD pooling wherever the overlay clicks
+# omarchy:args=--report PATH [--ms N]
+#
+# Every click an overlay makes leaves a mark where it landed, for as long as a
+# second press would still make it a double click. See qml/pool.qml for why it
+# is drawn here rather than by wl-kbptr, and qml/PoolSpot.qml for what it looks
+# like and why.
+#
+# Started by bin/imthemousenow alongside the overlay, not at the click: it has
+# to be on screen already when the click comes, and quickshell takes longer to
+# start than the whole effect lasts. It then sits there drawing nothing until
+# wl-kbptr writes to the report file. Quickshell owns argv, so parameters reach
+# the QML as environment variables.
+set -euo pipefail
+
+LIB_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}/bin"
+[[ -f $LIB_DIR/imthemousenow-lib.sh ]] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=imthemousenow-lib.sh
+source "$LIB_DIR/imthemousenow-lib.sh"
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+QML="$SELF_DIR/../qml/pool.qml"
+[[ -f $QML ]] || QML="$PLUGIN_DIR/qml/pool.qml"
+
+usage() {
+  cat <<'USAGE'
+Usage: imthemousenow-pool --report PATH [options]
+
+  --report PATH  the file wl-kbptr writes each click to (WL_KBPTR_CLICK_REPORT)
+  --ms N         how long each mark lasts (default: the double-click window)
+  --self-test    check this can run at all, then exit
+
+Runs until it is killed. bin/imthemousenow owns it.
+USAGE
+}
+
+report="" ms=""
+
+while (($#)); do
+  case "$1" in
+    -h | --help) usage; exit 0 ;;
+    --self-test)
+      command -v quickshell >/dev/null 2>&1 || { echo "imthemousenow-pool: quickshell is not installed" >&2; exit 1; }
+      [[ -f $QML ]] || { echo "imthemousenow-pool: missing $QML" >&2; exit 1; }
+      echo "imthemousenow-pool: ready"
+      exit 0
+      ;;
+    --report) report="${2:?--report needs a value}"; shift 2 ;;
+    --ms) ms="${2:?--ms needs a value}"; shift 2 ;;
+    *) echo "imthemousenow-pool: unknown option $1" >&2; exit 2 ;;
+  esac
+done
+[[ -n $report ]] || { usage >&2; exit 2; }
+
+[[ -n $ms ]] || ms="$(pool_ms)"
+
+export MOUSENOW_POOL_REPORT="$report" \
+  MOUSENOW_POOL_MS="$ms" \
+  MOUSENOW_POOL_RADIUS="$(setting pool.radius)" \
+  MOUSENOW_POOL_CELL="$(setting pool.cell)" \
+  MOUSENOW_POOL_COLORS="$(pool_colors)" \
+  MOUSENOW_POOL_SHADE="$(setting pool.shade)" \
+  MOUSENOW_POOL_STYLE="$(setting pool.style)"
+exec quickshell --no-color -p "$QML"

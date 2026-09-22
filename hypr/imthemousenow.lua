@@ -368,23 +368,59 @@ hl.define_submap(SUBMAP_HOLD, function()
   }
   local words = { l = "left", r = "right", u = "up", d = "down" }
 
-  for direction, keys in pairs(directions) do
-    for _, key in ipairs(keys) do
-      hl.bind(key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction), {
-        repeating = true,
-        description = "Pointer: drag " .. words[direction] .. " while the button is held",
-      })
-      hl.bind("SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction .. " big"), {
-        repeating = true,
-        description = "Pointer: drag " .. words[direction] .. " in big steps",
-      })
+  -- Every key under every set of held modifiers, not just bare. A hold can be
+  -- pressing modifiers itself -- the ones toggled on in the overlay, held down
+  -- with the button for the whole hold -- and the compositor sees what the
+  -- virtual keyboard holds as held: with Super toggled on, `h` arrives as
+  -- SUPER + h, matches nothing here, and the hold cannot be steered or let go.
+  -- This file reads no config, so it cannot know which were toggled; it binds
+  -- all sixteen sets instead. SHIFT still means the big step, which makes every
+  -- step big in a hold that is holding Shift -- the one set where the two
+  -- meanings cannot be told apart.
+  local held = { "" }
+  for _, mod in ipairs({ "CTRL", "ALT", "SUPER" }) do
+    for i = 1, #held do
+      held[#held + 1] = held[i] .. mod .. " + "
     end
   end
 
-  for _, key in ipairs({ "space", "Return", "Escape" }) do
-    hl.bind(key, hl.dsp.exec_cmd("imthemousenow-hold release"), {
-      description = "Pointer: let go of the button and end the hold",
-    })
+  for _, prefix in ipairs(held) do
+    for direction, keys in pairs(directions) do
+      for _, key in ipairs(keys) do
+        hl.bind(prefix .. key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction), {
+          repeating = true,
+          description = "Pointer: drag " .. words[direction] .. " while the button is held",
+        })
+        hl.bind(prefix .. "SHIFT + " .. key, hl.dsp.exec_cmd("imthemousenow-hold move " .. direction .. " big"), {
+          repeating = true,
+          description = "Pointer: drag " .. words[direction] .. " in big steps",
+        })
+      end
+    end
+
+    for _, key in ipairs({ "space", "Return", "Escape" }) do
+      for _, shift in ipairs({ "", "SHIFT + " }) do
+        hl.bind(prefix .. shift .. key, hl.dsp.exec_cmd("imthemousenow-hold release"), {
+          description = "Pointer: let go of the button and end the hold",
+        })
+      end
+    end
+
+    -- A real mouse button lets go too: a hand that has gone to the mouse has
+    -- stopped steering by keyboard. Left, right, middle. The hold's own
+    -- virtual press arrives here as well, just after the submap is entered,
+    -- and `release mouse` is what knows to ignore that one. Non-consuming,
+    -- because a bind on a button swallows it otherwise -- and the one it would
+    -- swallow first is that virtual press, leaving a hold with nothing held.
+    -- It also means the real click reaches what it was aimed at.
+    for _, button in ipairs({ "mouse:272", "mouse:273", "mouse:274" }) do
+      for _, shift in ipairs({ "", "SHIFT + " }) do
+        hl.bind(prefix .. shift .. button, hl.dsp.exec_cmd("imthemousenow-hold release mouse"), {
+          description = "Pointer: a mouse click ends the hold",
+          non_consuming = true,
+        })
+      end
+    end
   end
 
   -- Everything else, swallowed. A hold takes no keyboard focus -- there is no

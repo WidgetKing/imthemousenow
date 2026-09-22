@@ -89,3 +89,11 @@ button=left
 # left alone, and only the missing ones are derived.
 [imthemousenow.action.left-click]
 color=#{{ accent_strip }}
+
+# Not wl-kbptr's either: the colours of the mark a click leaves (qml/PoolSpot.qml).
+# Pooled crystal flips into the spectrum, so these are the theme's own six,
+# in the order they are drawn outward from the middle, with the theme's
+# background as the bruise. Space-separated, which is why it is one line.
+[imthemousenow.pool]
+colors=#{{ red_strip }} #{{ yellow_strip }} #{{ green_strip }} #{{ cyan_strip }} #{{ blue_strip }} #{{ magenta_strip }}
+shade=#{{ background_strip }}

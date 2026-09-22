@@ -31,6 +31,8 @@ STEER_CMD="$LIB_DIR/imthemousenow-steer"
 [[ -x $STEER_CMD ]] || STEER_CMD="imthemousenow-steer"
 HELP_CMD="$LIB_DIR/imthemousenow-help"
 [[ -x $HELP_CMD ]] || HELP_CMD="imthemousenow-help"
+POOL_CMD="$LIB_DIR/imthemousenow-pool"
+[[ -x $POOL_CMD ]] || POOL_CMD="imthemousenow-pool"
 HOLD_CMD="$LIB_DIR/imthemousenow-hold"
 [[ -x $HOLD_CMD ]] || HOLD_CMD="imthemousenow-hold"
 SUBMAP="imthemousenow"
@@ -239,11 +241,12 @@ Double click: press again the key that just selected. Which key that is falls
 out of the MODE -- a grid commits on Space or Return, so a second Space is the
 double click; a hint commits on the last letter of its label, so the hint bd
 is double clicked by typing b, d, d. The overlay goes the moment you commit,
-and a ring is left round the selection for as long as a second press lands.
+and the spot you clicked flickers with LCD pooling for as long as a second
+press lands. Every click leaves that mark, right clicks included.
 
 The first click goes out at once either way, so this costs a single click
 nothing. What it does cost is that the overlay still holds the keyboard while
-the ring is up, so a key typed in that instant is eaten instead of reaching
+the mark is up, so a key typed in that instant is eaten instead of reaching
 what you clicked -- one keystroke, and only if you type that fast. The window
 follows the desktop's own double-click time; set double_click.ms = 0 in the
 config to turn it off.
@@ -482,16 +485,11 @@ EOF
       # not want the window (a double right click is not a thing anything
       # listens for). The binary is asked too -- an option it has never heard
       # of takes the whole config down with it, not just this feature.
+      #
+      # wl-kbptr draws nothing while the window is open. Where the click went
+      # is marked by bin/imthemousenow-pool, started with the run, not here.
       if double_click_armed "$act"; then
         opts="$opts mode_click.double_click_ms=$(double_click_window)"
-        local radius
-        radius="$(setting double_click.radius)"
-        [[ -n $radius ]] && opts="$opts mode_click.double_click_radius=$radius"
-        # The ring is the ACTION's own colour, so what is left on screen after
-        # the overlay goes is the colour the overlay was.
-        local ring
-        ring="$(setting "action.${act}.color")"
-        [[ -n $ring ]] && opts="$opts mode_click.double_click_color=${ring}ee"
       fi
     fi
 
@@ -623,14 +621,34 @@ EOF
   # Set while a hold is on, and the reason this trap is not only about the
   # submap: the button that hold is holding down belongs to a process that
   # releases it when it ends, so ending it is how a dying run lets go.
-  local hold_pid=""
+  local hold_pid="" pool_pid=""
   submap_off() {
     [[ -n $hold_pid ]] && kill "$hold_pid" 2>/dev/null
+    # Not killed now: the last click of the run is the moment this exits, and
+    # its mark has the rest of its fade still to play. Killed once that is
+    # over, by something that does not keep this process waiting for it.
+    if [[ -n $pool_pid ]]; then
+      setsid -f bash -c "sleep $(awk "BEGIN{print $(pool_ms)/1000 + 0.1}"); kill $pool_pid" \
+        >/dev/null 2>&1 </dev/null || kill "$pool_pid" 2>/dev/null
+    fi
     hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
     session_end
   }
   trap submap_off EXIT INT TERM HUP
   hyprctl dispatch "hl.dsp.submap(\"$SUBMAP\")" >/dev/null 2>&1 || true
+
+  # The click mark. Up before the first overlay rather than at the click,
+  # because quickshell takes longer to start than a mark lasts; it draws
+  # nothing until wl-kbptr writes to the report. The report is removed first
+  # so what the last run left in it is not taken for a click. One for the
+  # whole run: a continuous lifetime clicks many times, and each is a line.
+  if pool_armed; then
+    mkdir -p "$SESSION_DIR"
+    export WL_KBPTR_CLICK_REPORT="$SESSION_DIR/click-report"
+    rm -f "$WL_KBPTR_CLICK_REPORT"
+    setsid "$POOL_CMD" --report "$WL_KBPTR_CLICK_REPORT" >/dev/null 2>&1 &
+    pool_pid=$!
+  fi
 
   # --- run ------------------------------------------------------------------
   # One pass. Regions are recomputed per pass so a continuous lifetime follows

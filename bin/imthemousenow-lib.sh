@@ -340,6 +340,41 @@ double_click_armed() {
   has_double_click
 }
 
+# The click mark (bin/imthemousenow-pool). wl-kbptr has to say where each click
+# went for there to be anything to mark, and quickshell has to be there to
+# draw it. When either is missing the mark falls back to wl-kbptr's own ring.
+has_click_report() { binary_knows WL_KBPTR_CLICK_REPORT; }
+pool_armed() {
+  [[ $(setting pool.enabled) != false ]] || return 1
+  command -v quickshell >/dev/null 2>&1 || return 1
+  has_click_report
+}
+
+# How long a mark lasts: the double-click window, so it is gone at the moment
+# a second press would stop counting. A right click marks for the same time
+# though it has no window of its own, and with double click turned off
+# altogether the mark still needs a length.
+pool_ms() {
+  local ms
+  ms="$(double_click_window)"
+  ((ms > 0)) || ms=400
+  echo "$ms"
+}
+
+# The colours the pooled crystal flips into. The theme's own, rendered into
+# [imthemousenow.pool] by the theme template; with theme_colors off, the
+# ACTION wheel, which is the nearest thing to a set of colours the config has.
+pool_colors() {
+  local colors action
+  colors="$(setting pool.colors)"
+  if [[ -z $colors ]]; then
+    for action in left-click right-click move drag drop; do
+      colors+="$(setting "action.$action.color") "
+    done
+  fi
+  echo "$colors" | xargs
+}
+
 # Whether this build can do what an ACTION needs of it. An action that names no
 # `requires` works on any build, which is most of them.
 action_supported() {

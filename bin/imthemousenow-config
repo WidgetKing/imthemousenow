@@ -550,7 +550,7 @@ def cmd_check(args):
         problems.append(
             f"[imthemousenow.double_click].ms = '{ms}' is not `system` or a positive whole number"
         )
-    for field in ("guard_ms", "radius"):
+    for field in ("guard_ms",):
         value = dbl.get(field)
         if value is not None and (
             not isinstance(value, (int, float)) or isinstance(value, bool) or value < 0

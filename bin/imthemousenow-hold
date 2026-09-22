@@ -35,6 +35,9 @@ Usage: imthemousenow-hold <verb> [value]
   move <l|r|u|d> [big]  move the held pointer that way, by the ordinary step
                       or the big one
   release             let go of the button and end the hold
+  release mouse       the same, for a click of a real mouse button; ignored in
+                      the first moments of a hold, when it is the hold's own
+                      press arriving
 
 The keys are bound in the `imthemousenow-hold` submap; see hypr/imthemousenow.lua.
 EOF
@@ -53,6 +56,18 @@ hold_fast() {
   [[ -p $FIFO ]] || exit 0
 
   if [[ $verb == release ]]; then
+    # A real mouse button pressed during a hold ends it: someone who reaches
+    # for the mouse has stopped steering by keyboard. The binding cannot tell
+    # a real button from the virtual one wl-kbptr presses to start the hold,
+    # though, and that press comes through the same submap moments after it
+    # is entered. So a mouse release that early is the hold's own, and is
+    # ignored. EPOCHREALTIME rather than `date`: no process on this path.
+    if [[ ${2:-} == mouse ]]; then
+      local started now
+      started="$(<"$SESSION_DIR/hold-started")" 2>/dev/null || exit 0
+      now="${EPOCHREALTIME/./}"
+      ((now / 1000 - started < 400)) && exit 0
+    fi
     # Anything that is not a point ends the hold; `release` is the word, so
     # that a reader looking at the stream can see what happened.
     printf 'release\n' 1<>"$FIFO" 2>/dev/null || true
@@ -183,7 +198,7 @@ press_pid=""
 finish() {
   [[ -n $press_pid ]] && kill "$press_pid" 2>/dev/null
   [[ -n $halo_pid ]] && kill "$halo_pid" 2>/dev/null
-  rm -f "$FIFO" "$SESSION_DIR/hold-pos" "$SESSION_DIR/hold-bounds" \
+  rm -f "$FIFO" "$SESSION_DIR/hold-pos" "$SESSION_DIR/hold-started" "$SESSION_DIR/hold-bounds" \
     "$SESSION_DIR/hold-step" "$SESSION_DIR/hold-big-step"
   hyprctl dispatch "hl.dsp.submap(\"${MOUSENOW_SUBMAP:-reset}\")" >/dev/null 2>&1 || true
 }
@@ -223,6 +238,8 @@ press_args+=(--hold "$anchor_x,$anchor_y")
 # and this script noticing does not die of SIGPIPE.
 exec 8<>"$FIFO"
 
+now="${EPOCHREALTIME/./}"
+echo $((now / 1000)) >"$SESSION_DIR/hold-started"
 wl-kbptr "${press_args[@]}" <"$FIFO" &
 press_pid=$!
 wait "$press_pid" || notify "The hold did not complete"
