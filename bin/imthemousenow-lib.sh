@@ -241,6 +241,15 @@ modifiers_arg() {
   echo "${list// /,}"
 }
 
+# Milliseconds as the seconds `sleep` takes, without a process to divide.
+# Anything that is not a whole number is 0.
+ms_to_s() {
+  local ms="$1"
+  [[ $ms =~ ^[0-9]+$ ]] || ms=0
+  ms=$((10#$ms))
+  printf '%d.%03d\n' $((ms / 1000)) $((ms % 1000))
+}
+
 die() {
   echo "${0##*/}: $1" >&2
   exit 1

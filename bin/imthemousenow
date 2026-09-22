@@ -73,6 +73,27 @@ list_modes() {
   done
 }
 
+# The theme's monospace font, as omarchy-font-current says it. That is an
+# fc-match, which costs more than everything else a chord does in bash put
+# together, and its answer only moves when `omarchy font set` rewrites the
+# fontconfig file -- so it is kept, beside the config cache, until that file is
+# newer. The first line says whether the file existed, so creating or deleting
+# it is a change too.
+current_font() {
+  local cache="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/font" fonts="$HOME/.config/fontconfig/fonts.conf"
+  local key="# $HOME|$([[ -e $fonts ]] && echo 1 || echo 0)" first font
+  if [[ -f $cache && ! $fonts -nt $cache ]] && { IFS= read -r first && IFS= read -r font; } <"$cache" &&
+    [[ $first == "$key" ]]; then
+    echo "$font"
+    return
+  fi
+  command -v omarchy-font-current >/dev/null 2>&1 || return 0
+  font="$(omarchy-font-current 2>/dev/null || true)"
+  [[ -n $font ]] && mkdir -p "${cache%/*}" 2>/dev/null &&
+    printf '%s\n%s\n' "$key" "$font" >"$cache" 2>/dev/null
+  echo "$font"
+}
+
 has_opencv() {
   wl-kbptr --version 2>&1 | grep -qi opencv
 }
@@ -413,7 +434,7 @@ EOF
   # Written by the same `imthemousenow-config env` the settings came from.
   compiled="$MOUSENOW_COMPILED"
   if [[ $(setting theme_font) == true ]]; then
-    command -v omarchy-font-current >/dev/null 2>&1 && font="$(omarchy-font-current 2>/dev/null || true)"
+    font="$(current_font)"
   fi
 
   # Where to draw. Recomputed before every launch, not once: in monitor scope
@@ -465,6 +486,18 @@ EOF
     fi
   }
   compute_geometry
+
+  # config.local: one `section.key=value` per line. Read here, once, rather
+  # than in build_args, because xargs -- which trims it, and unquotes it the way
+  # a shell would -- is a process per line and build_args runs on every pass.
+  local local_overrides=() line
+  if [[ -f $USER_DIR/config.local ]]; then
+    while IFS= read -r line; do
+      line="${line%%#*}"
+      line="$(echo "$line" | xargs || true)"
+      [[ -n $line ]] && local_overrides+=("$line")
+    done <"$USER_DIR/config.local"
+  fi
 
   # Fills `args` for one launch in ACTION $1.
   args=()
@@ -561,14 +594,10 @@ EOF
       args+=(-o "$line")
     done
 
-    # User overrides last: one `section.key=value` per line.
-    if [[ -f $USER_DIR/config.local ]]; then
-      while IFS= read -r line; do
-        line="${line%%#*}"
-        line="$(echo "$line" | xargs || true)"
-        [[ -n $line ]] && args+=(-o "$line")
-      done <"$USER_DIR/config.local"
-    fi
+    # User overrides last, read once per run above.
+    for line in ${local_overrides+"${local_overrides[@]}"}; do
+      args+=(-o "$line")
+    done
 
     args+=(-O "$mon_name")
     [[ -n $restrict ]] && args+=(-r "$restrict")
@@ -634,7 +663,7 @@ EOF
     # its mark has the rest of its fade still to play. Killed once that is
     # over, by something that does not keep this process waiting for it.
     if [[ -n $pool_pid ]]; then
-      setsid -f bash -c "sleep $(awk "BEGIN{print $(pool_ms)/1000 + 0.1}"); kill $pool_pid" \
+      setsid -f bash -c "sleep $(ms_to_s $(($(pool_ms) + 100))); kill $pool_pid" \
         >/dev/null 2>&1 </dev/null || kill "$pool_pid" 2>/dev/null
     fi
     hyprctl dispatch "hl.dsp.submap(\"reset\")" >/dev/null 2>&1 || true
@@ -708,8 +737,9 @@ EOF
   max_quick="$(setting continuous.max_quick_exits)"
   max_passes="$(setting continuous.max_passes)"
 
-  local settle_ms
-  settle_ms="$(setting switch.settle_ms)"
+  # In seconds, once, for `sleep`.
+  local settle
+  settle="$(ms_to_s "$(setting switch.settle_ms)")"
 
   while :; do
     ensure_submap_binds
@@ -740,7 +770,7 @@ EOF
       current_action="$(session_get action)"
       # A workspace or monitor change is not instant: relaunching before the
       # compositor has settled measures the geometry we just left.
-      [[ $reason == geometry ]] && sleep "$(awk "BEGIN{print $settle_ms/1000}")"
+      [[ $reason == geometry ]] && sleep "$settle"
       continue
     fi
 
@@ -780,7 +810,7 @@ EOF
     if session_has swap-from; then
       "$PLUGIN_DIR/bin/imthemousenow-steer" swap-commit || true
       current_action="$(session_get action)"
-      sleep "$(awk "BEGIN{print $settle_ms/1000}")"
+      sleep "$settle"
       continue
     fi
 
