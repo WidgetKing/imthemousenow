@@ -127,6 +127,22 @@ case "$(dry_run --mode grid)" in
   *"mode_click.double_click_ms=340"*) ok "and so does grid -- one gesture, both modes" ;;
   *) no "and so does grid -- one gesture, both modes" ;;
 esac
+# The window holds the overlay up after the click, and a continuous lifetime
+# cannot put the next one up until it closes -- so a continuous lifetime only
+# gets it from a build that can hand it on to the next overlay.
+case "$(dry_run --mode hints --lifetime continuous)" in
+  *"mode_click.double_click_ms=3"*) no "without the handoff, a continuous lifetime is not given the window" ;;
+  *) ok "without the handoff, a continuous lifetime is not given the window" ;;
+esac
+echo '# --double-click-handoff' >>"$WORK/stub/wl-kbptr"
+case "$(dry_run --mode hints --lifetime continuous)" in
+  *"mode_click.double_click_ms=340"*"--double-click-handoff"*) ok "with it, continuous gets the window and hands it on" ;;
+  *) no "with it, continuous gets the window and hands it on (got: $(dry_run --mode hints --lifetime continuous))" ;;
+esac
+case "$(dry_run --mode hints)" in
+  *"--double-click-handoff"*) no "a single lifetime keeps its own window, with no handoff" ;;
+  *) ok "a single lifetime keeps its own window, with no handoff" ;;
+esac
 
 # Nothing about how the window looks is wl-kbptr's any more: it draws nothing,
 # and bin/imthemousenow-pool marks the click. The ring options it used to take

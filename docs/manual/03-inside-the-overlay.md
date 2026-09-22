@@ -92,7 +92,13 @@ would land just past it and read as two separate clicks. Put a number in place
 of `system` to fix the window yourself.
 
 Only `left-click` arms it. A double right click is not a thing anything
-listens for, and `move`, `drag` and `hold` have no click to double. It also
+listens for, and `move`, `drag` and `hold` have no click to double.
+
+In a continuous lifetime the overlay does not wait out the window: the next one
+comes up straight away and the window goes with it. Its intro is stretched to
+last as long as the window, so the screen still coming back is the sign that a
+second press counts; press the key again then, and the same spot is clicked
+again. After that, keys go to the new overlay's labels. It also
 needs the `wl-kbptr` this plugin builds — on a stock one the setting is inert
 and everything else works as before. See
 [Configuration](07-configuration.md).

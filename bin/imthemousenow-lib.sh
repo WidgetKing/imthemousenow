@@ -336,6 +336,7 @@ binary_knows() {
 }
 
 has_double_click() { binary_knows double_click_ms; }
+has_double_click_handoff() { binary_knows --double-click-handoff; }
 
 # How long the second press has to land, in ms, or 0 for "do not arm it".
 #
@@ -388,7 +389,18 @@ double_click_resolve() {
 # button to press twice, it wants the window, the window is not 0, and the
 # binary knows what to do with it. Asked by the launcher, to decide what to
 # pass, and by the key sheet, to decide whether to say so.
+#
+# In a continuous lifetime only with a build that can hand the window on to
+# the next overlay (--double-click-handoff). The window is the overlay staying
+# up after the click, and without the handoff the next overlay cannot open
+# until it closes -- every pass would start ~340 ms late. With it, the
+# overlay that clicked goes at once and the next one keeps the window, while
+# its intro plays. The caller's `lifetime` if it has one (the run loop's is
+# the pass being built), else the session's (steer, switching in place).
 double_click_armed() {
+  local lt="${lifetime:-}"
+  [[ -n $lt ]] || ! declare -F session_get >/dev/null || lt="$(session_get lifetime)"
+  [[ $lt == continuous ]] && ! has_double_click_handoff && return 1
   [[ -n $(setting "action.$1.button") ]] || return 1
   [[ $(setting "action.$1.double_click") == true ]] || return 1
   double_click_resolve

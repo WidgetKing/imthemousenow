@@ -59,6 +59,25 @@ theme_font = true
 # reject the whole config -- so the setting is simply inert.
 peek_alpha = 0.1
 
+# How the overlay arrives, over intro_ms milliseconds.
+#
+#   "bytes"     eats it into the screen a square at a time, in no order
+#   "scanline"  throws it in as horizontal bands that slide into true
+#   "random"    one of those, a different one each time the overlay opens
+#   "none"      puts it up whole, at once, as it always used to
+#
+# A list -- "bytes,scanline" -- picks at random among just those. intro_chunk
+# is how big the pieces are, in pixels: the side of a square in bytes, four
+# times the height of a band in scanline. The overlay takes keys from the
+# first moment, so typing a label before the intro is over is fine.
+#
+# Needs the wl-kbptr this plugin's install.sh builds (the fork's "Bring the
+# overlay in through a transition" commit). On a stock build none of these is
+# passed through, for the same reason as peek_alpha above.
+intro = "random"
+intro_ms = 250
+intro_chunk = 48
+
 # Which side of the keyboard holds modifiers down for the click. While an
 # overlay is up the modifier keys on one side are commands -- SHIFT flips
 # SCOPE, ALT flips MODE, CTRL flips LIFETIME -- and the ones on the other side
@@ -209,6 +228,9 @@ size = 15
 # it, rather than a number here to be kept in sync with one there.
 #
 # A number instead of `system` is that many ms flat, and 0 turns it off.
+# In a continuous lifetime the next overlay comes up at once and keeps the
+# window instead, while its intro plays: the intro is stretched to last as long
+# as the window does.
 ms = "system"
 # Taken off the system's double-click time to get the window above, in ms. Not
 # a preference: it is the room the second click needs to get out and be seen.

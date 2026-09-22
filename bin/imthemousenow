@@ -106,6 +106,7 @@ has_opencv() {
 # field, which is the same question with the name coming from the config.
 has_key_channel() { binary_knows WL_KBPTR_KEY_CHANNEL; }
 has_peek() { binary_knows peek_alpha; }
+has_intro() { binary_knows intro_ms; }
 # Focused monitor as: name<TAB>x<TAB>y<TAB>w<TAB>h
 # $1 must be one of the remaining arguments.
 expect_one_of() {
@@ -280,7 +281,9 @@ nothing. What it does cost is that the overlay still holds the keyboard while
 the mark is up, so a key typed in that instant is eaten instead of reaching
 what you clicked -- one keystroke, and only if you type that fast. The window
 follows the desktop's own double-click time; set double_click.ms = 0 in the
-config to turn it off.
+config to turn it off. In a continuous lifetime the next overlay comes up the
+moment the click is made, and the window moves to it: press the key again while
+the screen is still coming back and it is a double click.
 
 Space is the peek. Hold it and the whole overlay fades almost away; let go and
 it comes back. Nothing moves and nothing is selected, so the labels are still
@@ -547,6 +550,16 @@ EOF
       [[ -n $line ]] && args+=(-o "$line")
     done < <(action_overrides "$act" "$base_action")
 
+    # A continuous lifetime hands the double-click window on rather than
+    # holding the overlay up for it: this overlay clicks and goes, the next
+    # one keeps the window while its intro plays. The same file every pass --
+    # each overlay takes what the one before it left, and leaves its own.
+    # Whatever the ACTION: `;` can switch this overlay in place to one that
+    # clicks, and the flag does nothing until there is a click to double.
+    if [[ $lifetime == continuous ]] && has_double_click_handoff; then
+      args+=(--double-click-handoff "$SESSION_DIR/double-click")
+    fi
+
     # A build that can be reconfigured while it is up is pointed at a file
     # for it, empty at each launch: these args already say what the current
     # ACTION is, and a leftover from the last switch would say otherwise.
@@ -585,6 +598,17 @@ EOF
     peek="$(setting peek_alpha)"
     if [[ -n $peek && $peek != 1 && $peek != 1.0 ]] && has_peek; then
       args+=(-o "general.peek_alpha=$peek")
+    fi
+
+    # The intro, the same way: only to a build that knows it, and not at all
+    # when it is off, which is also how a stock build is left alone.
+    local intro intro_ms intro_chunk
+    intro="$(setting intro)"
+    intro_ms="$(setting intro_ms)"
+    intro_chunk="$(setting intro_chunk)"
+    if [[ -n $intro && $intro != none && ${intro_ms:-0} != 0 ]] && has_intro; then
+      args+=(-o "general.intro=$intro" -o "general.intro_ms=$intro_ms")
+      [[ -n $intro_chunk ]] && args+=(-o "general.intro_chunk=$intro_chunk")
     fi
 
     # Per-MODE opacity, which is arithmetic on the theme's own colours rather
