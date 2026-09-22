@@ -246,10 +246,16 @@ case "$verb" in
     ;;
 
   action)
-    # Bound to `;` (right-click) and `:` (move). wl-kbptr cannot be
-    # reconfigured once running, so switching ACTION means tearing the overlay
-    # down and putting it back up: record the new action, ask for a relaunch,
-    # and the loop puts it back rather than exiting.
+    # Bound to `;` (right-click), `:` (move), `'` (drag) and `"` (hold).
+    # Every ACTION shares one mode chain and differs only in config lines --
+    # button (`none` for the ones that press nothing here), double-click
+    # window, tint -- so a build with --overrides-file is told in place: the
+    # lines go in the session's overrides file and a SIGUSR1 makes it reload,
+    # with no flicker. What happens after the selection is the run loop's,
+    # which reads the action back when the overlay exits. A stock build
+    # cannot be told, so it is torn down and put back up: record the new
+    # action, ask for a relaunch, and the loop puts it back rather than
+    # exiting.
     target="${1:-right-click}"
     now="$(session_get action)"
     base="$(session_get base-action)"
@@ -292,6 +298,16 @@ case "$verb" in
     # other thing that says what changed, and the word should be up by the time
     # the overlay it describes is drawn.
     osd_action "$next" "$(session_get scope)" "$(session_get modifiers)"
+    if action_swappable_in_place "$now" "$next"; then
+      # Written whole before the signal, because wl-kbptr reads it the moment
+      # the signal lands. Back at the base ACTION this is only its button and
+      # window; the launch config already has the rest.
+      double_click_resolve
+      action_overrides "$next" "$base" live >"$SESSION_DIR/overrides.tmp"
+      mv -f "$SESSION_DIR/overrides.tmp" "$SESSION_DIR/overrides"
+      pkill -USR1 -x wl-kbptr || true
+      exit 0
+    fi
     session_relaunch action
     ;;
 

@@ -396,6 +396,56 @@ double_click_armed() {
   has_double_click
 }
 
+# A build that takes config lines from a file each time it is sent SIGUSR1, so
+# a switch of ACTION needs no relaunch (and so no flicker).
+# Without this flag SIGUSR1 kills wl-kbptr, so nothing sends it unasked.
+has_overrides_file() { binary_knows --overrides-file; }
+
+# The config lines that make an overlay ACTION $1 rather than any other, when
+# the chord's own ACTION is $2 (and $3 is `live` for a switch in place): the
+# button, the double-click window, and the tint. One list, printed a line each, read by both the launcher (as -o) and
+# steer (as the overrides file), so a relaunch and a switch in place cannot
+# come to look different.
+action_overrides() {
+  local act="$1" base="$2" button tint
+  button="$(setting "action.$act.button")"
+  # Every overlay ends in the click stage, and an ACTION that presses nothing
+  # there -- move, both halves of a drag, hold -- says `none`: the pointer
+  # lands and nothing is pressed, held or reported. One mode chain for all of
+  # them is what lets `;` `:` `'` `"` switch between any two in place.
+  echo "mode_click.button=${button:-none}"
+  if [[ -n $button ]]; then
+    # An option the binary has never heard of takes the whole config down, so
+    # the window is only said when armed -- except for a switch in place
+    # ($3 = live), which lands on a config that may already have one open
+    # for left click, and has to turn it off rather than leave it out.
+    if double_click_armed "$act"; then
+      echo "mode_click.double_click_ms=$double_click_cache"
+    elif [[ ${3:-} == live ]] && has_double_click; then
+      echo "mode_click.double_click_ms=0"
+    fi
+  fi
+
+  # A different ACTION must look different, or you cannot tell which overlay
+  # you are in.
+  if [[ $act != "$base" ]]; then
+    tint="$(setting "action.${act}.color")"
+    if [[ -n $tint ]]; then
+      echo "mode_tile.label_select_color=${tint}ff"
+      echo "mode_tile.selectable_border_color=${tint}aa"
+      echo "mode_floating.label_select_color=${tint}ff"
+      echo "mode_floating.selectable_border_color=${tint}ee"
+      echo "mode_bisect.pointer_color=${tint}dd"
+    fi
+  fi
+}
+
+# Whether `;` `:` `'` `"` can move from one ACTION to another by signalling
+# the overlay that is up rather than relaunching it. Every ACTION now shares
+# the mode chain and differs only in config lines, so this is only a question
+# of whether the build can take them.
+action_swappable_in_place() { has_overrides_file; }
+
 # The click mark (bin/imthemousenow-pool). wl-kbptr has to say where each click
 # went for there to be anything to mark, and quickshell has to be there to
 # draw it. When either is missing the mark falls back to wl-kbptr's own ring.

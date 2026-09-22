@@ -143,9 +143,10 @@ fi
 echo "ok    a hold puts a press up and waits to be steered"
 
 # The overlay must not click: the press is the separate --hold invocation, and
-# a click here would let go of the thing before it was ever steered.
+# a click here would let go of the thing before it was ever steered. It ends
+# in the click stage like every overlay, with nothing to press there.
 overlay="$(head -1 "$WORK/argv.log")"
-if [[ $overlay != *click* ]]; then
+if [[ $overlay == *mode_click.button=none* && $overlay != *mode_click.button=left* ]]; then
   echo "ok    the overlay pass does not click"
 else
   echo "FAIL  the overlay pass does not click -- got: $overlay"

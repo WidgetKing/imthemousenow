@@ -133,10 +133,11 @@ else
   failures=$((failures + 1))
 fi
 
-# Neither overlay may carry a click stage: the press is emitted afterwards, by
-# the third invocation, once both ends are known. A `,click` here would make
+# Neither overlay may press anything: the press is emitted afterwards, by the
+# third invocation, once both ends are known. Both end in the click stage like
+# every overlay does, with nothing to press there; a real button would make
 # the first pass a click and the drag a no-op after it.
-check "neither overlay pass clicks" "" "modes=tile,bisect,click" "" "mode_click.button"
+check "neither overlay pass clicks" "mode_click.button=none" "" "mode_click.button=left" "" "mode_click.button=right" "" "mode_click.button=middle"
 
 # The anchor at 500,400 and the drop at 1200,900, as Hyprland reports them,
 # over the configured 300ms. No -O on that invocation: an output-bound virtual

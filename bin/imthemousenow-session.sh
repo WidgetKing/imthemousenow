@@ -23,6 +23,8 @@
 #
 # Fields: mode, scope, action, base-action, lifetime, modifiers, switch,
 # last-bind, swap-from, swap-restore, drag-anchor, drag-restore, drop-monitor.
+# `overrides` is not a field: it is the file wl-kbptr is pointed at with
+# --overrides-file, written by steer and emptied by the launcher.
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 

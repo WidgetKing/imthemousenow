@@ -505,28 +505,14 @@ EOF
     local act="$1" modes="$chain" opts="$options"
     [[ -n $refine ]] && modes="$modes,$refine"
     # Whether this ACTION clicks at all, and with which button, is the
-    # registry's to say: an empty `button` is no click stage, which move, both
+    # registry's to say: an empty `button` presses nothing, which move, both
     # halves of a drag, and hold each need for reasons written beside them in
-    # config.default.toml. The three that do press something name the button
-    # outright rather than having it cut out of their own name.
+    # config.default.toml. There is a click stage all the same, with button
+    # `none` (see action_overrides): one mode chain for every ACTION is what
+    # lets a switch happen without a relaunch.
     local button
     button="$(setting "action.$act.button")"
-    if [[ -n $button ]]; then
-      modes="$modes,click"
-      opts="$opts mode_click.button=$button"
-
-      # Double click, which is the registry's to say as well: an action with no
-      # button has nothing to press twice, and one that has a button may still
-      # not want the window (a double right click is not a thing anything
-      # listens for). The binary is asked too -- an option it has never heard
-      # of takes the whole config down with it, not just this feature.
-      #
-      # wl-kbptr draws nothing while the window is open. Where the click went
-      # is marked by bin/imthemousenow-pool, started with the run, not here.
-      if double_click_armed "$act"; then
-        opts="$opts mode_click.double_click_ms=$double_click_cache"
-      fi
-    fi
+    modes="$modes,click"
 
     args=()
     [[ -n $compiled && -f $compiled ]] && args+=(-c "$compiled")
@@ -538,38 +524,49 @@ EOF
       args+=(-o "mode_bisect.label_font_family=$font")
     fi
 
-    # A different ACTION must look different, or you cannot tell which overlay
-    # you are in -- that is the whole reason the relaunch is worth its flicker.
-    if [[ $act != "$base_action" ]]; then
-      local tint
-      tint="$(setting "action.${act}.color")"
-      if [[ -n $tint ]]; then
-        args+=(-o "mode_tile.label_select_color=${tint}ff")
-        args+=(-o "mode_tile.selectable_border_color=${tint}aa")
-        args+=(-o "mode_floating.label_select_color=${tint}ff")
-        args+=(-o "mode_floating.selectable_border_color=${tint}ee")
-        args+=(-o "mode_bisect.pointer_color=${tint}dd")
+    # The button, the double-click window and the tint: what makes this
+    # overlay this ACTION. Double click is the registry's to say as well -- an
+    # action with no button has nothing to press twice, and one that has a
+    # button may still not want the window (a double right click is not a
+    # thing anything listens for). wl-kbptr draws nothing while the window is
+    # open; bin/imthemousenow-pool marks where the click went. The same lines
+    # are what steer writes to the overrides file for a switch in place, which
+    # is why they come from one function. Resolved here first so the
+    # double-click cache lands in this shell, not the substitution's.
+    double_click_resolve
+    while IFS= read -r line; do
+      [[ -n $line ]] && args+=(-o "$line")
+    done < <(action_overrides "$act" "$base_action")
+
+    # A build that can be reconfigured while it is up is pointed at a file
+    # for it, empty at each launch: these args already say what the current
+    # ACTION is, and a leftover from the last switch would say otherwise.
+    if has_overrides_file; then
+      if ((!dry_run)); then
+        mkdir -p "$SESSION_DIR"
+        : >"$SESSION_DIR/overrides"
       fi
+      args+=(--overrides-file "$SESSION_DIR/overrides")
     fi
 
     local opt
     for opt in $opts; do args+=(-o "$opt"); done
 
     # The modifiers the modifier side of the keyboard toggled on, held down
-    # around the click. Only for an ACTION with a click in this overlay: the
-    # ones that press later -- drag, hold -- are handed them when they do. And
-    # only when the binary knows the flag, which steer has already refused to
-    # toggle without, so a stock build never sees it. A build that can read
-    # the session's file is pointed at it whether or not anything is on yet,
-    # so a toggle made after it opened still reaches the click.
+    # around the click. A build that can read the session's file is always
+    # pointed at it, whatever the ACTION, whether or not anything is on yet:
+    # a toggle made after it opened still reaches the click, and an ACTION
+    # switched to in place still finds it. One whose button is `none` presses
+    # nothing, so holds nothing -- drag and hold are handed them when they do
+    # press. Without the file, --modifiers only goes to an ACTION with a click
+    # here, and only when the binary knows the flag, which steer has already
+    # refused to toggle without, so a stock build never sees it.
     local mods
     mods="$(session_get modifiers)"
-    if [[ -n $button && $(setting "action.$act.modifiers") == true ]]; then
-      if has_modifiers_file; then
-        args+=(--modifiers-file "$SESSION_DIR/modifiers")
-      elif [[ -n $mods ]] && has_modifiers; then
-        args+=(--modifiers "$(modifiers_arg "$mods")")
-      fi
+    if has_modifiers_file; then
+      args+=(--modifiers-file "$SESSION_DIR/modifiers")
+    elif [[ -n $button && $(setting "action.$act.modifiers") == true && -n $mods ]] && has_modifiers; then
+      args+=(--modifiers "$(modifiers_arg "$mods")")
     fi
 
     # The peek, only if this binary knows the option. 1 is "already fully
@@ -754,6 +751,9 @@ EOF
     started=$(date +%s%N)
     status=0
     run_once || status=$?
+    # `;` between two clicking ACTIONs switches the overlay in place, without
+    # a relaunch, so the only place to learn of it is the session.
+    current_action="$(session_get action)"
 
     # A switch is not an exit. wl-kbptr was killed on purpose, so whatever it
     # exited with says nothing; put the overlay back up in the new ACTION

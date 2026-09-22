@@ -546,6 +546,22 @@ Omarchy uses:
   `hyprctl dispatch submap name` form fails to parse. The key is `SEMICOLON`,
   not `;`, which is rejected as an unknown keysym.
 
+Later, the fork learned `--overrides-file`, and `;` between left and right
+click no longer relaunches. Steer writes the new ACTION's lines -- button,
+double-click window, tint -- to a file in the session and sends SIGUSR1; the
+fork rebuilds its config as at launch, applies the file on top, and redraws.
+A signal plus a file rather than anything else because: it has to reach a
+process that is already running and holding the keyboard; "launch config plus
+the file" means an empty file cleanly puts the chord's own ACTION back, with
+no memory of what was switched through; and a stock wl-kbptr dies on SIGUSR1,
+so the flag doubles as the thing the probe looks for, and nothing is ever
+signalled without it. The mode chain is read once, so it had to stop varying:
+move, drag and hold used to leave the `click` stage out, and now keep it with
+`mode_click.button=none`, which wl-kbptr already treats as "land and press
+nothing" -- no press, no modifiers, no double-click window, no click report.
+With every ACTION on one chain, every switch is config lines and none needs a
+relaunch.
+
 A submap is the right scope for this: it rebinds one key for exactly the
 overlay's lifetime and lets every other key through to wl-kbptr, so `;` keeps
 its ordinary meaning at all other times. The risk is a submap left active,

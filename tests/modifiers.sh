@@ -213,10 +213,12 @@ case "$(dry_run --action left-click)" in
   *"--modifiers "*) no "and not given the list as well" ;;
   *) ok "and not given the list as well" ;;
 esac
+# Every overlay is, so one switched to in place still finds it; with its
+# button `none`, it presses nothing and so holds nothing.
 for act in move drag hold; do
   case "$(dry_run --action "$act")" in
-    *--modifiers*) no "$act's overlay is not pointed at it" ;;
-    *) ok "$act's overlay is not pointed at it" ;;
+    *--modifiers-file*) ok "$act's overlay is pointed at it too, pressing nothing" ;;
+    *) no "$act's overlay is pointed at it too, pressing nothing" ;;
   esac
 done
 rm -f "$SESSION/modifiers"

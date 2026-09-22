@@ -19,6 +19,10 @@ differently, one to not click at all. The tint is what tells you which you are
 in — the tints are not fixed hues, `left-click` being your theme's accent and
 the rest turned off it. See [Colours](09-appearance.md#colours).
 
+The switch happens in place: the overlay stays up, re-tints, and keeps anything
+you had already typed. (On a wl-kbptr older than this plugin's build it is put
+back up instead, a brief flicker that discards what you had typed.)
+
 All three are toggles — press the same key again to go back — and all three are
 one-offs: after the pointer lands, the overlay returns to whatever ACTION the
 chord asked for, even in a continuous lifetime. So a right click or a bare move
@@ -225,7 +229,7 @@ An overlay is measured once, when it opens — the window's geometry, and in
 not hold still for that: a page scrolls, a window resizes, a dialog opens, and
 the labels go on naming where things used to be. `F5` rebuilds the overlay
 against the screen as it is now, keeping MODE, SCOPE and ACTION. It costs the
-same flicker as `;`, and anything you had already typed is discarded.
+same flicker a switch of ACTION used to, and anything you had already typed is discarded.
 
 ---
 

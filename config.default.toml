@@ -324,7 +324,8 @@ double_click = false
 
 [imthemousenow.action.move]
 label = "move"
-# No click stage: the pointer lands where you aimed and stays there.
+# Nothing to press: the click stage runs with button `none`, so the pointer
+# lands where you aimed and stays there.
 button = ""
 switchable = true
 # Presses nothing, so there is nothing to hold a modifier down around.
@@ -341,9 +342,9 @@ modifiers = false
 # "monitor" leaves you unsure which one you just did.
 [imthemousenow.action.drag]
 label = "drag"
-# No click stage in either pass. The press is emitted afterwards, by a separate
-# wl-kbptr --drag, once both ends are known; an overlay that clicked here would
-# be a click rather than a drag.
+# Nothing pressed in either pass (button `none`). The press is emitted
+# afterwards, by a separate wl-kbptr --drag, once both ends are known; an
+# overlay that clicked here would be a click rather than a drag.
 button = ""
 switchable = true
 modifiers = true
@@ -381,7 +382,7 @@ drop_mode = "same"
 # rather than aiming twice and failing at the press.
 [imthemousenow.action.hold]
 label = "hold"
-# No click stage, for drag's reason sharpened: the press is held open by a
+# Nothing pressed (button `none`), for drag's reason sharpened: the press is held open by a
 # separate wl-kbptr --hold, and a click here would let go of the thing before
 # it had been steered anywhere.
 button = ""
@@ -436,7 +437,7 @@ tap_debounce_ms = 400
 # Continuous reopens the overlay after each completed selection. A pass that
 # "succeeds" faster than this is treated as a misfire; this many in a row stops
 # the loop instead of spinning.
-guard_ms = 200
+guard_ms = 100
 max_quick_exits = 5
 # 0 = no limit on how many clicks one burst may make.
 max_passes = 0
