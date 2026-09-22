@@ -35,7 +35,7 @@ Usage: imthemousenow-help [options]
 
   --scope S      window | monitor   (default: the running overlay's)
   --mode M       grid | hints | windows
-  --action A     left-click | right-click | move | drag | drop | hold
+  --action A     left-click | right-click | move | drag | drop | hold | scroll
   --lifetime L   single | continuous
   --stage S      normal | drop | swap -- which keys are live right now
   --focus F      exclusive (this sheet reads the keyboard) | none (popup-safe
@@ -151,7 +151,8 @@ else
     ";" "right click instead (again: back)" \
     ":" "move the pointer, no click (again: back)" \
     "'" "drag: pick up here, then say where to drop" \
-    '"' "hold: take hold here and steer it by hand"
+    '"' "hold: take hold here and steer it by hand" \
+    "/" "scroll: put the pointer here, then turn the wheel"
 fi
 
 # The keys of a hold, listed here rather than in a sheet of their own: a hold
@@ -163,6 +164,12 @@ section "If you take hold" \
   "Shift + those" "move in big steps" \
   "Space / Return / Escape" "let go of the button" \
   "a real mouse click" "let go too, and the click goes through"
+
+# The same reason for a scroll: once one is on there is no overlay to ask.
+section "If you scroll" \
+  "arrows / wasd / hjkl" "turn the wheel a notch that way" \
+  "hold Ctrl / Alt / Shift" "scroll with it held (Ctrl zooms)" \
+  "Escape" "stop scrolling"
 
 
 # The axes a modifier flips outside the overlay flip the same way inside it,

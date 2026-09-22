@@ -191,7 +191,7 @@ for item in "${MANAGED[@]}"; do
   link_or_copy "$REPO/$item" "$PLUGIN_DIR/$item"
 done
 
-for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd imthemousenow-help imthemousenow-hold imthemousenow-halo imthemousenow-pool imthemousenow-menu; do
+for script in imthemousenow imthemousenow-steer imthemousenow-regions imthemousenow-panic imthemousenow-config imthemousenow-osd imthemousenow-help imthemousenow-hold imthemousenow-halo imthemousenow-pool imthemousenow-menu imthemousenow-scroll; do
   ln -sfn "$PLUGIN_DIR/bin/$script" "$BIN_DIR/$script"
 done
 

@@ -17,7 +17,7 @@
 #
 #   MODE      grid | hints          how targets are presented
 #   SCOPE     window | monitor      where the overlay is drawn
-#   ACTION    left-click | right-click | move | drag | hold
+#   ACTION    left-click | right-click | move | drag | hold | scroll
 #   LIFETIME  single | continuous   one selection, or until Escape
 #
 # Everything above the ADVANCED divider is a preference: no wrong answers, and
@@ -405,6 +405,20 @@ step = 40
 # The outer radius of the halo around the pointer, in pixels. It is drawn as
 # three rings of falling alpha inside this, pulsing in and out.
 halo_size = 44
+
+[imthemousenow.action.scroll]
+label = "scroll"
+# Nothing pressed (button `none`): the overlay only puts the pointer where the
+# wheel should turn, and a separate wl-kbptr --scroll turns it. The same
+# scroll starts without an overlay at all from SUPER + ', where the pointer
+# already is.
+button = ""
+switchable = true
+modifiers = true
+requires = "--scroll"
+patch = "the fork's \"Turn the wheel from outside, with --scroll\" commit"
+# The outer radius of the mark the pointer wears while scrolling.
+mark_size = 44
 
 # The second pass of a drag, which is not an ACTION you can ask for -- you
 # arrive at it by picking something up. It gets its own entry because it needs

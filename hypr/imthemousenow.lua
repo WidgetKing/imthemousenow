@@ -44,6 +44,8 @@ SUBMAP_NAME = "imthemousenow"
 -- The keyboard of a hold, which is not an overlay's. Must match SUBMAP_HOLD in
 -- bin/imthemousenow-hold. See the submap itself, at the bottom of this file.
 SUBMAP_HOLD = "imthemousenow-hold"
+-- The keyboard of a scroll. Must match SUBMAP_SCROLL in bin/imthemousenow-scroll.
+SUBMAP_SCROLL = "imthemousenow-scroll"
 
 -- EXPERIMENTAL, off unless popups.keep_open is on. The same overlay, with its
 -- keys arriving from here instead of from the keyboard.
@@ -177,6 +179,13 @@ local function overlay_binds()
   -- quotedbl` was registered first and `"` did nothing at all.
   hl.bind("SHIFT + apostrophe", hl.dsp.exec_cmd("imthemousenow-steer action hold"), {
     description = "Pointer: take hold of something and steer it by hand",
+  })
+
+  -- `/` puts the pointer somewhere and then scrolls there: the overlay picks
+  -- the spot, and imthemousenow-scroll takes over from SUPER + ' onwards. Free
+  -- in this submap, and the key a vim hand already knows as "go looking".
+  hl.bind("slash", hl.dsp.exec_cmd("imthemousenow-steer action scroll"), {
+    description = "Pointer: put the pointer there, then scroll",
   })
 
   -- The digits and the arrows are read by SCOPE, not fixed to one dispatcher:
@@ -434,6 +443,60 @@ hl.define_submap(SUBMAP_HOLD, function()
   })
 end)
 
+-- The keyboard of a scroll. Like a hold's, it has nothing drawn over the
+-- screen and needs a submap of its own; unlike a hold's, nothing is pressed,
+-- and it stays on until Escape rather than until a button comes up.
+--
+-- The same three sets of directions as a hold: arrows, hjkl, WASD. Modifiers
+-- are not toggled here: a hand scrolling reaches for Ctrl and holds it, and a
+-- real modifier held while the wheel turns is what the page sees anyway. The
+-- ones toggled on in the overlay before `/` stay held for the whole scroll.
+hl.define_submap(SUBMAP_SCROLL, function()
+  local directions = {
+    left = { "LEFT", "h", "a" },
+    right = { "RIGHT", "l", "d" },
+    up = { "UP", "k", "w" },
+    down = { "DOWN", "j", "s" },
+  }
+
+  -- Every set of held modifiers: the ones you hold with your own hand while
+  -- scrolling, and the ones carried in from the overlay, which the scroll holds
+  -- on a virtual keyboard and the compositor counts as held.
+  local held = { "" }
+  for _, mod in ipairs({ "CTRL", "ALT", "SHIFT", "SUPER" }) do
+    for i = 1, #held do
+      held[#held + 1] = held[i] .. mod .. " + "
+    end
+  end
+
+  for _, prefix in ipairs(held) do
+    for direction, keys in pairs(directions) do
+      for _, key in ipairs(keys) do
+        -- Not `repeating`: the wheel event cancels Hyprland's repeat, so the
+        -- script repeats on its own until the key's release.
+        hl.bind(prefix .. key, hl.dsp.exec_cmd("imthemousenow-scroll " .. direction), {
+          description = "Pointer: scroll " .. direction,
+        })
+        hl.bind(prefix .. key, hl.dsp.exec_cmd("imthemousenow-scroll release"), {
+          release = true,
+          description = "Pointer: stop scrolling " .. direction,
+        })
+      end
+    end
+    hl.bind(prefix .. "Escape", hl.dsp.exec_cmd("imthemousenow-scroll stop"), {
+      description = "Pointer: stop scrolling",
+    })
+  end
+
+  hl.bind("catchall", hl.dsp.exec_cmd("true"), {
+    description = "Pointer: swallow keys a scroll does not use",
+  })
+end)
+
+-- Scroll where the pointer is, with no overlay. SUPER + ' sits next to
+-- SUPER + ;, as `'` sits next to `;` inside the overlay.
+o.bind("SUPER + APOSTROPHE", "Pointer: scroll where the pointer is", "imthemousenow-scroll begin")
+
 -- The eight chords. A modifier does not name a value, it asks for the OTHER
 -- value on its axis, and the axis starts from [imthemousenow.defaults] -- so
 -- the bare chord is whatever the bar says SUPER + ; should be, and each
@@ -483,7 +546,7 @@ o.bind("CTRL + ALT + DELETE", "Close all windows", "imthemousenow-panic")
 -- the hl.unbind above: that removes the binding from every submap, this one
 -- included, whatever order they were defined in. `hl.define_submap` appends to
 -- a submap that already exists.
-for _, submap in ipairs({ SUBMAP_NAME, SUBMAP_POPUPS, SUBMAP_HOLD }) do
+for _, submap in ipairs({ SUBMAP_NAME, SUBMAP_POPUPS, SUBMAP_HOLD, SUBMAP_SCROLL }) do
   hl.define_submap(submap, function()
     hl.bind("CTRL + ALT + DELETE", hl.dsp.exec_cmd("imthemousenow-panic"), {
       description = "Pointer: close the overlay and all windows",

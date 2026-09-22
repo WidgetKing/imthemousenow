@@ -57,6 +57,24 @@ as below; set your own defaults and the whole table moves with them.
 | `SUPER + CTRL + ALT + ;` | grid | window | continuous |
 | `SUPER + CTRL + SHIFT + ALT + ;` | grid | monitor | continuous |
 
+## Scrolling: `SUPER + '`
+
+`SUPER + '` turns the keyboard into a mouse wheel wherever the pointer already
+is. No overlay comes up; the pointer wears a mark instead, which lurches the
+way each notch goes and names the modifiers it is holding. It stays on until
+`Escape`.
+
+| Key | Does |
+| --- | --- |
+| arrows, `hjkl`, `wasd` | one notch of the wheel that way; hold to keep going |
+| hold `Ctrl`, `Alt` or `Shift` | the wheel with it held -- `Ctrl` zooms a browser a level per notch |
+| `Escape` | stop scrolling, and let go of anything held |
+
+Modifiers are simply held, as with a real wheel. To scroll somewhere else,
+press `/` in the overlay: it moves the pointer to what you pick and then
+scrolls there, and any modifiers you had toggled on in the overlay stay held
+for the whole scroll. Needs the wl-kbptr this plugin builds.
+
 ---
 
 [← The four choices](01-the-four-choices.md) · [Manual contents](README.md) · [Inside the overlay →](03-inside-the-overlay.md)

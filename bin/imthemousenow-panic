@@ -16,6 +16,8 @@ DEFAULT_ACTION="${MOUSENOW_PANIC_ACTION:-omarchy-hyprland-window-close-all}"
 # The ordinary way out, which also clears the session state a crashed run
 # would otherwise leave behind.
 imthemousenow-steer stop >/dev/null 2>&1 || true
+# A scroll has no overlay for `stop` to close; it has its own.
+imthemousenow-scroll stop >/dev/null 2>&1 || true
 
 # ...and again by hand, because a panic key exists precisely for the times the
 # ordinary way did not work. Both are idempotent. The submap matters most: one

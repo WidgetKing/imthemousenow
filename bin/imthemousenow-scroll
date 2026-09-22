@@ -1,0 +1,221 @@
+#!/bin/bash
+# omarchy:summary=Turn the mouse wheel from the keyboard
+# omarchy:args=begin [<x> <y>] | up | down | left | right | release | stop
+#
+# SUPER + ' outside the overlay, `/` inside it. A scroll is not a selection:
+# there is nothing to aim at, only a wheel to turn under the pointer, so SUPER +
+# ' starts one wherever the pointer already is, and `/` is the overlay used as
+# a way to put the pointer somewhere first.
+#
+# The wheel lives in one wl-kbptr --scroll, which turns it a notch per line it
+# reads and holds the modifiers for as long as it runs (the fork's "Turn the
+# wheel from outside, with --scroll" commit). This script starts it, feeds it,
+# and waits. The keys are compositor bindings in a submap of their own, and
+# they run this script again -- so, like imthemousenow-hold, everything but
+# `begin` is on the path between a keypress and the page moving, and does as
+# little as a thing can.
+#
+# Modifiers are not toggled here. A hand scrolling reaches for Ctrl and holds
+# it, and a real modifier held while the wheel turns is what the page sees
+# anyway. The ones toggled on in the overlay before `/` are held for the whole
+# scroll, and the mark names them.
+#
+# It stays on until Escape. What says it is on, since nothing is drawn over
+# the screen: the pointer wears a mark that pushes the way the wheel turns and
+# names the modifiers held. See qml/scroll.qml.
+set -euo pipefail
+
+SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
+FIFO="$SESSION_DIR/scroll-commands"
+
+usage() {
+  cat <<'EOF'
+Usage: imthemousenow-scroll <verb> [value]
+
+  begin [<x> <y>]     start scrolling; at that layout point, or where the
+                      pointer is. Blocks until `stop`.
+  up|down|left|right  one notch of the wheel that way, then more at the
+                      keyboard's repeat rate until `release`
+  release             a direction key came up: stop repeating
+  stop                end the scroll
+
+The keys are bound in the `imthemousenow-scroll` submap; see hypr/imthemousenow.lua.
+EOF
+}
+
+# --- the fast half ------------------------------------------------------------
+# No config, no hyprctl: a few small files and one line into the fifo.
+scroll_fast() {
+  local verb="$1"
+  [[ -p $FIFO ]] || exit 0
+
+  case "$verb" in
+    up | down | left | right)
+      # The key's own repeat is not used: a wheel event from the virtual
+      # pointer cancels Hyprland's repeat of the bind that sent it, so a held
+      # key gave one burst and stopped. Instead a press turns one notch and
+      # starts a repeater, at the keyboard's own delay and rate, and the key's
+      # release (or any other direction, or Escape) stops it.
+      stop_repeater
+      notch "$verb"
+      local delay interval
+      read -r delay interval <"$SESSION_DIR/scroll-repeat" 2>/dev/null || { delay=0.25; interval=0.025; }
+      (
+        exec 8>&- 2>/dev/null
+        sleep "$delay"
+        while [[ -p $FIFO ]]; do
+          notch "$verb"
+          sleep "$interval"
+        done
+      ) >/dev/null 2>&1 &
+      printf '%s\n' "$!" >"$SESSION_DIR/scroll-repeater"
+      ;;
+    release)
+      stop_repeater
+      ;;
+    stop)
+      stop_repeater
+      printf 'stop\n' 1<>"$FIFO" 2>/dev/null || true
+      ;;
+  esac
+  exit 0
+}
+
+notch() {
+  printf '%s\n' "$1" 1<>"$FIFO" 2>/dev/null || true
+  # For the mark: a counter and a direction, so two notches the same way are
+  # still two changes to the file.
+  local seq=0
+  [[ -f $SESSION_DIR/scroll-event ]] && read -r seq _ <"$SESSION_DIR/scroll-event"
+  printf '%s %s\n' "$((seq + 1))" "$1" >"$SESSION_DIR/scroll-event"
+}
+
+stop_repeater() {
+  local pid
+  [[ -f $SESSION_DIR/scroll-repeater ]] || return 0
+  read -r pid <"$SESSION_DIR/scroll-repeater" || true
+  rm -f "$SESSION_DIR/scroll-repeater"
+  [[ -n $pid ]] && kill "$pid" 2>/dev/null
+  return 0
+}
+
+case "${1:-}" in
+  -h | --help) usage; exit 0 ;;
+  up | down | left | right | release | stop) scroll_fast "$@" ;;
+esac
+
+# --- the slow half ------------------------------------------------------------
+LIB_DIR="${MOUSENOW_PLUGIN_DIR:-$HOME/.local/share/imthemousenow}/bin"
+[[ -f $LIB_DIR/imthemousenow-lib.sh ]] || LIB_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+# shellcheck source=imthemousenow-lib.sh
+source "$LIB_DIR/imthemousenow-lib.sh"
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+QML="$SELF_DIR/../qml/scroll.qml"
+[[ -f $QML ]] || QML="$PLUGIN_DIR/qml/scroll.qml"
+SUBMAP_SCROLL="imthemousenow-scroll"
+
+[[ ${1:-} == begin ]] || { usage >&2; exit 2; }
+where="here"
+[[ -n ${2:-} && -n ${3:-} ]] && where="$2,$3"
+
+# The bare arrows, for the reason imthemousenow-hold re-asserts its own:
+# Hyprland reproducibly drops exactly those binds from a submap, and only the
+# missing ones may be sent, since hl.define_submap appends.
+ensure_scroll_binds() {
+  local present body="" key dir
+  present="$(hyprctl -j binds | jq -r --arg s "$SUBMAP_SCROLL" \
+    '[.[] | select(.submap == $s) | "\(.modmask):\(.key)"] | join(" ")' 2>/dev/null || true)"
+  for key in LEFT RIGHT UP DOWN; do
+    dir="${key,,}"
+    [[ " $present " == *" 0:$key "* ]] && continue
+    body+="hl.bind(\"$key\", hl.dsp.exec_cmd(\"imthemousenow-scroll $dir\"),"
+    body+=" { description = \"Pointer: scroll $dir\" })"$'\n'
+    body+="hl.bind(\"$key\", hl.dsp.exec_cmd(\"imthemousenow-scroll release\"),"
+    body+=" { release = true, description = \"Pointer: stop scrolling $dir\" })"$'\n'
+  done
+  [[ -n $body ]] || return 0
+  hyprctl eval "hl.define_submap(\"$SUBMAP_SCROLL\", function()
+$body
+end)" >/dev/null 2>&1 || true
+}
+
+# A second SUPER + ' while one is on is not a second scroll.
+[[ -p $FIFO ]] && exit 0
+
+if ! action_supported scroll; then
+  notify "Scroll needs the wl-kbptr this plugin builds; run its install.sh"
+  exit 0
+fi
+
+# The modifiers the overlay had toggled on, if it was `/`, start held.
+mods=""
+for m in ${MOUSENOW_MODIFIERS:-}; do mods+="$m "; done
+mods="${mods% }"
+
+mkdir -p "$SESSION_DIR"
+# The keyboard's own repeat, so a held key scrolls at the speed it would type.
+read -r repeat_delay repeat_rate < <(
+  { hyprctl -j getoption input:repeat_delay; hyprctl -j getoption input:repeat_rate; } 2>/dev/null |
+    jq -rs '[.[0].int // 250, .[1].int // 40] | @tsv' 2>/dev/null || echo "250 40")
+((repeat_rate > 0)) || repeat_rate=40
+awk -v d="${repeat_delay:-250}" -v r="$repeat_rate" 'BEGIN { printf "%.3f %.4f\n", d / 1000, 1 / r }' \
+  >"$SESSION_DIR/scroll-repeat"
+printf '%s\n' "$mods" >"$SESSION_DIR/scroll-mods"
+printf '0 none\n' >"$SESSION_DIR/scroll-event"
+rm -f "$FIFO"
+mkfifo -m 600 "$FIFO"
+
+mark_pid=""
+press_pid=""
+
+# However this ends, the modifiers go up (wl-kbptr lets go of them on TERM),
+# the mark goes out, the submap goes back, and the fifo is gone.
+finish() {
+  stop_repeater
+  [[ -n $press_pid ]] && kill "$press_pid" 2>/dev/null
+  [[ -n $mark_pid ]] && kill "$mark_pid" 2>/dev/null
+  rm -f "$FIFO" "$SESSION_DIR/scroll-mods" "$SESSION_DIR/scroll-event" "$SESSION_DIR/scroll-repeat"
+  hyprctl dispatch "hl.dsp.submap(\"${MOUSENOW_SUBMAP:-reset}\")" >/dev/null 2>&1 || true
+}
+trap finish EXIT INT TERM HUP
+
+# The mark first, so the pointer is wearing it before the first notch. A
+# machine without quickshell loses the mark and keeps the feature.
+if command -v quickshell >/dev/null 2>&1 && [[ -f $QML ]]; then
+  color="$(setting action.scroll.color)"
+  size="$(setting action.scroll.mark_size)"
+  export MOUSENOW_SCROLL_COLOR="${color:-#89b4fa}" \
+    MOUSENOW_SCROLL_SIZE="${size:-44}" \
+    MOUSENOW_SCROLL_EVENT="$SESSION_DIR/scroll-event" \
+    MOUSENOW_SCROLL_MODS="$SESSION_DIR/scroll-mods"
+  if [[ $(setting pool.enabled) != false ]]; then
+    export MOUSENOW_SCROLL_POOL=1 \
+      MOUSENOW_POOL_RADIUS="$(setting pool.radius)" \
+      MOUSENOW_POOL_CELL="$(setting pool.cell)" \
+      MOUSENOW_POOL_COLORS="$(pool_colors)" \
+      MOUSENOW_POOL_SHADE="$(setting pool.shade)"
+  fi
+  # Where the mark starts, before the compositor has been asked: the point
+  # the scroll moves to, if it moves.
+  [[ $where != here ]] && export MOUSENOW_SCROLL_START="${where/,/ }"
+  setsid quickshell --no-color -p "$QML" >/dev/null 2>&1 &
+  mark_pid=$!
+fi
+
+ensure_scroll_binds
+hyprctl dispatch "hl.dsp.submap(\"$SUBMAP_SCROLL\")" >/dev/null 2>&1 || true
+
+press_args=(--scroll "$where")
+[[ -n $mods ]] && press_args+=(--modifiers "${mods// /,}")
+
+# Held open read-write for the whole scroll, for the hold's two reasons: the
+# fifo always has a writer, so wl-kbptr's open does not block, and always a
+# reader, so a key in the gap after wl-kbptr exits does not die of SIGPIPE.
+exec 8<>"$FIFO"
+
+wl-kbptr "${press_args[@]}" <"$FIFO" &
+press_pid=$!
+wait "$press_pid" || notify "The scroll did not complete"
+press_pid=""
+exit 0

@@ -382,7 +382,9 @@ derived.
   but a sticky mode needs a persistent indicator rather than a fading one. Hyprland submaps have no `o.*`
   helper in Omarchy's Lua API and no in-tree precedent, so it needs its own
   investigation. (The drag half of it is done, by a different route: see
-  "Dragging" below.)
+  "Dragging" below. So is the scroll half: `SUPER + '` and `/` in the overlay
+  start bin/imthemousenow-scroll, a submap of its own feeding a
+  `wl-kbptr --scroll`, built the way a hold is.)
 - **All-monitors mode**: upstream PR #79 was closed, not merged. The wrapper
   always passes `-O <focused monitor>`.
 - **AT-SPI region source** is not implemented; `imthemousenow-regions` has a

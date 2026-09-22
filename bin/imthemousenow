@@ -7,7 +7,7 @@
 #
 #   MODE      grid | hints          how targets are presented
 #   SCOPE     window | monitor      where the overlay is drawn
-#   ACTION    left-click | right-click | move | drag | hold
+#   ACTION    left-click | right-click | move | drag | hold | scroll
 #   LIFETIME  single | continuous   one selection, or until Escape
 #
 # Unset choices come from [imthemousenow.defaults].
@@ -35,6 +35,8 @@ POOL_CMD="$LIB_DIR/imthemousenow-pool"
 [[ -x $POOL_CMD ]] || POOL_CMD="imthemousenow-pool"
 HOLD_CMD="$LIB_DIR/imthemousenow-hold"
 [[ -x $HOLD_CMD ]] || HOLD_CMD="imthemousenow-hold"
+SCROLL_CMD="$LIB_DIR/imthemousenow-scroll"
+[[ -x $SCROLL_CMD ]] || SCROLL_CMD="imthemousenow-scroll"
 SUBMAP="imthemousenow"
 # EXPERIMENTAL, chosen by popups.keep_open: the same overlay with its keys
 # coming from compositor bindings, so it never takes keyboard focus and the
@@ -218,7 +220,7 @@ from [imthemousenow.defaults] in the config.
   --mode      grid | hints        how targets are presented
 $(list_modes)
   --scope     window | monitor    the focused window, or the whole monitor
-  --action    left-click | right-click | move | drag | hold
+  --action    left-click | right-click | move | drag | hold | scroll
   --lifetime  single | continuous one selection, or reopen until Escape
 
 Inside the overlay, at the narrowing-down step, the home row picks a sub-area
@@ -230,6 +232,7 @@ Three keys switch ACTION for the whole overlay, at any point before you commit:
   ;   right click                  press again to go back
   :   move (no click)              press again to go back
   '   drag                         press again to go back
+  /   scroll there                 then scroll until Escape
 
 Each has its own tint, turned off your theme's accent 72 degrees at a time, so
 which one you are in is visible rather than remembered.
@@ -244,6 +247,12 @@ held. The drop pass covers the monitor the drag picked up on, and the pointer
 takes action.drag.duration_ms to travel, because a client reads drag-and-drop
 out of the motion events under a held button and one jump is not enough of
 them.
+
+SUPER + ' scrolls where the pointer already is, with no overlay; \`/\` in the
+overlay puts the pointer somewhere first. Either way the arrows, hjkl and WASD
+turn the wheel a notch per press, with whatever modifiers you hold -- Ctrl to
+zoom, Shift to go sideways -- and Escape stops. Modifiers toggled on in the
+overlay before \`/\` stay held for the whole scroll.
 
   F5     rebuild the overlay against the screen as it is now
   Tab    in --scope window: swap this window with one you pick
@@ -900,6 +909,22 @@ EOF
       # The modifiers go with it, held down for as long as the button is.
       MOUSENOW_SUBMAP="$SUBMAP" MOUSENOW_MODIFIERS="$(session_get modifiers)" \
         "$HOLD_CMD" begin "$hold_x" "$hold_y" &
+      hold_pid=$!
+      wait "$hold_pid" || true
+      hold_pid=""
+      current_action="$base_action"
+      session_set action "$base_action"
+    fi
+
+    # A scroll is `/`: the overlay put the pointer where the wheel should turn,
+    # and imthemousenow-scroll takes it from there, exactly as SUPER + ' does
+    # with no overlay. Waited on for the hold's reasons, and it shares the
+    # hold's pid so the trap below takes it down too.
+    if [[ $current_action == scroll ]]; then
+      local scroll_x scroll_y
+      read -r scroll_x scroll_y < <(pointer_position)
+      MOUSENOW_SUBMAP="$SUBMAP" MOUSENOW_MODIFIERS="$(session_get modifiers)" \
+        "$SCROLL_CMD" begin "$scroll_x" "$scroll_y" &
       hold_pid=$!
       wait "$hold_pid" || true
       hold_pid=""

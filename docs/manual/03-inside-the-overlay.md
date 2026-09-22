@@ -12,7 +12,12 @@ you commit:
 :   move, no click     a different tint
 '   drag               a different tint again
 "   hold               and one more: the button stays down
+/   scroll             put the pointer there, then turn the wheel
 ```
+
+`/` is scrolling with the overlay used to aim: the pointer lands on what you
+picked, nothing is clicked, and the keys become a wheel exactly as they do
+after `SUPER + '` — see [Scrolling](02-keybindings.md#scrolling-super--).
 
 `;` and `:` are the same physical key, which is the point: one to click
 differently, one to not click at all. The tint is what tells you which you are

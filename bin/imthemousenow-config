@@ -289,6 +289,16 @@ def derive_action_colors(merged: dict) -> None:
         hold_chroma = min(shared, max_chroma(hold_light, drag_hue))
         hold["color"] = oklch_to_hex(hold_light, hold_chroma, drag_hue)
 
+    # Scroll is off the wheel for hold's reason -- a sixth hue crowds the five
+    # -- and takes the same step up in lightness, from move's hue rather than
+    # drag's: it presses nothing, and like a move it only says where.
+    scroll = actions.setdefault("scroll", {})
+    if not parse_hex(scroll.get("color", "")):
+        scroll_light = min(derived_light + HOLD_LIGHT_STEP, HOLD_L_MAX)
+        move_hue = hues[WHEEL.index("move")]
+        scroll_chroma = min(shared, max_chroma(scroll_light, move_hue))
+        scroll["color"] = oklch_to_hex(scroll_light, scroll_chroma, move_hue)
+
 
 def settings() -> dict:
     """The merged config, all layers applied."""

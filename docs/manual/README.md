@@ -13,7 +13,8 @@ moment, which is faster than any page here.
 1. [The four choices](01-the-four-choices.md) — MODE, SCOPE, ACTION, LIFETIME:
    the whole vocabulary, and why there are no named modes to memorise.
 2. [Keybindings](02-keybindings.md) — `SUPER + ;`, the three modifiers that
-   flip one axis each, and the word that names the ACTION you moved into.
+   flip one axis each, the word that names the ACTION you moved into, and
+   `SUPER + '` to scroll.
 3. [Inside the overlay](03-inside-the-overlay.md) — typing a label, switching
    ACTION with `;` `:` `'` `"`, holding `Space` to see through it, retuning it with
    `SHIFT` and `ALT`, and the key sheet on `F1`.
