@@ -62,13 +62,17 @@ as below; set your own defaults and the whole table moves with them.
 `SUPER + '` turns the keyboard into a mouse wheel wherever the pointer already
 is. No overlay comes up; the pointer wears a mark instead, which lurches the
 way each notch goes and names the modifiers it is holding. It stays on until
-`Escape`.
+`Escape`, `Space` or `Return`.
 
 | Key | Does |
 | --- | --- |
 | arrows, `hjkl`, `wasd` | one notch of the wheel that way; hold to keep going |
 | hold `Ctrl`, `Alt` or `Shift` | the wheel with it held -- `Ctrl` zooms a browser a level per notch |
-| `Escape` | stop scrolling, and let go of anything held |
+| `Escape`, `Space`, `Return` | stop scrolling, and let go of anything held |
+
+Three ways out because there is nothing to decide: a scroll commits nothing,
+so every key that ends it ends it the same way, and it should be whichever one
+your hand finds first. A hold ends on the same three keys, for the same reason.
 
 Modifiers are simply held, as with a real wheel. To scroll somewhere else,
 press `/` in the overlay: it moves the pointer to what you pick and then

@@ -233,7 +233,7 @@ Three keys switch ACTION for the whole overlay, at any point before you commit:
   ;   right click                  press again to go back
   :   move (no click)              press again to go back
   '   drag                         press again to go back
-  /   scroll there                 then scroll until Escape
+  /   scroll there                 then scroll until Escape, Space or Return
 
 Each has its own tint, turned off your theme's accent 72 degrees at a time, so
 which one you are in is visible rather than remembered.
@@ -252,8 +252,8 @@ them.
 SUPER + ' scrolls where the pointer already is, with no overlay; \`/\` in the
 overlay puts the pointer somewhere first. Either way the arrows, hjkl and WASD
 turn the wheel a notch per press, with whatever modifiers you hold -- Ctrl to
-zoom, Shift to go sideways -- and Escape stops. Modifiers toggled on in the
-overlay before \`/\` stay held for the whole scroll.
+zoom, Shift to go sideways -- and Escape, Space or Return stops. Modifiers
+toggled on in the overlay before \`/\` stay held for the whole scroll.
 
   F5     rebuild the overlay against the screen as it is now
   super  a bare tap on the command side: the same rebuild as F5

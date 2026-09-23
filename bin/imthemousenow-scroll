@@ -20,7 +20,7 @@
 # anyway. The ones toggled on in the overlay before `/` are held for the whole
 # scroll, and the mark names them.
 #
-# It stays on until Escape. What says it is on, since nothing is drawn over
+# It stays on until Escape, Space or Return. What says it is on, since nothing is drawn over
 # the screen: the pointer wears a mark that pushes the way the wheel turns and
 # names the modifiers held. See qml/scroll.qml.
 set -euo pipefail
@@ -55,7 +55,7 @@ scroll_fast() {
       # pointer cancels Hyprland's repeat of the bind that sent it, so a held
       # key gave one burst and stopped. Instead a press turns one notch and
       # starts a repeater, at the keyboard's own delay and rate, and the key's
-      # release (or any other direction, or Escape) stops it.
+      # release (or any other direction, or a key that stops the scroll) stops it.
       stop_repeater
       notch "$verb"
       local delay interval

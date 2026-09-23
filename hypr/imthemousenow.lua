@@ -484,9 +484,18 @@ hl.define_submap(SUBMAP_SCROLL, function()
         })
       end
     end
-    hl.bind(prefix .. "Escape", hl.dsp.exec_cmd("imthemousenow-scroll stop"), {
-      description = "Pointer: stop scrolling",
-    })
+    -- Space and Return stop a scroll as well as Escape, for the reason they
+    -- end a hold: there is nothing to decide at that point. A scroll commits
+    -- nothing -- the wheel has already turned, notch by notch, and the page is
+    -- where it is -- so every way out is the same way out, and it should be
+    -- whichever key the hand finds first. They cost nothing here either: a
+    -- scroll has no selection to commit, which is the one job Space and Return
+    -- have in an overlay.
+    for _, key in ipairs({ "space", "Return", "Escape" }) do
+      hl.bind(prefix .. key, hl.dsp.exec_cmd("imthemousenow-scroll stop"), {
+        description = "Pointer: stop scrolling",
+      })
+    end
   end
 
   hl.bind("catchall", hl.dsp.exec_cmd("true"), {
