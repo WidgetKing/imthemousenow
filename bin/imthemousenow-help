@@ -182,6 +182,7 @@ section "This overlay" \
   "${cmd_side^} Shift (tap)" "the other scope: window <-> monitor" \
   "${cmd_side^} Alt (tap)" "the other mode: hints <-> grid" \
   "${cmd_side^} Ctrl (tap)" "the other lifetime: single <-> continuous" \
+  "${cmd_side^} Super (tap)" "measure the screen again and redraw" \
   "F5" "measure the screen again and redraw" \
   "F1" "this sheet"
 

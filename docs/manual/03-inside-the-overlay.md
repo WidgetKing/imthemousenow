@@ -149,7 +149,12 @@ to remember:
 SHIFT   SCOPE      window  <->  monitor
 ALT     MODE       hints   <->  grid
 CTRL    LIFETIME   single  <->  continuous
+SUPER   -- rebuilds the overlay, exactly as F5 does
 ```
+
+`SUPER` is the odd one: there is no fourth axis for it to flip, so it does the
+one overlay-wide command that is not a choice about what the next press means.
+See [Refreshing an overlay](#refreshing-an-overlay-f5-or-a-super-tap) below.
 
 `CTRL` changes nothing on screen: it decides what happens after the next
 selection, so there is nothing to relaunch.
@@ -233,7 +238,7 @@ only exists while `SHIFT` is held, so the bind has to carry the modifier — and
 binds whose correctness depends on the keymap. `F1` is the help key on every
 keymap there is.
 
-## Refreshing an overlay: `F5`
+## Refreshing an overlay: `F5`, or a SUPER tap
 
 An overlay is measured once, when it opens — the window's geometry, and in
 `hints` mode the regions found in one frame of the framebuffer. The screen does
@@ -241,6 +246,13 @@ not hold still for that: a page scrolls, a window resizes, a dialog opens, and
 the labels go on naming where things used to be. `F5` rebuilds the overlay
 against the screen as it is now, keeping MODE, SCOPE and ACTION. It costs the
 same flicker a switch of ACTION used to, and anything you had already typed is discarded.
+
+Tapping `SUPER` on the command side does the same thing, for the hand that is
+already there: every chord that opens an overlay holds `SUPER`, so it is the
+key your hand has not yet left. Because of that it is also the tap most likely
+to fire by accident — letting go of the keys that opened the overlay is a
+`SUPER` release — so the same 400ms debounce applies, counted from the moment
+the overlay's keyboard came up rather than from the last key pressed in it.
 
 ---
 

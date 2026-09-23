@@ -207,8 +207,9 @@ local function overlay_binds()
 
   -- A bare modifier tap, on either side of the keyboard. One side is the
   -- command side: SHIFT flips SCOPE, ALT flips MODE and CTRL flips LIFETIME,
-  -- the same things they flip in the chords outside the overlay (SUPER flips
-  -- nothing yet). The other side is the modifier side: a tap there switches
+  -- the same things they flip in the chords outside the overlay, and SUPER --
+  -- which is no axis, there being no fourth thing to flip -- rebuilds the
+  -- overlay, as F5 does. The other side is the modifier side: a tap there switches
   -- that modifier in or out of what the next press holds down, so CTRL then
   -- the label is a Ctrl click. Which side is which is keyboard_modifier_side,
   -- and it is decided in imthemousenow-steer, not here -- this file reads no

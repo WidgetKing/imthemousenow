@@ -28,9 +28,10 @@ Usage: imthemousenow-steer <verb> [value]
   mode           flip MODE between hints and grid
   lifetime       flip LIFETIME between single and continuous
   modkey <ctrl|alt|shift|super> <left|right>
-                 a bare modifier tap: on the command side, the axis it flips;
-                 on the modifier side (keyboard_modifier_side), toggle holding
-                 it down for the next press
+                 a bare modifier tap: on the command side, the axis it flips
+                 -- or, for super, the same rebuild F5 does; on the modifier
+                 side (keyboard_modifier_side), toggle holding it down for the
+                 next press
   arrow <l|r|u|d>  in monitor scope, move the view; in window scope, the window;
                  during a drop, move to the monitor that way
   digit <1-9>    in monitor scope, go to that workspace; in window scope, send
@@ -196,6 +197,13 @@ flip_axis() {
   session_relaunch geometry
 }
 
+# The reload, shared by F5 and by a bare SUPER tap on the command side. Both
+# mean the same thing and must stay the same thing, so neither owns it.
+rebuild_overlay() {
+  session_stamp_bind
+  session_relaunch refresh
+}
+
 # Moving the view under the overlay is meaningless in window scope -- the
 # overlay is tied to one window there -- so it is a no-op rather than a
 # surprise.
@@ -323,11 +331,25 @@ case "$verb" in
     mod="${1:?modkey needs a modifier}"
     side="${2:?modkey needs a side}"
     if [[ $side != "$(setting keyboard_modifier_side)" ]]; then
-      # The command side. SUPER has no axis yet, and is left free for one.
+      # The command side. SHIFT, ALT and CTRL each flip an axis; SUPER is not
+      # an axis -- there is no fourth thing to flip -- so it does the one
+      # overlay-wide command that is not a choice about what the next press
+      # means: the reload F5 does.
       case "$mod" in
         shift) flip_axis scope ;;
         alt) flip_axis mode ;;
         ctrl) flip_axis lifetime ;;
+        super)
+          # The same debounce the axis flips get, and SUPER needs it more than
+          # any of them: every chord that opens an overlay is a SUPER chord, so
+          # the release that ends the launch is a SUPER release arriving just
+          # after the submap is entered. The wrapper stamps a bind when it
+          # enters the submap for exactly this.
+          session_recent_bind "$(setting switch.tap_debounce_ms)" && exit 0
+          # No overlay, nothing to rebuild.
+          session_has scope || exit 0
+          rebuild_overlay
+          ;;
       esac
       exit 0
     fi
@@ -497,8 +519,8 @@ case "$verb" in
     # at where things used to be. This is the reload: same MODE, SCOPE and
     # ACTION, measured again. The loop recomputes geometry and regions before
     # every launch, so asking for a relaunch is the whole implementation.
-    session_stamp_bind
-    session_relaunch refresh
+    # A bare SUPER tap on the command side is the same key by another name.
+    rebuild_overlay
     ;;
 
   arrow | digit)

@@ -135,9 +135,16 @@ steer modkey ctrl left
 check "and back" "$(field lifetime) $(last_word)" "single SINGLE"
 steer modkey ctrl left
 [[ -s $WORK/pkill.log ]] && no "without relaunching anything" || ok "without relaunching anything"
+# SUPER is no axis -- there is no fourth thing to flip -- so on the command side
+# it rebuilds the overlay, which is what F5 does. Asserted by the relaunch it
+# asks for, and by the axes it must leave exactly as they were.
+: >"$WORK/pkill.log"
 steer modkey super left
-check "left SUPER does nothing yet" "$(field scope) $(field mode) $(field lifetime) $(field modifiers)" \
+check "left SUPER changes no axis" "$(field scope) $(field mode) $(field lifetime) $(field modifiers)" \
   "monitor grid continuous "
+# The relaunch is the assertion; which kind it was is not readable here, because
+# the steer() wrapper above clears `switch` after every call on purpose.
+[[ -s $WORK/pkill.log ]] && ok "and rebuilds the overlay, as F5 does" || no "and rebuilds the overlay, as F5 does"
 
 # --- 6. swapping the sides -----------------------------------------------------------
 setup; knows

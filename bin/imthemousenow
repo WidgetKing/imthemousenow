@@ -256,6 +256,7 @@ zoom, Shift to go sideways -- and Escape stops. Modifiers toggled on in the
 overlay before \`/\` stay held for the whole scroll.
 
   F5     rebuild the overlay against the screen as it is now
+  super  a bare tap on the command side: the same rebuild as F5
   Tab    in --scope window: swap this window with one you pick
   Space  hold to fade the overlay and see what is under it
 
@@ -291,9 +292,10 @@ where they were once you can read the thing you were aiming at. Not available
 in the second half of a grid selection: once it reaches bisect, Space commits
 the area the way Return does. Set peek_alpha = 1 in the config to turn it off.
 
-An overlay is measured once, when it opens. Press F5 when the screen has moved
-underneath it -- a page scrolled, a window resized, a dialog opened -- and the
-labels are re-derived from what is on screen now.
+An overlay is measured once, when it opens. Press F5 -- or tap SUPER on the
+command side -- when the screen has moved underneath it: a page scrolled, a
+window resized, a dialog opened. The labels are re-derived from what is on
+screen now.
 
 Tab opens a picker with one label per window (that is --mode windows, which you
 can also ask for directly). The window the overlay is on is not among them --
@@ -701,6 +703,12 @@ EOF
   }
   trap submap_off EXIT INT TERM HUP
   hyprctl dispatch "hl.dsp.submap(\"$SUBMAP\")" >/dev/null 2>&1 || true
+  # Entering the submap counts as a bind, so the launch chord's own modifier
+  # release is debounced as the tail of a chord rather than read as a bare tap.
+  # Every chord that opens an overlay holds SUPER, and a bare SUPER tap on the
+  # command side now rebuilds the overlay -- without this, letting go of the
+  # keys that opened it would immediately rebuild it.
+  session_stamp_bind
 
   # The click mark. Up before the first overlay rather than at the click,
   # because quickshell takes longer to start than a mark lasts; it draws
