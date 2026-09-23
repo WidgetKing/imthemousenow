@@ -43,10 +43,10 @@ spec.loader.exec_module(cfg)
 MIN_SEPARATION = 0.09
 failures = 0
 
-# The five on the wheel plus hold, which is not on it: hold wears drag's hue a
+# The five on the wheel plus drop, which is not on it: drop wears drag's hue a
 # step lighter, so the pair it could collide with is drag, and nothing else here
 # would notice if it did.
-ACTIONS = list(cfg.WHEEL) + ["hold"]
+ACTIONS = list(cfg.WHEEL) + ["drop"]
 
 
 def oklab(hex_color):

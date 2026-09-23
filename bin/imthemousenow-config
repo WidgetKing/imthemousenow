@@ -151,18 +151,25 @@ def nest_reserved(flat: dict) -> dict:
 # The result, measured: every shipped theme separates its five by at least 0.096
 # in Oklab, where 1.0 is the distance from black to white. tests/action-colors.sh
 # asserts it, so a new theme cannot quietly break it.
-WHEEL = ("left-click", "right-click", "move", "drag", "drop")
+WHEEL = ("left-click", "right-click", "move", "drag", "hold")
 CHROMA_FLOOR = 0.10
 L_MIN, L_MAX = 0.45, 0.78
-# How far hold sits from drag in lightness, sharing its hue, and how light it
-# is allowed to get on the way. L_MAX is a ceiling for the wheel because a
-# label has to stay readable against its own background; hold's colour is worn
-# by a halo drawn over whatever is on screen, where being pale is a virtue
-# rather than a problem, so it may go higher than the five that are labels.
-# 0.18 is measured rather than picked: it keeps hold further from drag, in
-# every shipped theme, than the closest pair the wheel itself produces.
-HOLD_LIGHT_STEP = 0.18
-HOLD_L_MAX = 0.90
+# The two ACTIONs that are not on the wheel, and whose hue each one borrows. A
+# sixth or seventh hue puts the whole set closer together than
+# tests/action-colors.sh will accept in every shipped theme, and neither of
+# these is a sixth idea anyway: a drop is the far end of a drag, and a scroll,
+# like a move, presses nothing and only says where. So each takes its partner's
+# hue at the other end of the lightness range the wheel is clamped to, which
+# separates the pair by more than any two neighbouring hues on the wheel manage
+# while still reading as one family.
+FOLLOWERS = (("drop", "drag"), ("scroll", "move"))
+# How far a follower sits from its partner in lightness, and how light it is
+# allowed to get on the way. L_MAX is a ceiling for the wheel because a label
+# has to stay readable against its own background; a follower is allowed higher.
+# 0.18 is measured rather than picked: it keeps each follower further from its
+# partner, in every shipped theme, than the closest pair the wheel produces.
+LIFT_STEP = 0.18
+LIFT_L_MAX = 0.90
 
 # Bjorn Ottosson's Oklab, transcribed rather than depended on: this runs on
 # every settings() call, and a colour library is not worth a dependency in a
@@ -269,35 +276,20 @@ def derive_action_colors(merged: dict) -> None:
         if not parse_hex(entry.get("color", "")):
             entry["color"] = oklch_to_hex(derived_light, shared, hues[index])
 
-    # Hold is not on the wheel, and deliberately: a sixth hue puts the whole set
-    # closer together than tests/action-colors.sh will accept in every shipped
-    # theme, and hold is not a sixth idea anyway -- it is drag with the far end
-    # left open. So it takes drag's hue at the other end of the lightness range
-    # the wheel is clamped to, which separates the two by more than any pair of
-    # neighbouring hues manages while still reading as the same family.
-    hold = actions.setdefault("hold", {})
-    if not parse_hex(hold.get("color", "")):
-        # Brighter than drag where there is room, darker where there is not:
-        # the halo is drawn over whatever is on screen rather than over an
-        # overlay's own dimming, so a light ring has the better chance of
-        # reading against it.
-        # Always upwards, and it always has room to go: the wheel's own
-        # lightness is clamped at L_MAX, which is below this ceiling by more
-        # than the separation the five are held to.
-        hold_light = min(derived_light + HOLD_LIGHT_STEP, HOLD_L_MAX)
-        drag_hue = hues[WHEEL.index("drag")]
-        hold_chroma = min(shared, max_chroma(hold_light, drag_hue))
-        hold["color"] = oklch_to_hex(hold_light, hold_chroma, drag_hue)
-
-    # Scroll is off the wheel for hold's reason -- a sixth hue crowds the five
-    # -- and takes the same step up in lightness, from move's hue rather than
-    # drag's: it presses nothing, and like a move it only says where.
-    scroll = actions.setdefault("scroll", {})
-    if not parse_hex(scroll.get("color", "")):
-        scroll_light = min(derived_light + HOLD_LIGHT_STEP, HOLD_L_MAX)
-        move_hue = hues[WHEEL.index("move")]
-        scroll_chroma = min(shared, max_chroma(scroll_light, move_hue))
-        scroll["color"] = oklch_to_hex(scroll_light, scroll_chroma, move_hue)
+    # Always upwards, and there is always room to go: the wheel's own lightness
+    # is clamped at L_MAX, which is below this ceiling by more than the
+    # separation the five on the wheel are held to. Upwards rather than down
+    # because a follower is read over whatever is already on screen -- drop's
+    # label sits on a drag already in progress, scroll's pointer over the thing
+    # being scrolled -- so being pale is a virtue there rather than a problem.
+    lift_light = min(derived_light + LIFT_STEP, LIFT_L_MAX)
+    for name, partner in FOLLOWERS:
+        entry = actions.setdefault(name, {})
+        if parse_hex(entry.get("color", "")):
+            continue
+        partner_hue = hues[WHEEL.index(partner)]
+        lift_chroma = min(shared, max_chroma(lift_light, partner_hue))
+        entry["color"] = oklch_to_hex(lift_light, lift_chroma, partner_hue)
 
 
 def settings() -> dict:

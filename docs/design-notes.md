@@ -318,9 +318,10 @@ labels windows on the focused monitor and an overlay made of another screen's
 windows would label things that are not there.
 
 **The two halves get their own colours**, which the ACTION palette makes cheap
--- see "Deriving the ACTION palette" below. Drag and drop land 72 degrees apart
-on the same wheel as everything else, so they read as two distinct states rather
-than one state twice, and the OSD still names which half you are in.
+-- see "Deriving the ACTION palette" below. Drop is not a sixth hue: it wears
+drag's, a step lighter, so the two halves read as one gesture at two stages
+rather than as two unrelated states, and the OSD still names which half you are
+in.
 
 ## Deriving the ACTION palette
 
