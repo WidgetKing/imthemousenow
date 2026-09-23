@@ -101,7 +101,7 @@ Panel {
 
   readonly property var rows: {
     if (currentTab === 0)
-      return ["mode", "scope", "lifetime", "modifier-side", "hold-step", "notify"]
+      return ["mode", "scope", "lifetime", "modifier-side", "hold-step", "drag-ms", "notify"]
 
     // What is drawn over the screen while you are choosing.
     if (currentTab === 1)
@@ -258,6 +258,14 @@ Panel {
     if (id === "hold-step")
       return { key: "action.hold.step", value: Model.numberValue(cfg, "action.hold.step", 40),
                minimum: 5, maximum: 120, step: 5, integer: true }
+    // How long the pointer takes to walk from what a drag picked up to where it
+    // is dropped. Not a cosmetic duration: a client reads drag-and-drop out of
+    // the motion events under a held button, and one jump from A to B is a
+    // single event to infer everything from. Longer is slower and more
+    // reliable, which is why the row is called time rather than speed.
+    if (id === "drag-ms")
+      return { key: "action.drag.duration_ms", value: Model.numberValue(cfg, "action.drag.duration_ms", 300),
+               minimum: 100, maximum: 1000, step: 50, integer: true }
     if (id === "word-size")
       return { key: "osd.size", value: Model.numberValue(cfg, "osd.size", 120),
                minimum: 40, maximum: 200, step: 10, integer: true }
@@ -649,6 +657,14 @@ Panel {
             label: "Hold speed"
             description: "How far a hold moves the pointer per keypress, while the button is down. Shift is five of these."
             valueText: String(Math.round(Model.numberValue(root.cfg, "action.hold.step", 40))) + "px"
+          }
+
+          SliderRow {
+            rowId: "drag-ms"
+            visible: root.currentTab === 0
+            label: "Drag time"
+            description: "How long a drag takes to travel from what it picked up to where it drops. Longer is slower, and more reliable with applications that miss a quick drop."
+            valueText: String(Math.round(Model.numberValue(root.cfg, "action.drag.duration_ms", 300))) + "ms"
           }
 
           ToggleRow {

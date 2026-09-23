@@ -102,10 +102,21 @@ edit-and-reload.
 | Default Lifetime | chips | `defaults.lifetime` | single, continuous |
 | Modifier side | keyboard picker | `keyboard_modifier_side` | left, right |
 | Hold speed | slider | `action.hold.step` | 5–120 px, step 5 |
+| Drag time | slider | `action.drag.duration_ms` | 100–1000 ms, step 50 |
 | Notifications | toggle | `notify` | on/off |
 
 `windows` is a valid `defaults.mode` and is deliberately not offered; it stays
 settable by hand.
+
+**Drag time is named for what it is, not for what was asked.** The setting is a
+duration — how long the pointer takes to walk from what a drag picked up to
+where it drops — so a slider labelled "speed" would get *slower* as it moved
+right, directly contradicting Hold speed immediately above it, which gets
+faster. Longer is also more reliable: a client reads drag-and-drop out of the
+motion events under a held button, and one jump from A to B is a single event
+for it to infer everything from. Raising it is the fix when an application
+keeps missing a drop. Rename the label if you would still rather have "speed" —
+nothing but the label depends on it.
 
 ### The modifier-side picker
 
