@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "Tristan Ward",
   "license": "MIT",
-  "description": "Keyboard pointer control: the default chord, overlay opacity, and the action word, in the bar.",
+  "description": "Keyboard pointer control: the default chord, how the overlay looks, and the settings behind them, in the bar.",
   "kinds": [
     "bar-widget"
   ],
@@ -14,7 +14,7 @@
   },
   "barWidget": {
     "displayName": "Pointer",
-    "description": "Set what SUPER + ; does, how solid the overlay is, and what the action word says.",
+    "description": "Behaviour, appearance and advanced settings for the keyboard pointer.",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right"

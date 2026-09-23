@@ -861,15 +861,18 @@ EOF
     # question. Like a switch or a swap, it does not count as a pass: one drag
     # is one thing you did, however many overlays it took to say it.
     if [[ $current_action == drag ]]; then
-      local anchor_x anchor_y drop_mode
+      local anchor_x anchor_y
       read -r anchor_x anchor_y < <(pointer_position)
       session_set drag-anchor "$mon_name $anchor_x $anchor_y"
       session_set drag-restore "$(session_get mode) $(session_get scope)"
       # Where the drop pass starts out. The arrows move it from here, and
       # compute_geometry reads it rather than the focus.
       session_set drop-monitor "$mon_name"
-      drop_mode="$(setting action.drag.drop_mode)"
-      [[ -n $drop_mode && $drop_mode != same ]] && session_set mode "$drop_mode"
+      # The drop pass stays in the MODE that picked up. It used to be settable
+      # per drag, which was a choice nobody should have to make: a drop is the
+      # far end of the gesture you are already in the middle of, and changing
+      # the labels under it halfway is a way to lose track of what you are
+      # carrying.
       current_action="drop"
       session_set action drop
       # The drop overlay looks exactly like the one before it, so the word is
