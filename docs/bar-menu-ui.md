@@ -235,22 +235,21 @@ does not exist in the new one.
 not on chips — because it was an open question and nothing said to settle it.
 Dropdowns follow the chips, so the two kinds of list behave alike.
 
-## 9. Not verified
+## 9. Verified on the compositor
 
-None of the QML has been seen running. `qmllint` parses both changed files
-without error, but its imports of `qs.Ui` and `qs.Commons` do not resolve
-outside Omarchy's shell, so nothing has checked that the components exist with
-the properties used, that the tab strip and keyboard picture lay out at 380px,
-or that the inline dropdown behaves inside the Flickable. The panel wants a
+All of it, by hand, on the running shell: the four tabs and their widths, the
+modifier-side picker, the inline dropdowns, and the hold's mark with
+`pool.enabled` off — the one case the removed ring used to cover, and the only
+place the removal changed behaviour rather than just deleting it. The scroll's
+Space and Return exits were checked after a `hyprctl reload`.
+
+What the automated tests do and do not cover, for anyone changing this later:
+`tests/panel-settings.sh` pins every config key the panel writes to the real
+`set`, and checks that the rows the cursor walks are the rows that get drawn.
+It cannot see layout. `qmllint` parses the files but its imports of `qs.Ui` and
+`qs.Commons` do not resolve outside Omarchy's shell, so it cannot confirm a
+component exists with the properties used. Anything visual still needs a
 `quickshell` reload and an eye.
-
-Specifically worth looking at first:
-
-- the modifier-side picker — the most expensive row here, and the one most
-  likely to be illegible at panel width
-- the inline dropdown opening inside a scrolling column
-- the hold's mark with `pool.enabled` off, which is the case the removed ring
-  used to cover
 
 ## 10. Still open
 
