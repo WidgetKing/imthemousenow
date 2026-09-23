@@ -54,14 +54,29 @@ exactly when the chance to double click does.
 
 ## 3. The tabs
 
-`Behaviour` · `Appearance` · `Advanced`, each with a membership rule so a new
-setting has an obvious home:
+`Behaviour` · `Overlay` · `Feedback` · `Advanced`, each with a membership rule
+so a new setting has an obvious home:
 
-| Tab | Rule |
-|---|---|
-| **Behaviour** | changes what a keypress *does* |
-| **Appearance** | changes what you *see*, and nothing else |
-| **Advanced** | needs an explanation before you would touch it |
+| Tab | Rule | Rows |
+|---|---|---|
+| **Behaviour** | changes what a keypress *does* | 6 |
+| **Overlay** | what is drawn over the screen while you are choosing | 6 |
+| **Feedback** | what is drawn *because of* what you chose | 3–11 |
+| **Advanced** | needs an explanation before you would touch it | 6 |
+
+Overlay and Feedback began as one `Appearance` tab and came out at 17 rows,
+nearly three times either neighbour. The line between them is not a count: the
+overlay is the surface you read a label off, while the action word, the click
+mark and the scroll mark all appear *because of* something you did. It is also
+a seam the code already has — `wl-kbptr` draws the first, `imthemousenow-osd`
+and `qml/PoolSpot.qml` draw the second — rather than one invented to even out a
+tab strip.
+
+Feedback is still the longest, but it is the most collapsible: five rows hide
+when the action word is off and three when the click mark is off, so it runs
+from 3 rows to 11 where Overlay is a flat 6. No split gets two even halves
+without cutting through a group — separating the word from the marks would give
+7 and 10, but needs five tabs, and four is what fits at 380px.
 
 Advanced's rule is about whether a setting can carry its own label, not about
 where it sits in the config file. Double click is the case that settled it: it
@@ -109,7 +124,7 @@ names where the *modifiers* are held, but what a person is choosing is which
 hand gives orders. Clicking a half means "this half commands", so the setting
 is written as the opposite value.
 
-## 5. Appearance
+## 5. Overlay
 
 | Row | Control | Config key | Values |
 |---|---|---|---|
@@ -119,34 +134,9 @@ is written as the opposite value.
 | Animation speed | slider | `intro_ms` | 0–600 ms, step 25 |
 | Theme colours | toggle | `theme_colors` | on/off |
 | Theme font | toggle | `theme_font` | on/off |
-| **Action word** | chips | `osd.enabled` + `osd.ascii` | Off, Font, Block letters |
-| — Position | chips | `osd.position` | top, center, bottom |
-| — Size | slider | `osd.size` | 40–200 px |
-| — Time on screen | slider | `osd.ms` | 250–3000 ms |
-| — Fade | slider | `osd.fade_ms` | 0–1000 ms |
-| — Announce on start | toggle | `osd.on_start` | on/off |
-| **Click mark** | toggle | `pool.enabled` | on/off |
-| — Size | slider | `pool.radius` | 16–120 px |
-| — Chunkiness | slider | `pool.cell` | 2–16 px |
-| — Style | dropdown | `pool.style` | pool, patchy, lines, cross, random |
-| Scroll mark size | slider | `action.scroll.mark_size` | 16–96 px |
-
-Rows marked `—` are indented and hidden when their group's first row is off.
 
 Peek sits here rather than in Behaviour because it is the same control on the
 same object as Opacity, and that is where a hand looks for it.
-
-### Action word: one three-way row, two config keys
-
-`Off` · `Font` · `Block letters`. The old shape was a toggle plus a separate
-block-letters toggle, which let you turn block letters on for a word that was
-off — a setting with nothing to mean. Three options is what a person actually
-chooses between.
-
-It writes two keys: `Off` → `osd.enabled=false`; `Font` → `enabled=true,
-ascii=false`; `Block letters` → `enabled=true, ascii=true`. Two writes from one
-press is fine — the panel queues writes one at a time, so the second reads the
-config the first wrote.
 
 ### Rad Animations
 
@@ -164,7 +154,37 @@ failed to understand.
 
 The config key is still `intro`. `Rad Animations` is the label.
 
-## 6. Advanced
+## 6. Feedback
+
+| Row | Control | Config key | Values |
+|---|---|---|---|
+| **Action word** | chips | `osd.enabled` + `osd.ascii` | Off, Font, Block letters |
+| — Position | chips | `osd.position` | top, center, bottom |
+| — Size | slider | `osd.size` | 40–200 px |
+| — Time on screen | slider | `osd.ms` | 250–3000 ms |
+| — Fade | slider | `osd.fade_ms` | 0–1000 ms |
+| — Announce on start | toggle | `osd.on_start` | on/off |
+| **Click mark** | toggle | `pool.enabled` | on/off |
+| — Size | slider | `pool.radius` | 16–120 px |
+| — Chunkiness | slider | `pool.cell` | 2–16 px |
+| — Style | dropdown | `pool.style` | pool, patchy, lines, cross, random |
+| Scroll mark size | slider | `action.scroll.mark_size` | 16–96 px |
+
+Rows marked `—` are indented and hidden when their group's first row is off.
+
+### Action word: one three-way row, two config keys
+
+`Off` · `Font` · `Block letters`. The old shape was a toggle plus a separate
+block-letters toggle, which let you turn block letters on for a word that was
+off — a setting with nothing to mean. Three options is what a person actually
+chooses between.
+
+It writes two keys: `Off` → `osd.enabled=false`; `Font` → `enabled=true,
+ascii=false`; `Block letters` → `enabled=true, ascii=true`. Two writes from one
+press is fine — the panel queues writes one at a time, so the second reads the
+config the first wrote.
+
+## 7. Advanced
 
 | Row | Control | Config key | Values |
 |---|---|---|---|
@@ -181,7 +201,7 @@ the number the applications being clicked measure against. Off writes `0`. A
 custom number set by hand reads as "on"; that is the cost of the simpler
 control.
 
-## 7. Keyboard model
+## 8. Keyboard model
 
 | Key | Does |
 |---|---|
@@ -204,7 +224,7 @@ does not exist in the new one.
 not on chips — because it was an open question and nothing said to settle it.
 Dropdowns follow the chips, so the two kinds of list behave alike.
 
-## 8. Not verified
+## 9. Not verified
 
 None of the QML has been seen running. `qmllint` parses both changed files
 without error, but its imports of `qs.Ui` and `qs.Commons` do not resolve
@@ -221,7 +241,7 @@ Specifically worth looking at first:
 - the hold's mark with `pool.enabled` off, which is the case the removed ring
   used to cover
 
-## 9. Still open
+## 10. Still open
 
 - Should chips apply as you walk them, matching sliders?
 - Should the bar button show current state — the ACTION alone, or the whole

@@ -16,12 +16,20 @@ import "Model.js" as Model
 // the controls, so the settings that are really numbers are now really
 // sliders, and the editor is a footer button rather than the main event.
 //
-// The settings outgrew one scrolling column, so they are in three tabs, each
+// The settings outgrew one scrolling column, so they are in four tabs, each
 // with a rule about what belongs in it rather than a feel:
 //
-//   Behaviour   changes what a keypress does
-//   Appearance  changes what you see, and nothing else
-//   Advanced    needs an explanation before you would touch it
+//   Behaviour  changes what a keypress does
+//   Overlay    what is drawn over the screen while you are choosing
+//   Feedback   what is drawn because of what you chose
+//   Advanced   needs an explanation before you would touch it
+//
+// Overlay and Feedback were one "Appearance" tab, and it came out nearly three
+// times the size of the others. The line between them is not a count: the
+// overlay is the surface you read a label off, and the word, the click mark and
+// the scroll mark all appear because of something you did. It is also a seam
+// the code already has -- wl-kbptr draws the first, imthemousenow-osd and
+// PoolSpot.qml draw the second.
 //
 // Advanced is not a form for every tuning constant. `continuous.*`,
 // `double_click.guard_ms`, `resize.step` and the rest are described in
@@ -65,7 +73,7 @@ Panel {
   readonly property bool poolEnabled: Model.boolValue(cfg, "pool.enabled")
 
   // --- tabs --------------------------------------------------------------------
-  readonly property var tabs: ["Behaviour", "Appearance", "Advanced"]
+  readonly property var tabs: ["Behaviour", "Overlay", "Feedback", "Advanced"]
   property int currentTab: 0
 
   function selectTab(index) {
@@ -95,12 +103,21 @@ Panel {
     if (currentTab === 0)
       return ["mode", "scope", "lifetime", "modifier-side", "hold-step", "notify"]
 
-    if (currentTab === 1) {
-      var look = ["opacity", "peek", "intro", "intro-ms", "theme-colors", "theme-font", "word"]
-      if (osdEnabled) look = look.concat(["word-position", "word-size", "word-ms", "word-fade", "word-on-start"])
-      look.push("pool")
-      if (poolEnabled) look = look.concat(["pool-radius", "pool-cell", "pool-style"])
-      return look.concat(["scroll-mark"])
+    // What is drawn over the screen while you are choosing.
+    if (currentTab === 1)
+      return ["opacity", "peek", "intro", "intro-ms", "theme-colors", "theme-font"]
+
+    // What is drawn because of what you chose: the word naming the ACTION you
+    // switched into, the mark where a click landed, the mark that says the
+    // keyboard is a wheel. The seam is the one the code already has --
+    // wl-kbptr draws the tab above, imthemousenow-osd and PoolSpot.qml draw
+    // this one -- rather than one invented to even out a tab strip.
+    if (currentTab === 2) {
+      var says = ["word"]
+      if (osdEnabled) says = says.concat(["word-position", "word-size", "word-ms", "word-fade", "word-on-start"])
+      says.push("pool")
+      if (poolEnabled) says = says.concat(["pool-radius", "pool-cell", "pool-style"])
+      return says.concat(["scroll-mark"])
     }
 
     var deep = ["double-click"]
@@ -489,8 +506,8 @@ Panel {
         // it is already switchPanel(), moving between widgets in the bar.
         if (t === "[") { root.selectTab(root.currentTab - 1); return }
         if (t === "]") { root.selectTab(root.currentTab + 1); return }
-        if (key === "e") { root.selectTab(2); root.cursorRow = root.rowIndex("edit"); root.cursorActive = true; root.activateCursor() }
-        else if (key === "c") { root.selectTab(2); root.cursorRow = root.rowIndex("check"); root.cursorActive = true; root.activateCursor() }
+        if (key === "e") { root.selectTab(3); root.cursorRow = root.rowIndex("edit"); root.cursorActive = true; root.activateCursor() }
+        else if (key === "c") { root.selectTab(3); root.cursorRow = root.rowIndex("check"); root.cursorActive = true; root.activateCursor() }
       }
 
       Column {
@@ -688,25 +705,23 @@ Panel {
             description: "Use the current Omarchy font for every mode that draws labels"
           }
 
-          PanelSeparator { visible: root.currentTab === 1; foreground: root.foreground }
-
           ChoiceRow {
             rowId: "word"
-            visible: root.currentTab === 1
+            visible: root.currentTab === 2
             label: "Action word"
             description: "A large word naming the action you moved into. Block letters draws it the way the Omarchy wordmark is drawn."
           }
 
           ChoiceRow {
             rowId: "word-position"
-            visible: root.currentTab === 1 && root.osdEnabled
+            visible: root.currentTab === 2 && root.osdEnabled
             label: "Position"
             indented: true
           }
 
           SliderRow {
             rowId: "word-size"
-            visible: root.currentTab === 1 && root.osdEnabled
+            visible: root.currentTab === 2 && root.osdEnabled
             label: "Size"
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.size", 120))) + "px"
@@ -714,7 +729,7 @@ Panel {
 
           SliderRow {
             rowId: "word-ms"
-            visible: root.currentTab === 1 && root.osdEnabled
+            visible: root.currentTab === 2 && root.osdEnabled
             label: "Time on screen"
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.ms", 1000))) + "ms"
@@ -722,7 +737,7 @@ Panel {
 
           SliderRow {
             rowId: "word-fade"
-            visible: root.currentTab === 1 && root.osdEnabled
+            visible: root.currentTab === 2 && root.osdEnabled
             label: "Fade"
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.fade_ms", 250))) + "ms"
@@ -730,24 +745,24 @@ Panel {
 
           ToggleRow {
             rowId: "word-on-start"
-            visible: root.currentTab === 1 && root.osdEnabled
+            visible: root.currentTab === 2 && root.osdEnabled
             label: "Announce on start"
             indented: true
             description: "Name the action a chord opens in, not only the ones you switch to"
           }
 
-          PanelSeparator { visible: root.currentTab === 1; foreground: root.foreground }
+          PanelSeparator { visible: root.currentTab === 2; foreground: root.foreground }
 
           ToggleRow {
             rowId: "pool"
-            visible: root.currentTab === 1
+            visible: root.currentTab === 2
             label: "Click mark"
             description: "The patch of LCD pooling a click leaves where it landed. A hold marks its pointer whatever this says — that mark is the only sign a button is down."
           }
 
           SliderRow {
             rowId: "pool-radius"
-            visible: root.currentTab === 1 && root.poolEnabled
+            visible: root.currentTab === 2 && root.poolEnabled
             label: "Size"
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "pool.radius", 56))) + "px"
@@ -755,7 +770,7 @@ Panel {
 
           SliderRow {
             rowId: "pool-cell"
-            visible: root.currentTab === 1 && root.poolEnabled
+            visible: root.currentTab === 2 && root.poolEnabled
             label: "Chunkiness"
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "pool.cell", 6))) + "px"
@@ -763,16 +778,16 @@ Panel {
 
           DropdownRow {
             rowId: "pool-style"
-            visible: root.currentTab === 1 && root.poolEnabled
+            visible: root.currentTab === 2 && root.poolEnabled
             label: "Style"
             indented: true
           }
 
-          PanelSeparator { visible: root.currentTab === 1; foreground: root.foreground }
+          PanelSeparator { visible: root.currentTab === 2; foreground: root.foreground }
 
           SliderRow {
             rowId: "scroll-mark"
-            visible: root.currentTab === 1
+            visible: root.currentTab === 2
             label: "Scroll mark size"
             description: "The mark the pointer wears while the keyboard is a mouse wheel"
             valueText: String(Math.round(Model.numberValue(root.cfg, "action.scroll.mark_size", 44))) + "px"
@@ -782,21 +797,21 @@ Panel {
 
           ToggleRow {
             rowId: "double-click"
-            visible: root.currentTab === 2
+            visible: root.currentTab === 3
             label: "Double click"
             description: "Press the same key twice to double click. Off if a second press should always be a second click."
           }
 
           ToggleRow {
             rowId: "popups"
-            visible: root.currentTab === 2 && root.popupsSupported
+            visible: root.currentTab === 3 && root.popupsSupported
             label: "Popup-safe overlay"
             description: "Experimental: keep context menus open by re-routing keypresses"
           }
 
           SliderRow {
             rowId: "help-size"
-            visible: root.currentTab === 2
+            visible: root.currentTab === 3
             label: "Key sheet size"
             description: "Body text of the sheet F1 shows, in px"
             valueText: String(Math.round(Model.numberValue(root.cfg, "help.size", 15))) + "px"
@@ -804,16 +819,16 @@ Panel {
 
           SliderRow {
             rowId: "settle"
-            visible: root.currentTab === 2
+            visible: root.currentTab === 3
             label: "Switch settle"
             description: "How long to wait for the compositor after switching workspace or monitor, before measuring the screen again."
             valueText: String(Math.round(Model.numberValue(root.cfg, "switch.settle_ms", 80))) + "ms"
           }
 
-          PanelSeparator { visible: root.currentTab === 2; foreground: root.foreground }
+          PanelSeparator { visible: root.currentTab === 3; foreground: root.foreground }
 
           Row {
-            visible: root.currentTab === 2
+            visible: root.currentTab === 3
             width: parent.width
             spacing: Style.spacing.md
 
