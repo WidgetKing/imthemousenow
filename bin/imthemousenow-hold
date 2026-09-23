@@ -20,7 +20,8 @@
 # times a second while a key is held down.
 #
 # What says a hold is on, since nothing is drawn over the screen: the pointer
-# wears a pulsing halo for as long as the button is down. See qml/halo.qml.
+# wears the mark a click leaves for as long as the button is down. See
+# qml/halo.qml.
 set -euo pipefail
 
 SESSION_DIR="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"

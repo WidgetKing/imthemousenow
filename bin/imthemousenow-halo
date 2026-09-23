@@ -1,12 +1,12 @@
 #!/bin/bash
-# omarchy:summary=Ring the pointer with a pulsing halo while a button is held
-# omarchy:args=[--color #rrggbb] [--size N]
+# omarchy:summary=Mark the pointer while a button is held
+# omarchy:args=
 #
 # A hold has no overlay: the whole point of it is to watch the thing you are
 # dragging rather than a grid of labels drawn over it. That leaves the desktop
 # looking exactly as it does when nothing is happening, while every key on the
-# keyboard means something different -- so the pointer says so itself, wearing a
-# halo that pulses for as long as the button is down.
+# keyboard means something different -- so the pointer says so itself, wearing
+# the mark a click leaves for as long as the button is down.
 #
 # Drawn by quickshell, like the ACTION announcement and the key sheet, and for
 # the same reason: it is a dependency of the `omarchy` package, so it is on
@@ -32,15 +32,11 @@ usage() {
   cat <<'USAGE'
 Usage: imthemousenow-halo [options]
 
-  --color C     ring colour, #rrggbb (default: the hold ACTION's colour)
-  --size N      outer radius in px
   --self-test   check this can run at all, then exit
 
 Runs until it is killed. bin/imthemousenow-hold owns it.
 USAGE
 }
-
-color="" size=""
 
 while (($#)); do
   case "$1" in
@@ -51,32 +47,20 @@ while (($#)); do
       echo "imthemousenow-halo: ready"
       exit 0
       ;;
-    --color) color="${2:?--color needs a value}"; shift 2 ;;
-    --size) size="${2:?--size needs a value}"; shift 2 ;;
     *) echo "imthemousenow-halo: unknown option $1" >&2; exit 2 ;;
   esac
 done
 
-# The ACTION's own colour, so the halo is the same colour as the word that
-# announced the hold a moment earlier. No colour anywhere (theme_colors off,
-# nothing set by hand) falls back to a blue that reads against most things.
-[[ -n $color ]] || color="$(setting action.hold.color)"
-[[ -n $color ]] || color="#89b4fa"
-[[ -n $size ]] || size="$(setting action.hold.halo_size)"
-[[ -n $size ]] || size=44
-
-export MOUSENOW_HALO_COLOR="$color" \
-  MOUSENOW_HALO_SIZE="$size" \
-  MOUSENOW_HALO_POS="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/hold-pos"
-# The pointer wears the click mark instead of the rings when there is one to
-# wear. Only quickshell is asked about: a hold reports no clicks, so it has no
-# use for the build's click report.
-if [[ $(setting pool.enabled) != false ]]; then
-  export MOUSENOW_HALO_POOL=1 \
-    MOUSENOW_POOL_RADIUS="$(setting pool.radius)" \
-    MOUSENOW_POOL_CELL="$(setting pool.cell)" \
-    MOUSENOW_POOL_COLORS="$(pool_colors)" \
-    MOUSENOW_POOL_SHADE="$(setting pool.shade)" \
-    MOUSENOW_POOL_STYLE="$(setting pool.style)"
-fi
+# The mark is drawn whatever `pool.enabled` says, which is the one place a hold
+# parts company with a click. That setting turns off a flourish a click leaves
+# behind; this is the only report that a button is down, and a hold with nothing
+# on screen is a keyboard where every key means something new and no way to tell.
+# Only quickshell is asked about: a hold reports no clicks, so it has no use for
+# the build's click report.
+export MOUSENOW_HALO_POS="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow/hold-pos" \
+  MOUSENOW_POOL_RADIUS="$(setting pool.radius)" \
+  MOUSENOW_POOL_CELL="$(setting pool.cell)" \
+  MOUSENOW_POOL_COLORS="$(pool_colors)" \
+  MOUSENOW_POOL_SHADE="$(setting pool.shade)" \
+  MOUSENOW_POOL_STYLE="$(setting pool.style)"
 exec quickshell --no-color -p "$QML"

@@ -184,6 +184,49 @@ font = ""
 # Body text, in px. The keys and the headings are sized off this.
 size = 15
 
+
+# The mark a click leaves where it landed: a patch of chunky LCD pooling, the
+# rainbow bruise a thumb makes pressing into a screen, around a middle left
+# clear so the thing clicked can still be read. It lasts as long as a second
+# press would still count as a double click. A hold wears the same thing on the
+# pointer for as long as the button is down.
+#
+# The colours are the theme's, rendered by the theme template; `colors` (a
+# space-separated list, drawn outward from the middle) and `shade` (the dark of
+# the bruise) set here win over it.
+#
+# Needs the wl-kbptr this plugin's install.sh builds (the fork's "Say where each
+# click went" commit) and quickshell. Without either, or with enabled = false, a
+# click leaves no mark at all. A hold still marks its pointer: that mark is the
+# only report that a button is down, so it is not this setting's to turn off --
+# only its size, chunkiness and style are read from here.
+[imthemousenow.pool]
+enabled = true
+# Outer radius at full strength, in px.
+radius = 56
+# The size of one of its pixels, in px. Bigger is chunkier.
+cell = 6
+# How it goes wrong. Every one leaves the pressed point clear and is centred
+# on it; they differ in how loudly, and in what shape:
+#   pool    a lobed ring of colour bands round the point
+#   patchy  the same ring with big square chunks of it dead
+#   lines   colour bleeding down the panel in columns from the point
+#   cross   a dead row and column through the point, breaking up far out
+#   random  a different one every click, never the same twice running
+style = "random"
+
+# =============================================================================
+# ADVANCED
+# =============================================================================
+# Past this line nothing needs changing to use the plugin. These are tuning
+# constants, escape hatches, and the definitions of the MODEs themselves.
+
+# --- double click ------------------------------------------------------------
+# Not a preference so much as a thing to be explained before it is changed: a
+# double click here is made by pressing the committing key twice, and the
+# window below is how long the second press has is to land. Following the
+# system is almost always right -- it is the number the applications being
+# clicked measure against -- so what is really on offer is on or off.
 # Double click: make the selection, then press the very key that made it again.
 #
 # Which key that is falls out of the MODE, and neither mode had to be taught
@@ -235,41 +278,6 @@ ms = "system"
 # Taken off the system's double-click time to get the window above, in ms. Not
 # a preference: it is the room the second click needs to get out and be seen.
 guard_ms = 60
-
-# The mark a click leaves where it landed: a patch of chunky LCD pooling, the
-# rainbow bruise a thumb makes pressing into a screen, around a middle left
-# clear so the thing clicked can still be read. It lasts as long as a second
-# press would still count as a double click. A hold wears the same thing on the
-# pointer for as long as the button is down.
-#
-# The colours are the theme's, rendered by the theme template; `colors` (a
-# space-separated list, drawn outward from the middle) and `shade` (the dark of
-# the bruise) set here win over it.
-#
-# Needs the wl-kbptr this plugin's install.sh builds (the fork's "Say where each
-# click went" commit) and quickshell. Without either, or with enabled = false,
-# a click leaves no mark at all, and a hold's pointer wears the plain pulsing
-# halo instead.
-[imthemousenow.pool]
-enabled = true
-# Outer radius at full strength, in px.
-radius = 56
-# The size of one of its pixels, in px. Bigger is chunkier.
-cell = 6
-# How it goes wrong. Every one leaves the pressed point clear and is centred
-# on it; they differ in how loudly, and in what shape:
-#   pool    a lobed ring of colour bands round the point
-#   patchy  the same ring with big square chunks of it dead
-#   lines   colour bleeding down the panel in columns from the point
-#   cross   a dead row and column through the point, breaking up far out
-#   random  a different one every click, never the same twice running
-style = "random"
-
-# =============================================================================
-# ADVANCED
-# =============================================================================
-# Past this line nothing needs changing to use the plugin. These are tuning
-# constants, escape hatches, and the definitions of the MODEs themselves.
 
 # EXPERIMENTAL, and on by default; set it to false to go back to an overlay that
 # takes the keyboard the ordinary way. An overlay normally takes keyboard focus, and that is what closes a context menu
@@ -380,13 +388,6 @@ patch = "the fork's \"Walk a path with a button held\" and \"Say a drag path in 
 # the chance. 300ms is long enough for all of that and short enough not to feel
 # like watching an animation. Raise it if an application keeps missing the drop.
 duration_ms = 300
-# MODE for the second pass. `same` follows the MODE that picked up, so a drag
-# started in hints drops in hints; name a MODE outright (grid, hints) to always
-# drop in that one. Worth knowing before choosing: hints answers "what is
-# clickable", which is not the same question as "where do I put this" -- a drop
-# onto blank canvas, or between two list items, is not a hint. `grid` can reach
-# any pixel, so it is the one that can always answer.
-drop_mode = "same"
 
 # Hold is the other half of drag's idea: one pass to say what to take hold of,
 # and then the button stays down while you fly the pointer by hand -- arrows,
@@ -424,9 +425,6 @@ patch = "the fork's \"Hold a button down and be steered\" commit"
 # untouched big step turn SHIFT into a jump you cannot aim with at all. One
 # number, one slider, and the pair always keeps its proportion.
 step = 40
-# The outer radius of the halo around the pointer, in pixels. It is drawn as
-# three rings of falling alpha inside this, pulsing in and out.
-halo_size = 44
 
 [imthemousenow.action.scroll]
 label = "scroll"

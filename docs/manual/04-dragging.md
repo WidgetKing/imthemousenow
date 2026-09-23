@@ -29,10 +29,9 @@ chance. `action.drag.duration_ms` is how long the pointer takes to cross —
 
 The drop pass is drawn over the whole monitor the drag picked up on, whatever
 SCOPE says: you are usually dropping onto something other than the window you
-picked up from. It uses the same MODE the drag started in; set
-`action.drag.drop_mode` to `grid` to always drop in the grid, which is the one
-MODE that can reach a pixel no hint names — blank canvas, or the gap between
-two list items.
+picked up from. It uses the same MODE the drag started in, always: a drop is
+the far end of the gesture you are in the middle of, and relabelling the screen
+halfway through is a way to lose track of what you are carrying.
 
 A drop can be on another monitor. The drop overlay starts on the monitor the
 drag picked up on, and the arrow keys carry it to the screen that way — `→` to
@@ -86,9 +85,10 @@ by default, and five of those with Shift. One number sets both:
 the thing you are moving, not a grid of labels drawn over it. So the only sign
 that a button is down is the pointer itself, which wears a patch of LCD pooling
 for as long as the hold lasts — the same mark a click leaves, following the
-pointer wherever it is steered. With `[imthemousenow.pool] enabled = false` it
-is a pulsing halo instead: `action.hold.halo_size` is how big, and its colour
-is the hold ACTION's own.
+pointer wherever it is steered. `[imthemousenow.pool] enabled = false` does not
+turn this one off: that setting governs the flourish a click leaves behind,
+while this is the only report that a button is down. Its size, chunkiness and
+style come from `[imthemousenow.pool]` all the same.
 
 Every key is a compositor binding while a hold is on, and the ones that are not
 listed above are swallowed rather than passed through: a mistyped key must not

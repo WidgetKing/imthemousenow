@@ -215,12 +215,12 @@ link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 "$REPO/bin/imthemousenow-osd" --self-test >/dev/null 2>&1 ||
   warn "The ACTION announcement is unavailable (no quickshell?); set osd.enabled = false to silence this."
 
-# The halo a hold wears is drawn the same way, by the same quickshell, and is
+# The mark a hold wears is drawn the same way, by the same quickshell, and is
 # checked separately because it is the only thing on screen during a hold: with
-# no overlay drawn, a hold with no halo is a button held down with nothing at
+# no overlay drawn, a hold with no mark is a button held down with nothing at
 # all to say so.
 "$REPO/bin/imthemousenow-halo" --self-test >/dev/null 2>&1 ||
-  warn "The hold halo is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
+  warn "The hold's pointer mark is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
 
 # --- 2c. omarchy-ascii --------------------------------------------------------
 # Text drawn large in the font the Omarchy wordmark is drawn in. Omarchy grew
