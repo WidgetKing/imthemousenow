@@ -35,6 +35,7 @@ and they talk through `bin/imthemousenow-session.sh`.
 | On-screen word, halo, menus | `bin/imthemousenow-osd` + `qml/osd.qml`; `bin/imthemousenow-halo` + `qml/halo.qml`; `bin/imthemousenow-menu`. |
 | The mark a click leaves (LCD pooling) | `qml/PoolSpot.qml` for how it looks, shared with the hold's halo; `bin/imthemousenow-pool` + `qml/pool.qml` for the click, which reads the file the fork writes to `WL_KBPTR_CLICK_REPORT`. Colours are `[imthemousenow.pool]` in `templates/wl-kbptr.conf.tpl`. |
 | The key sheet | `bin/imthemousenow-help` + `qml/help.qml`, and the `--help` heredoc in `bin/imthemousenow`. The prose lives in both, plus `docs/manual/`. Changing one means changing the others. |
+| Translating a string (key sheet, modifier prefix) | `locale/<code>.strings`, one flat `key = "value"` file per locale, copied from `locale/en.strings` and only the right-hand side changed. Looked up by `t()` in `bin/imthemousenow-lib.sh`; every call site also carries the English as a fallback, so a partial locale never shows a blank. The ACTION word itself (`config.default.toml`'s `label`) isn't translatable yet -- it doubles as that action's config key, so a translator's file has no effect on it until that's split. `--help` heredocs and `docs/manual/` are untouched by this and stay English-only for now. |
 | The bar widget | `shell/Panel.qml` and `shell/Model.js`. |
 | Install, update, uninstall | `install.sh`, `uninstall.sh`, `hooks/post-update`. |
 
