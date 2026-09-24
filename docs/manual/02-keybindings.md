@@ -75,6 +75,35 @@ press `/` in the overlay: it moves the pointer to what you pick and then
 scrolls there, and any modifiers you had toggled on in the overlay stay held
 for the whole scroll. Needs the wl-kbptr this plugin builds.
 
+## Bring your own keybinding
+
+`./install.sh` asks before it touches `~/.config/hypr/hyprland.lua`, because
+one `require(...)` line is the whole integration and it claims more than just
+`SUPER + ;`: the same file defines the Hyprland submap that makes every key
+*inside* the overlay work (labels, `Tab`, `F1`, drag, hold, the lot), and it
+also takes over `CTRL + ALT + DELETE` so a stuck overlay always has a way out.
+Say no, or install non-interactively, and none of that is touched — but that
+means the overlay does not respond to any key yet, not even one you bind
+yourself, because the submap it needs does not exist in Hyprland's config
+until that line is there.
+
+`imthemousenow` and its flags (see [The command line](06-command-line.md))
+still run fine from a terminal either way — try `imthemousenow --mode grid`
+— which is enough to confirm the install worked before you decide about keys.
+
+When you're ready:
+
+- `./install.sh --keybinds` adds the include without asking again, or
+  `./install.sh --no-keybinds` skips the prompt and leaves it out.
+- To bind something other than `SUPER + ;`, don't copy the chord logic into
+  your own config — add the include (either flag above, or by hand: see
+  `REQUIRE_LINE` in `install.sh`) and then override just the binding you want
+  changed, as the top of `hypr/imthemousenow.lua` describes: call
+  `hl.unbind("SUPER + SEMICOLON")` in `~/.config/hypr/bindings.lua`, then bind
+  your own key to `imthemousenow` (or to `imthemousenow --flip mode`, etc.).
+  The submap and everything it wires up for you come along either way, so the
+  overlay itself keeps working — only which key opens it changes.
+
 ---
 
 [← The four choices](01-the-four-choices.md) · [Manual contents](README.md) · [Inside the overlay →](03-inside-the-overlay.md)

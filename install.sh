@@ -8,6 +8,10 @@
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 #   ./install.sh --branch B build the fork's branch B instead, to try it live
 #                           before it is merged; a plain run goes back
+#   ./install.sh --no-keybinds  do not wire SUPER + ; and CTRL+ALT+DELETE into
+#                           hyprland.lua; run it later to add them, or see
+#                           docs/manual/02-keybindings.md to drive it by hand
+#   ./install.sh --keybinds skip the opt-in prompt below and wire them up now
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +26,7 @@ HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
 REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
 
-dev=0 build=1 lite=0 rebuild=0 branch=""
+dev=0 build=1 lite=0 rebuild=0 branch="" keybinds="ask"
 while (($#)); do
   case "$1" in
     --dev) dev=1 ;;
@@ -30,7 +34,9 @@ while (($#)); do
     --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
     --branch) branch="${2:-}"; [[ -n $branch ]] || { echo "install.sh: --branch needs a name" >&2; exit 2; }; shift ;;
-    -h | --help) sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --no-keybinds) keybinds="no" ;;
+    --keybinds) keybinds="yes" ;;
+    -h | --help) sed -n '2,14p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -286,10 +292,36 @@ for hook in theme-set font-set post-update; do
 done
 
 # --- 5. Hyprland include ------------------------------------------------------
+# One require() line is the whole integration: it defines the submap that
+# makes the overlay's own keys work AND claims SUPER + ; (all eight chords)
+# and CTRL+ALT+DELETE globally. Those live in the same file, so there is no
+# way to take the first without the second -- ask before doing either, since
+# the chords or CTRL+ALT+DELETE may already be bound to something the user
+# wants kept.
 if ! grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY"; then
-  say "Adding the Hyprland include to hyprland.lua"
-  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
-  printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
+  case "$keybinds" in
+    ask)
+      if [[ -t 0 ]]; then
+        printf '\033[1;34m==>\033[0m Wire up SUPER + ; (and its modifier chords) and CTRL+ALT+DELETE in %s? [Y/n] ' "$HYPR_ENTRY"
+        read -r reply || reply=""
+        [[ $reply == [Nn]* ]] && keybinds="no" || keybinds="yes"
+      else
+        # No terminal to ask on (e.g. a scripted or piped install): stay out
+        # of the user's keybindings rather than assume consent for them.
+        keybinds="no"
+      fi
+      ;;
+  esac
+
+  if [[ $keybinds == yes ]]; then
+    say "Adding the Hyprland include to hyprland.lua"
+    cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+    printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
+  else
+    warn "Skipping the Hyprland include -- the overlay will not respond to any key yet."
+    warn "Run ./install.sh --keybinds when you're ready, or see docs/manual/02-keybindings.md"
+    warn "for what that line does and how to add it yourself."
+  fi
 fi
 
 # --- 5b. the bar widget -------------------------------------------------------
@@ -345,6 +377,12 @@ if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
   warn "The config did not validate; see the errors above."
 fi
 
-say "Done. Try: SUPER + ;   (or: imthemousenow)"
+if grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY" 2>/dev/null; then
+  say "Done. Try: SUPER + ;   (or: imthemousenow)"
+else
+  say "Done, without keybindings. imthemousenow will run from the CLI, but the"
+  say "overlay won't take any key until ./install.sh --keybinds wires it up --"
+  say "see docs/manual/02-keybindings.md."
+fi
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

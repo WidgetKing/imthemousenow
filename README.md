@@ -39,6 +39,15 @@ cd imthemousenow
 | `--lite` | build without OpenCV — hints label whole windows instead of detected targets, and the build loses a 100MB+ dependency |
 | `--rebuild` | force the wl-kbptr build even when it looks current |
 | `--no-build` | integration only, no compile |
+| `--keybinds` | wire up `SUPER + ;` and `CTRL+ALT+DELETE` without asking |
+| `--no-keybinds` | leave your Hyprland keybindings alone without asking |
+
+Partway through, it asks before it wires `SUPER + ;` (and its chords) and
+`CTRL+ALT+DELETE` into `~/.config/hypr/hyprland.lua` — say no, or install
+non-interactively without `--keybinds`, and it leaves your keybindings alone.
+`imthemousenow` still works from a terminal either way; see
+[Bring your own keybinding](docs/manual/02-keybindings.md#bring-your-own-keybinding)
+for what to do next.
 
 Then press `SUPER + ;`, and `F1` inside the overlay to see what else you can
 press.
@@ -57,7 +66,7 @@ Nothing outside your home directory, except the one package it builds.
 | What | Where |
 | --- | --- |
 | Plugin files | `~/.local/share/imthemousenow/`, with commands symlinked into `~/.local/bin/` |
-| Hyprland keybindings | one `require(...)` line appended to `~/.config/hypr/hyprland.lua` (backed up first) |
+| Hyprland keybindings | one `require(...)` line appended to `~/.config/hypr/hyprland.lua` (backed up first) — only after you say yes, see below |
 | Bar widget | `~/.config/omarchy/plugins/imthemousenow/`, enabled on the bar |
 | Theme colours | `~/.config/omarchy/themed/wl-kbptr.conf.tpl`, re-rendered on theme change |
 | Hooks | one file each in Omarchy's `theme-set`, `font-set` and `post-update` hook directories |
@@ -65,12 +74,12 @@ Nothing outside your home directory, except the one package it builds.
 | Runtime state | `$XDG_RUNTIME_DIR/imthemousenow/`, gone at logout |
 | Package | `wl-kbptr-omarchy`, built with `makepkg` and installed with pacman, so it is owned and removable like anything else |
 
-It takes over `SUPER + ;` and its modifier chords, and it rebinds
-`CTRL + ALT + DELETE` — to a command that dismisses any overlay and *then* runs
-Omarchy's own action for that key, so nothing is lost. While an overlay is up,
-a Hyprland submap makes `;`, `Tab`, `F1`, `F5`, the digits and the arrows mean
-something to the overlay; the submap is reset however the overlay exits,
-including a crash.
+If you agree, it takes over `SUPER + ;` and its modifier chords, and it
+rebinds `CTRL + ALT + DELETE` — to a command that dismisses any overlay and
+*then* runs Omarchy's own action for that key, so nothing is lost. While an
+overlay is up, a Hyprland submap makes `;`, `Tab`, `F1`, `F5`, the digits and
+the arrows mean something to the overlay; the submap is reset however the
+overlay exits, including a crash.
 
 `./uninstall.sh` reverses all of it, including taking the widget off the bar
 before it removes the files.
