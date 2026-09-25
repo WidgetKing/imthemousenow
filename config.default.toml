@@ -59,20 +59,39 @@ theme_font = true
 # reject the whole config -- so the setting is simply inert.
 peek_alpha = 0.1
 
-# How the overlay arrives, over intro_ms milliseconds.
+# How the overlay arrives, over intro_ms milliseconds. All of them are the same
+# idea -- an old monitor doing something wrong -- and all of them are drawn in
+# whole pieces rather than smoothly, so the overlay jumps into place a cell at
+# a time instead of gliding.
 #
-#   "bytes"     eats it into the screen a square at a time, in no order
-#   "scanline"  throws it in as horizontal bands that slide into true
-#   "random"    one of those, a different one each time the overlay opens
-#   "none"      puts it up whole, at once, as it always used to
+#   "bytes"      eats it into the screen a square at a time, in no order
+#   "dither"     the same squares, in ordered-dither order: a crosshatch that
+#                thickens, the way a 1-bit paint program fills a region
+#   "interlace"  one field then the other, each sweeping down the screen
+#   "warmup"     the phosphor coming up, through four fixed brightnesses
+#   "scanline"   throws it in as horizontal bands that slide into true
+#   "dropout"    scanline on its end: columns hanging, then pulled back
+#   "roll"       the picture running up the screen and slowing to a stop,
+#                with the blanking bar across the seam
+#   "beam"       a raster scan, the line itself at twice the brightness
+#   "flicker"    all there from the first frame, guttering through a few
+#                levels, with a ghost image that closes in. The gentle one:
+#                nothing is ever missing, so a label stays readable throughout
+#   "shuffle"    a scattering of cells showing what belongs somewhere else,
+#                shrinking and coming right. The loudest one
+#   "squeeze"    a bright line across the middle opening out in whole bands
+#   "random"     one of those, a different one each time the overlay opens
+#   "none"       puts it up whole, at once, as it always used to
 #
 # A list -- "bytes,scanline" -- picks at random among just those. intro_chunk
-# is how big the pieces are, in pixels: the side of a square in bytes, four
-# times the height of a band in scanline. The overlay takes keys from the
-# first moment, so typing a label before the intro is over is fine.
+# is how big the pieces are, in pixels: the side of a square in bytes, dither,
+# warmup and shuffle, and four times the height of a band in the ones that work
+# in lines. The overlay takes keys from the first moment, so typing a label
+# before the intro is over is fine.
 #
 # Needs the wl-kbptr this plugin's install.sh builds (the fork's "Bring the
-# overlay in through a transition" commit). On a stock build none of these is
+# overlay in through a transition" commit; everything past scanline needs
+# "Nine more ways for the overlay to arrive" on top of it). On a stock build none of these is
 # passed through, for the same reason as peek_alpha above.
 intro = "random"
 intro_ms = 250

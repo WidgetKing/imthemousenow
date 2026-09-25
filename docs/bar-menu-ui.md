@@ -141,7 +141,7 @@ is written as the opposite value.
 |---|---|---|---|
 | Opacity | slider | `opacity.default` | 0.30–1.00, as % |
 | Peek | slider | `peek_alpha` | 0.05–1.00; 1.00 = "off" |
-| Rad Animations | dropdown | `intro` | bytes, scanline, random, none |
+| Rad Animations | dropdown | `intro` | bytes, dither, interlace, warmup, scanline, dropout, roll, beam, flicker, shuffle, squeeze, random, none |
 | Animation speed | slider | `intro_ms` | 0–600 ms, step 25 |
 | Theme colours | toggle | `theme_colors` | on/off |
 | Theme font | toggle | `theme_font` | on/off |
@@ -151,7 +151,9 @@ same object as Opacity, and that is where a hand looks for it.
 
 ### Rad Animations
 
-A dropdown rather than chips, because the list is expected to grow: chips are a
+A dropdown rather than chips, because the list was expected to grow and has:
+thirteen values as of the nine added in the fork's "Nine more ways for the
+overlay to arrive". Chips are a
 row that gets longer until it wraps, a dropdown is a row that stays one line at
 any length. The list opens *inline*, below the row, rather than floating over
 it — the panel is a Flickable, and a floating list has to be positioned against
