@@ -8,6 +8,13 @@
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 #   ./install.sh --branch B build the fork's branch B instead, to try it live
 #                           before it is merged; a plain run goes back
+#   ./install.sh --keybinds full|submap|none
+#                           how much of hypr/ to wire into hyprland.lua:
+#                           full = SUPER + ; and its chords (the default);
+#                           submap = the overlay and its panic key with no
+#                           entry hotkey, for bringing your own; none = skip
+#                           Hyprland entirely. Asked interactively if omitted
+#                           and this is a terminal. See docs/manual/02-keybindings.md.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +27,18 @@ THEMED_DIR="$HOME/.config/omarchy/themed"
 HOOKS_DIR="$HOME/.config/omarchy/hooks"
 HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
-REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+# Two require() lines this script can write -- see the --keybinds comment
+# above and hypr/imthemousenow-submap.lua's header -- plus one pattern that
+# matches either, so a re-run can tell what is there now and replace it if a
+# later run picks a different choice.
+REQUIRE_FULL='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+REQUIRE_SUBMAP='require("omarchy.plugins.imthemousenow.hypr.imthemousenow-submap")'
+REQUIRE_PATTERN='require\("omarchy\.plugins\.imthemousenow\.hypr\.imthemousenow(-submap)?"\)'
+# Same marker as MARKER above, escaped for use in an ERE (sed -E): the
+# parentheses in the prose are literal there, not a group.
+MARKER_PATTERN='-- imthemousenow \(managed by install\.sh; remove with uninstall\.sh\)'
 
-dev=0 build=1 lite=0 rebuild=0 branch=""
+dev=0 build=1 lite=0 rebuild=0 branch="" keybinds=""
 while (($#)); do
   case "$1" in
     --dev) dev=1 ;;
@@ -30,7 +46,15 @@ while (($#)); do
     --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
     --branch) branch="${2:-}"; [[ -n $branch ]] || { echo "install.sh: --branch needs a name" >&2; exit 2; }; shift ;;
-    -h | --help) sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --keybinds)
+      keybinds="${2:-}"
+      case "$keybinds" in
+        full | submap | none) ;;
+        *) echo "install.sh: --keybinds needs one of: full submap none" >&2; exit 2 ;;
+      esac
+      shift
+      ;;
+    -h | --help) sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -286,11 +310,59 @@ for hook in theme-set font-set post-update; do
 done
 
 # --- 5. Hyprland include ------------------------------------------------------
-if ! grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY"; then
-  say "Adding the Hyprland include to hyprland.lua"
-  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
-  printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
+# Three choices, asked once and remembered in STATE_DIR so a plain re-run
+# (say, after a system update) does not ask again or flip what was chosen.
+if [[ -z $keybinds ]]; then
+  keybinds="$(cat "$STATE_DIR/keybinds-mode" 2>/dev/null || echo)"
 fi
+if [[ -z $keybinds ]]; then
+  if [[ -t 0 ]]; then
+    echo
+    echo "Wire imthemousenow into Hyprland's keybindings?"
+    echo "  [f] full   -- SUPER + ; and its chords, ready to use (default)"
+    echo "  [s] submap -- just the overlay; you bind your own entry key to it"
+    echo "  [n] none   -- nothing; you reference hypr/imthemousenow-submap.lua yourself"
+    reply=""
+    read -r -p "Choice [f/s/n]: " reply || true
+    case "$reply" in
+      [sS]*) keybinds=submap ;;
+      [nN]*) keybinds=none ;;
+      *) keybinds=full ;;
+    esac
+  else
+    keybinds=full
+  fi
+fi
+
+case "$keybinds" in
+  full) desired="$REQUIRE_FULL" ;;
+  submap)
+    desired="$REQUIRE_SUBMAP"
+    say "Wiring up just the submap -- bind your own key to 'imthemousenow' (see docs/manual/02-keybindings.md, \"Bring your own keybinding\")"
+    ;;
+  none)
+    desired=""
+    warn "Skipping the Hyprland include entirely, by request (--keybinds none)."
+    warn "Nothing here opens the overlay, and the panic key (CTRL+ALT+DELETE) is NOT wired up either."
+    warn "With [imthemousenow.popups] keep_open on (the shipped default), an overlay opened with no"
+    warn "submap loaded cannot be reached by the keyboard AT ALL -- that mode takes no keyboard focus"
+    warn "of its own and relays every key through submap binds. Read \"Bring your own keybinding\" in"
+    warn "docs/manual/02-keybindings.md before you launch imthemousenow this way."
+    ;;
+esac
+
+current="$(grep -oE "$REQUIRE_PATTERN" "$HYPR_ENTRY" 2>/dev/null | head -n1 || true)"
+if [[ -n $desired && $current != "$desired" ]]; then
+  say "Adding the Hyprland include to hyprland.lua ($keybinds)"
+  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  [[ -n $current ]] && sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
+  printf '\n%s\n%s\n' "$MARKER" "$desired" >>"$HYPR_ENTRY"
+elif [[ -z $desired && -n $current ]]; then
+  say "Removing the Hyprland include from hyprland.lua (--keybinds none)"
+  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
+fi
+echo "$keybinds" >"$STATE_DIR/keybinds-mode"
 
 # --- 5b. the bar widget -------------------------------------------------------
 # The settings used to be rows merged into the one user menu file Omarchy's
@@ -345,6 +417,10 @@ if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
   warn "The config did not validate; see the errors above."
 fi
 
-say "Done. Try: SUPER + ;   (or: imthemousenow)"
+case "$keybinds" in
+  full) say "Done. Try: SUPER + ;   (or: imthemousenow)" ;;
+  submap) say "Done. No entry key is bound -- bind your own to: imthemousenow" ;;
+  none) say "Done. Hyprland is not wired up -- see docs/manual/02-keybindings.md before running: imthemousenow" ;;
+esac
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

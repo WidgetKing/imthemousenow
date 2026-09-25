@@ -39,7 +39,7 @@ Usage: imthemousenow-hold <verb> [value]
                       the first moments of a hold, when it is the hold's own
                       press arriving
 
-The keys are bound in the `imthemousenow-hold` submap; see hypr/imthemousenow.lua.
+The keys are bound in the `imthemousenow-hold` submap; see hypr/imthemousenow-submap.lua.
 EOF
 }
 

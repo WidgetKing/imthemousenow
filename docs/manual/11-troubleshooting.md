@@ -12,6 +12,11 @@ action for that key (`omarchy-hyprland-window-close-all`), so the stock
 behaviour is preserved rather than replaced. Hyprland keybindings still fire
 while wl-kbptr holds the keyboard, which is what makes this reachable at all.
 
+Both of those need `hypr/imthemousenow-submap.lua` loaded, which `./install.sh
+--keybinds none` deliberately skips. See
+[Bring your own keybinding](02-keybindings.md#bring-your-own-keybinding) for
+what that trades away before you pick it.
+
 ---
 
 [← Popup-safe mode](10-popup-safe-mode.md) · [Manual contents](README.md) · [How it is built →](12-how-it-is-built.md)

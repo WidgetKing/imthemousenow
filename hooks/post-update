@@ -21,15 +21,22 @@ if ldd "$(command -v wl-kbptr)" 2>/dev/null | grep -q "not found"; then
   notify "wl-kbptr broke after a library update. Re-run the plugin's install.sh to rebuild."
 fi
 
-# 2. The Hyprland include can be lost when hyprland.lua is refreshed.
-if [[ -f $HYPR_ENTRY ]] && ! grep -q "$MARKER" "$HYPR_ENTRY"; then
-  notify "wl-kbptr keybindings are no longer loaded from hyprland.lua. Re-run install.sh."
-fi
+# Checks 2 and 3 are both about the Hyprland include, which --keybinds none
+# deliberately never adds -- so a person who chose it would get nagged every
+# update about something they turned off on purpose. Old installs have no
+# keybinds-mode file at all; treat that the way it always behaved, as "full".
+keybinds_mode="$(cat "$STATE_DIR/keybinds-mode" 2>/dev/null || echo full)"
+if [[ $keybinds_mode != none ]]; then
+  # 2. The Hyprland include can be lost when hyprland.lua is refreshed.
+  if [[ -f $HYPR_ENTRY ]] && ! grep -q "$MARKER" "$HYPR_ENTRY"; then
+    notify "wl-kbptr keybindings are no longer loaded from hyprland.lua. Re-run install.sh."
+  fi
 
-# 3. The panic key chains to an Omarchy command; a rename upstream would turn
-#    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
-if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
-  notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/imthemousenow.lua."
+  # 3. The panic key chains to an Omarchy command; a rename upstream would turn
+  #    Ctrl+Alt+Delete into a pointer-only key and silently drop "close all".
+  if ! command -v omarchy-hyprland-window-close-all >/dev/null 2>&1; then
+    notify "Ctrl+Alt+Delete no longer finds omarchy-hyprland-window-close-all. Update hypr/imthemousenow-submap.lua."
+  fi
 fi
 
 exit 0

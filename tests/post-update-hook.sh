@@ -70,6 +70,10 @@ soname_bump()    { printf '#!/bin/bash\necho "libopencv.so => not found"\n' >"$W
 include_lost()   { echo 'nothing here' >"$WORK/home/.config/hypr/hyprland.lua"; }
 panic_gone()     { rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
 everything()     { soname_bump; include_lost; rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
+# Chosen --keybinds none on purpose: the include is never there and the panic
+# key is never wired up, so checks 2 and 3 would otherwise nag on every update
+# about something that was never installed to begin with.
+keybinds_none()  { echo none >"$WORK/home/.local/state/imthemousenow/keybinds-mode"; include_lost; rm "$WORK/stub/omarchy-hyprland-window-close-all"; }
 
 check "a healthy system says nothing"      nothing
 check "not our install: says nothing"      not_our_install
@@ -80,6 +84,7 @@ check "3. panic command gone"              panic_gone     "Ctrl+Alt+Delete no lo
 check "all three at once"                  everything \
   "broke after a library update" "no longer loaded from hyprland.lua" \
   "Ctrl+Alt+Delete no longer finds"
+check "4. --keybinds none: no include/panic nags" keybinds_none
 
 # The hook talks to nothing outside this machine. A stubbed PATH with no curl
 # in it is how that is asserted: if a check ever reaches for the network again,

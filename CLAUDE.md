@@ -27,8 +27,8 @@ and they talk through `bin/imthemousenow-session.sh`.
 |---|---|
 | Add or change an ACTION | `config.default.toml` `[imthemousenow.action.*]` declares what it is -- `button`, `requires`, `patch`, `switchable` -- and the launcher, steer and `check` all read it. Only an action with post-selection flow of its own (drag's two passes, hold's delegation) also needs the run loop in `bin/imthemousenow`, plus its own `bin/imthemousenow-<name>`. See the warning below. |
 | Add or change a MODE | `config.default.toml` `[mode.*]` alone. `chain`/`refine`/`source` is the whole interface; `resolve_mode` in `bin/imthemousenow` reads it. |
-| A key pressed inside the overlay | `hypr/imthemousenow.lua` `overlay_binds()` for the bind, `bin/imthemousenow-steer` for what it does. Both, always -- a bind with no case is a dead key. |
-| A key pressed outside the overlay | `hypr/imthemousenow.lua`, the chord section. Chords compose by `--flip AXIS`; they do not each hardcode a combination. |
+| A key pressed inside the overlay | `hypr/imthemousenow-submap.lua` `overlay_binds()` for the bind, `bin/imthemousenow-steer` for what it does. Both, always -- a bind with no case is a dead key. |
+| A key pressed outside the overlay | `hypr/imthemousenow.lua`, the chord section. Chords compose by `--flip AXIS`; they do not each hardcode a combination. This file only requires the submap and defines entry points (`SUPER + ;`, `SUPER + '`) -- it is one of `install.sh`'s three `--keybinds` choices, so it must never carry overlay logic of its own. |
 | Config: layering, validation, compiling | `bin/imthemousenow-config` only. It is Python despite the name. Layers, later winning: `config.default.toml`, the rendered theme template, `~/.config/omarchy/imthemousenow/config.toml`. `config.local` is raw `wl-kbptr` override lines and is applied by the wrapper, not here. |
 | Colours, opacity, theming | `bin/imthemousenow-config` (derivation and opacity) and `templates/wl-kbptr.conf.tpl` (what the theme renders). `hooks/theme-set` only warns; Omarchy does the rendering. |
 | Changing wl-kbptr itself | Not in this repo: in the fork, `../wl-kbptr`, and read its `CLAUDE.md` first. In short: never commit to its `imthemousenow` branch directly, because a push there is what the next install everywhere builds. Work on a `work/<name>` branch, run its `imthemousenow/test.sh`, push the work branch, install it here with `./install.sh --dev --branch work/<name>` and check it on the compositor, and only then fast-forward it into `imthemousenow`. `pkg/PKGBUILD` and `pkg/source.toml` only say where and how to build. A new fork feature also needs a `has_*()` probe in `bin/imthemousenow` -- see the warning below. |
@@ -49,12 +49,21 @@ probe says yes.
 **ACTION is a registry, with two things left outside it.** Most of what an
 action is now lives in its `[imthemousenow.action.*]` table and is read from
 there. Two sites still hardcode the list and have to be edited by hand:
-`overlay_binds()` in `hypr/imthemousenow.lua` (the key that switches to it --
-the lua reads no config, by choice, because a config that failed to parse at
-load would take every binding down with it), and `WHEEL` in
+`overlay_binds()` in `hypr/imthemousenow-submap.lua` (the key that switches to
+it -- the lua reads no config, by choice, because a config that failed to
+parse at load would take every binding down with it), and `WHEEL` in
 `bin/imthemousenow-config` (the order actions sit in around the colour wheel,
 which is an argument about colour rather than about actions). Everything else
 follows from the table.
+
+**`hypr/imthemousenow.lua` and `hypr/imthemousenow-submap.lua` are two
+separately-installable files, not one split for tidiness.** `install.sh
+--keybinds full|submap|none` picks which of them (if either) gets a
+`require(...)` line in the user's `hyprland.lua` -- see
+`docs/manual/02-keybindings.md`, "Bring your own keybinding". The panic key
+lives in the submap file, not the entry one, so that `submap` alone still
+gets a working escape hatch; the entry file must never gain overlay logic of
+its own, or a `submap`-only install would be missing it.
 
 ## Checking your work
 

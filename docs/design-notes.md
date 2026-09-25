@@ -14,7 +14,7 @@ the implementation differs from the original plan.
 | Keys `SUPER + [SHIFT/ALT/CTRL +] SEMICOLON` | All four unbound in Omarchy defaults and in the user's config. |
 | wl-kbptr CLI | `-r/--restrict WxH+X+Y`, `-O/--output <name>`, `-o/--option`, `-c/--config`, `-p/--only-print` all confirmed in `src/main.c`. Note it is `--only-print`, not `--print-only`. |
 | Upstream commit 0854a51 | Real; makes meson accept opencv4 or opencv5. Not in any tagged release. |
-| `'` (apostrophe) as a submap bind | Free, and Hyprland reports it under that keysym name -- which is why `SUBMAP_KEYS` in `bin/imthemousenow` spells it lowercase, matching what `hypr/imthemousenow.lua` registers. |
+| `'` (apostrophe) as a submap bind | Free, and Hyprland reports it under that keysym name -- which is why `SUBMAP_KEYS` in `bin/imthemousenow` spells it lowercase, matching what `hypr/imthemousenow-submap.lua` registers. |
 | `--drag` end to end | Built and run against the live compositor: a drag across a terminal line selects exactly that line, which is only possible if a real press, real intermediate motion and a real release all reached the client. Driven both directly and through the whole `bin/imthemousenow` two-pass path. |
 | A virtual pointer with no output crosses monitors | Measured on a two-monitor desk: `zwlr_virtual_pointer_manager_v1.create_virtual_pointer` (no `_with_output`) plus `motion_absolute` against the whole layout box walks the cursor from one screen to the other and lands exactly on the target, both directions. The `_with_output` form does not: its absolute motion is mapped into that output. |
 | No pointer-injection tool on this machine | `ydotool` and `wlrctl` are absent; `wtype` is present but keyboard-only; Hyprland exposes no dispatcher that presses a mouse button. Hence the patch. |
@@ -109,7 +109,7 @@ the anchored edge drops from 80px to 24px inside a window, since the same 80
 would read as most of the way down a small one, and `fontSizeMode:
 Text.HorizontalFit` shrinks the word rather than clipping it in a narrow window.
 
-`hypr/imthemousenow.lua` gives the `imthemousenow-osd` namespace the same
+`hypr/imthemousenow-submap.lua` gives the `imthemousenow-osd` namespace the same
 `no_anim` layer rule the overlay has, and here it matters twice over: the word
 is solid for only 250ms before it starts fading, and Hyprland's own fade-in
 would spend most of that quarter second arriving on top of a fade this already
@@ -598,7 +598,7 @@ out is that Hyprland keybindings fire regardless of who has focus, which is
 already how `;`, `F5`, `Tab` and the arrows reach us while wl-kbptr holds the
 keyboard. In this mode *every* key the overlay needs is a binding:
 
-- `hypr/imthemousenow.lua` defines a second submap, `imthemousenow-popups`,
+- `hypr/imthemousenow-submap.lua` defines a second submap, `imthemousenow-popups`,
   with the ordinary overlay binds plus one relay bind per label key, plus
   `Escape`, `BackSpace` and `Return`.
 - Each relay bind appends its keysym name to `$XDG_RUNTIME_DIR/imthemousenow/keys`.
