@@ -39,7 +39,7 @@ Usage: imthemousenow-scroll <verb> [value]
   release             a direction key came up: stop repeating
   stop                end the scroll
 
-The keys are bound in the `imthemousenow-scroll` submap; see hypr/imthemousenow.lua.
+The keys are bound in the `imthemousenow-scroll` submap; see hypr/imthemousenow-submap.lua.
 EOF
 }
 

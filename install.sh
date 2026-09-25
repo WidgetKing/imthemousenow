@@ -8,8 +8,13 @@
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 #   ./install.sh --branch B build the fork's branch B instead, to try it live
 #                           before it is merged; a plain run goes back
-#   ./install.sh --keybinds    wire up the Hyprland keybindings without asking
-#   ./install.sh --no-keybinds leave the Hyprland keybindings out, without asking
+#   ./install.sh --keybinds full|submap|none
+#                           how much of hypr/ to wire into hyprland.lua:
+#                           full = SUPER + ; and its chords (the default);
+#                           submap = the overlay and its panic key with no
+#                           entry hotkey, for bringing your own; none = skip
+#                           Hyprland entirely. Asked interactively if omitted
+#                           and this is a terminal. See docs/manual/02-keybindings.md.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +27,16 @@ THEMED_DIR="$HOME/.config/omarchy/themed"
 HOOKS_DIR="$HOME/.config/omarchy/hooks"
 HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
-REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+# Two require() lines this script can write -- see the --keybinds comment
+# above and hypr/imthemousenow-submap.lua's header -- plus one pattern that
+# matches either, so a re-run can tell what is there now and replace it if a
+# later run picks a different choice.
+REQUIRE_FULL='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+REQUIRE_SUBMAP='require("omarchy.plugins.imthemousenow.hypr.imthemousenow-submap")'
+REQUIRE_PATTERN='require\("omarchy\.plugins\.imthemousenow\.hypr\.imthemousenow(-submap)?"\)'
+# Same marker as MARKER above, escaped for use in an ERE (sed -E): the
+# parentheses in the prose are literal there, not a group.
+MARKER_PATTERN='-- imthemousenow \(managed by install\.sh; remove with uninstall\.sh\)'
 
 dev=0 build=1 lite=0 rebuild=0 branch="" keybinds=""
 while (($#)); do
@@ -32,9 +46,15 @@ while (($#)); do
     --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
     --branch) branch="${2:-}"; [[ -n $branch ]] || { echo "install.sh: --branch needs a name" >&2; exit 2; }; shift ;;
-    --keybinds) keybinds=1 ;;
-    --no-keybinds) keybinds=0 ;;
-    -h | --help) sed -n '2,12p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --keybinds)
+      keybinds="${2:-}"
+      case "$keybinds" in
+        full | submap | none) ;;
+        *) echo "install.sh: --keybinds needs one of: full submap none" >&2; exit 2 ;;
+      esac
+      shift
+      ;;
+    -h | --help) sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -52,19 +72,19 @@ link_or_copy() {
 
 mkdir -p "$PLUGIN_DIR" "$BIN_DIR" "$USER_DIR" "$STATE_DIR" "$THEMED_DIR"
 
-# --- 0a. omarchy-ascii ---------------------------------------------------------
+# --- 0a. omarchy-ascii -------------------------------------------------------
 # Text drawn large in the font the Omarchy wordmark is drawn in. Omarchy grew
 # `omarchy ascii` after 4.0.0.alpha, so on a machine at or before that release
 # it is simply not there, and the feature that wants it has to bring its own.
-# Resolved this early, ahead of the wl-kbptr build, so the banner just below
-# can use it on a first install and not only on the second one.
+# Resolved before anything is built, so the banner just below can use it on a
+# first install and not only on the second one.
 #
 # The copy goes in STATE_DIR rather than ~/.local/bin, and that is the whole
 # point of this section: ~/.local/bin comes before /usr/bin on PATH, so a copy
 # left there would go on shadowing the packaged omarchy-ascii long after
 # Omarchy shipped it -- pinning every user of this plugin to whatever upstream
 # looked like the day they installed. Nothing but this plugin ever resolves the
-# vendored path (see ascii_cmd in bin/imthemousenow-osd), the packaged one
+# vendored path (see ascii_cmd in bin/imthemousenow-lib.sh), the packaged one
 # always wins when it exists, and uninstall.sh takes STATE_DIR with it.
 #
 # Pinned by commit and checked by hash. A script fetched from a moving branch
@@ -108,7 +128,7 @@ else
   fi
 fi
 
-# --- 0b. the banner --------------------------------------------------------
+# --- 0b. the banner ------------------------------------------------------------
 # Same tool, same rule as the ACTION announcement in imthemousenow-osd: every
 # way of failing to draw the art ends in the plain word, never a blank line.
 # The font has letters and spaces only (see imthemousenow-osd), hence "IM"
@@ -129,23 +149,32 @@ else
 fi
 printf 'v%s\n\n' "$(jq -r '.version // "unknown"' "$REPO/shell/manifest.json" 2>/dev/null || echo unknown)"
 
-# --- 0c. the keybindings opt-in ------------------------------------------------
-# Wiring SUPER + ; and CTRL+ALT+DELETE into the user's own hyprland.lua is the
-# one thing this installer does outside its own directories (see section 5),
-# so it is the one thing it asks about rather than just doing. --keybinds and
-# --no-keybinds answer this without a prompt, for a scripted install; with
-# neither and no terminal to ask at, the safer default is to leave the
-# keybindings out rather than assume consent that was never given.
+# --- 0c. the keybindings choice ------------------------------------------------
+# Asked here, before the build, rather than at section 5 where it is acted on:
+# the one question this installer has for you should come while you are still
+# watching it, not after several minutes of compiling. What it decides is the
+# one thing this installer writes outside its own directories.
+# Three choices, asked once and remembered in STATE_DIR so a plain re-run
+# (say, after a system update) does not ask again or flip what was chosen.
 if [[ -z $keybinds ]]; then
-  if [[ -t 0 && -t 1 ]]; then
-    read -r -p "Wire up SUPER + ; (and its chords) and CTRL+ALT+DELETE in ${HYPR_ENTRY/#$HOME/\~}? [Y/n] " reply
+  keybinds="$(cat "$STATE_DIR/keybinds-mode" 2>/dev/null || echo)"
+fi
+if [[ -z $keybinds ]]; then
+  if [[ -t 0 ]]; then
+    echo
+    echo "Wire imthemousenow into Hyprland's keybindings?"
+    echo "  [f] full   -- SUPER + ; and its chords, ready to use (default)"
+    echo "  [s] submap -- just the overlay; you bind your own entry key to it"
+    echo "  [n] none   -- nothing; you reference hypr/imthemousenow-submap.lua yourself"
+    reply=""
+    read -r -p "Choice [f/s/n]: " reply || true
     case "$reply" in
-      [Nn]*) keybinds=0 ;;
-      *) keybinds=1 ;;
+      [sS]*) keybinds=submap ;;
+      [nN]*) keybinds=none ;;
+      *) keybinds=full ;;
     esac
   else
-    keybinds=0
-    warn "Not running at a terminal; leaving the Hyprland keybindings out (pass --keybinds to wire them up)."
+    keybinds=full
   fi
 fi
 
@@ -316,12 +345,12 @@ link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 "$REPO/bin/imthemousenow-osd" --self-test >/dev/null 2>&1 ||
   warn "The ACTION announcement is unavailable (no quickshell?); set osd.enabled = false to silence this."
 
-# The mark a hold wears is drawn the same way, by the same quickshell, and is
+# The halo a hold wears is drawn the same way, by the same quickshell, and is
 # checked separately because it is the only thing on screen during a hold: with
-# no overlay drawn, a hold with no mark is a button held down with nothing at
+# no overlay drawn, a hold with no halo is a button held down with nothing at
 # all to say so.
 "$REPO/bin/imthemousenow-halo" --self-test >/dev/null 2>&1 ||
-  warn "The hold's pointer mark is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
+  warn "The hold halo is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
 
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
@@ -333,20 +362,35 @@ for hook in theme-set font-set post-update; do
 done
 
 # --- 5. Hyprland include ------------------------------------------------------
-if ((keybinds)); then
-  if ! grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY"; then
-    say "Adding the Hyprland include to hyprland.lua"
-    cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
-    printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
-  fi
-elif grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY" 2>/dev/null; then
-  # Already wired up from an earlier install; declining now must not rip out
-  # keybindings that were opted into before.
-  say "Keybindings are already wired up in hyprland.lua; leaving them as they are."
-else
-  warn "Skipping the Hyprland keybindings, as requested."
-  warn "imthemousenow still runs from the CLI: try 'imthemousenow'. See docs/manual/02-keybindings.md, \"Bring your own keybinding\", to wire a key of your own to it."
+case "$keybinds" in
+  full) desired="$REQUIRE_FULL" ;;
+  submap)
+    desired="$REQUIRE_SUBMAP"
+    say "Wiring up just the submap -- bind your own key to 'imthemousenow' (see docs/manual/02-keybindings.md, \"Bring your own keybinding\")"
+    ;;
+  none)
+    desired=""
+    warn "Skipping the Hyprland include entirely, by request (--keybinds none)."
+    warn "Nothing here opens the overlay, and the panic key (CTRL+ALT+DELETE) is NOT wired up either."
+    warn "With [imthemousenow.popups] keep_open on (the shipped default), an overlay opened with no"
+    warn "submap loaded cannot be reached by the keyboard AT ALL -- that mode takes no keyboard focus"
+    warn "of its own and relays every key through submap binds. Read \"Bring your own keybinding\" in"
+    warn "docs/manual/02-keybindings.md before you launch imthemousenow this way."
+    ;;
+esac
+
+current="$(grep -oE "$REQUIRE_PATTERN" "$HYPR_ENTRY" 2>/dev/null | head -n1 || true)"
+if [[ -n $desired && $current != "$desired" ]]; then
+  say "Adding the Hyprland include to hyprland.lua ($keybinds)"
+  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  [[ -n $current ]] && sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
+  printf '\n%s\n%s\n' "$MARKER" "$desired" >>"$HYPR_ENTRY"
+elif [[ -z $desired && -n $current ]]; then
+  say "Removing the Hyprland include from hyprland.lua (--keybinds none)"
+  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
 fi
+echo "$keybinds" >"$STATE_DIR/keybinds-mode"
 
 # --- 5b. the bar widget -------------------------------------------------------
 # The settings used to be rows merged into the one user menu file Omarchy's
@@ -401,10 +445,10 @@ if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
   warn "The config did not validate; see the errors above."
 fi
 
-if ((keybinds)); then
-  say "Done. Try: SUPER + ;   (or: imthemousenow)"
-else
-  say "Done. No keybindings were wired up; try: imthemousenow"
-fi
+case "$keybinds" in
+  full) say "Done. Try: SUPER + ;   (or: imthemousenow)" ;;
+  submap) say "Done. No entry key is bound -- bind your own to: imthemousenow" ;;
+  none) say "Done. Hyprland is not wired up -- see docs/manual/02-keybindings.md before running: imthemousenow" ;;
+esac
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

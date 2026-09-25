@@ -8,7 +8,9 @@ BIN_DIR="$HOME/.local/bin"
 USER_DIR="$HOME/.config/omarchy/imthemousenow"
 STATE_DIR="$HOME/.local/state/imthemousenow"
 HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
-REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+# Matches either require() install.sh can write -- see its --keybinds
+# full|submap|none and hypr/imthemousenow-submap.lua's header.
+REQUIRE_PATTERN='require\("omarchy\.plugins\.imthemousenow\.hypr\.imthemousenow(-submap)?"\)'
 
 purge=0
 [[ ${1:-} == --purge ]] && purge=1
@@ -41,10 +43,10 @@ rm -f "$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 rm -f "$HOME/.config/omarchy/hooks"/{theme-set,font-set,post-update}.d/imthemousenow.hook
 
 
-if grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY" 2>/dev/null; then
+if grep -qE "$REQUIRE_PATTERN" "$HYPR_ENTRY" 2>/dev/null; then
   say "Removing the Hyprland include"
   cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
-  sed -i "/imthemousenow (managed by install.sh/d;\|$REQUIRE_LINE|d" "$HYPR_ENTRY"
+  sed -i -E "/imthemousenow \(managed by install\.sh/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
   hyprctl reload >/dev/null 2>&1 || true
 fi
 

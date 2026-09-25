@@ -40,10 +40,10 @@ SCROLL_CMD="$LIB_DIR/imthemousenow-scroll"
 SUBMAP="imthemousenow"
 # EXPERIMENTAL, chosen by popups.keep_open: the same overlay with its keys
 # coming from compositor bindings, so it never takes keyboard focus and the
-# popup it is drawn over lives on. See hypr/imthemousenow.lua.
+# popup it is drawn over lives on. See hypr/imthemousenow-submap.lua.
 SUBMAP_POPUPS="imthemousenow-popups"
 KEY_CHANNEL="$SESSION_DIR/keys"
-# Mirrors RELAY_KEYS in hypr/imthemousenow.lua; keep them in step. Only the
+# Mirrors RELAY_KEYS in hypr/imthemousenow-submap.lua; keep them in step. Only the
 # names, not how each one is bound: `space` is relayed on release as well as
 # press (the peek needs to know when the hand comes off it), and that pairing
 # lives in the lua, in the function this file re-asserts binds through.
@@ -132,7 +132,7 @@ expect_one_of() {
 # need. A bind that is already there is skipped, so listing one that does
 # survive costs nothing.
 # key:command:description -- the description keeps a re-asserted bind looking
-# the same as the one hypr/imthemousenow.lua registered at startup.
+# the same as the one hypr/imthemousenow-submap.lua registered at startup.
 SUBMAP_KEYS=(
   "LEFT:imthemousenow-steer arrow l:Pointer: previous workspace, or move the window left"
   "RIGHT:imthemousenow-steer arrow r:Pointer: next workspace, or move the window right"
@@ -169,7 +169,7 @@ ensure_submap_binds() {
     '[.[] | select(.submap == $s)] | ([.[] | "\(.modmask):\(.key)"] | join(" ")), ([.[] | .key] | join(" "))' 2>/dev/null || true)
   # The relay binds are the whole keyboard in popup-safe mode, so a dropped
   # one is a label that cannot be typed. They are re-asserted by name through
-  # the function hypr/imthemousenow.lua exposes, rather than rebuilt here.
+  # the function hypr/imthemousenow-submap.lua exposes, rather than rebuilt here.
   if [[ $SUBMAP == "$SUBMAP_POPUPS" ]]; then
     local relay
     for relay in "${RELAY_KEYS[@]}"; do
