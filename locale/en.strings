@@ -40,7 +40,7 @@ help.section.this_drag = "This drag"
 help.drag.cancel = "call the drag off -- nothing has been pressed yet"
 help.drag.cancel_escape = "the same: abandon the drag"
 
-help.section.what_happens = "What happens"
+help.section.what_happens = "What happens NOOBs"
 help.action.right_click = "right click instead (again: back)"
 help.action.move = "move the pointer, no click (again: back)"
 help.action.drag = "drag: pick up here, then say where to drop"

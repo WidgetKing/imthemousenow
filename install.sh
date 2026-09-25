@@ -141,6 +141,7 @@ banner_ascii_bin() {
 }
 
 art=""
+echo
 if ascii_bin="$(banner_ascii_bin)" && art="$("$ascii_bin" "IM THE MOUSE NOW" 2>/dev/null)" &&
   [[ -n ${art//[[:space:]]/} ]]; then
   printf '%s\n' "$art"
@@ -163,9 +164,20 @@ if [[ -z $keybinds ]]; then
   if [[ -t 0 ]]; then
     echo
     echo "Wire imthemousenow into Hyprland's keybindings?"
+    echo
+    echo "This adds one require(...) line to:"
+    echo "    ${HYPR_ENTRY/#$HOME/\~}"
+    echo "It is the only file outside this plugin's own directories that the"
+    echo "installer writes to, and it is backed up first (.bak.<timestamp>"
+    echo "beside it). ./uninstall.sh takes the line back out again."
+    echo
     echo "  [f] full   -- SUPER + ; and its chords, ready to use (default)"
+    echo "               adds: $REQUIRE_FULL"
     echo "  [s] submap -- just the overlay; you bind your own entry key to it"
-    echo "  [n] none   -- nothing; you reference hypr/imthemousenow-submap.lua yourself"
+    echo "               adds: $REQUIRE_SUBMAP"
+    echo "  [n] none   -- nothing is added; that file is left untouched, and you"
+    echo "               reference hypr/imthemousenow-submap.lua yourself"
+    echo
     reply=""
     read -r -p "Choice [f/s/n]: " reply || true
     case "$reply" in
@@ -302,7 +314,7 @@ command -v wl-kbptr >/dev/null 2>&1 ||
 # there": a file this repo has since deleted or renamed stays installed forever
 # otherwise, and the scripts resolve their siblings by path. A `presets.toml`
 # from an old version lived on that way for several releases.
-MANAGED=(bin config.default.toml hypr qml shell)
+MANAGED=(bin config.default.toml hypr locale qml shell)
 
 say "Installing plugin files ($( ((dev)) && echo symlinked || echo copied ))"
 if [[ -d $PLUGIN_DIR ]]; then
@@ -370,7 +382,7 @@ case "$keybinds" in
     ;;
   none)
     desired=""
-    warn "Skipping the Hyprland include entirely, by request (--keybinds none)."
+    warn "Skipping the Hyprland include entirely, by request (--keybinds none): ${HYPR_ENTRY/#$HOME/\~} is left untouched."
     warn "Nothing here opens the overlay, and the panic key (CTRL+ALT+DELETE) is NOT wired up either."
     warn "With [imthemousenow.popups] keep_open on (the shipped default), an overlay opened with no"
     warn "submap loaded cannot be reached by the keyboard AT ALL -- that mode takes no keyboard focus"
@@ -381,13 +393,17 @@ esac
 
 current="$(grep -oE "$REQUIRE_PATTERN" "$HYPR_ENTRY" 2>/dev/null | head -n1 || true)"
 if [[ -n $desired && $current != "$desired" ]]; then
-  say "Adding the Hyprland include to hyprland.lua ($keybinds)"
-  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  backup="$HYPR_ENTRY.bak.$(date +%s)"
+  say "Editing ${HYPR_ENTRY/#$HOME/\~} ($keybinds): adding $desired"
+  say "  the file as it was is kept at ${backup/#$HOME/\~}"
+  cp "$HYPR_ENTRY" "$backup"
   [[ -n $current ]] && sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
   printf '\n%s\n%s\n' "$MARKER" "$desired" >>"$HYPR_ENTRY"
 elif [[ -z $desired && -n $current ]]; then
-  say "Removing the Hyprland include from hyprland.lua (--keybinds none)"
-  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  backup="$HYPR_ENTRY.bak.$(date +%s)"
+  say "Editing ${HYPR_ENTRY/#$HOME/\~} (--keybinds none): removing $current"
+  say "  the file as it was is kept at ${backup/#$HOME/\~}"
+  cp "$HYPR_ENTRY" "$backup"
   sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
 fi
 echo "$keybinds" >"$STATE_DIR/keybinds-mode"

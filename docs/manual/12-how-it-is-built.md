@@ -67,6 +67,10 @@ bin/imthemousenow-help      the key sheet F1 opens, built for the overlay that
 qml/osd.qml                 what draws the word, through quickshell
 qml/help.qml                what draws the sheet, the same way
 config.default.toml         shipped defaults and MODEs
+locale/en.strings           the translatable strings, one file per locale;
+                            installed with the plugin, so a locale only takes
+                            effect once install.sh has copied (or, with --dev,
+                            symlinked) it into ~/.local/share/imthemousenow/
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
 hypr/imthemousenow.lua      entry keys (SUPER + ; and '), requires the submap
 hypr/imthemousenow-submap.lua  the submap itself, layer rules, panic key
