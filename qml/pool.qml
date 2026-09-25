@@ -126,6 +126,7 @@ ShellRoot {
           spot.seed = Math.random() * 1000;
           spot.centerX = root.clickX;
           spot.centerY = root.clickY;
+          panel.retime();
           play.restart();
         }
       }
@@ -141,18 +142,37 @@ ShellRoot {
       }
 
       // Pressed in fast, then let go slowly across the rest of the window: the
-      // crystal flows back more slowly than it was squeezed out. It is gone by
-      // the time a second press would no longer count.
+      // crystal flows back more slowly than it was squeezed out. The attack is
+      // as close to instant as an animation gets -- a couple of frames of the
+      // spot's own stepping -- because a press is not a thing that eases in.
+      //
+      // And no two clicks the same: the attack, the release and how hard the
+      // spot peaks all wobble per click, by a little. A mark that plays back
+      // identically every time reads as a sprite; one that does not reads as
+      // the panel reacting.
+      property int attackMs: 30
+      property int releaseMs: 370
+      property real peak: 1
+
+      function retime() {
+        const base = Math.max(14, Math.min(40, root.durationMs * 0.07));
+        panel.attackMs = Math.round(base * (0.75 + Math.random() * 0.5));
+        // Never past the double-click window, so the mark is gone in time.
+        panel.releaseMs = Math.max(60, Math.round((root.durationMs - panel.attackMs)
+                                                 * (0.82 + Math.random() * 0.18)));
+        panel.peak = 0.9 + Math.random() * 0.16;
+      }
+
       SequentialAnimation {
         id: play
         NumberAnimation {
           target: spot; property: "intensity"
-          from: 0.35; to: 1; duration: Math.min(90, root.durationMs / 4)
+          from: 0.55; to: panel.peak; duration: panel.attackMs
           easing.type: Easing.OutQuad
         }
         NumberAnimation {
           target: spot; property: "intensity"
-          to: 0; duration: Math.max(60, root.durationMs - Math.min(90, root.durationMs / 4))
+          to: 0; duration: panel.releaseMs
           easing.type: Easing.InQuad
         }
       }
