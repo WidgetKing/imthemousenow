@@ -34,14 +34,23 @@ cd imthemousenow
 
 | Flag | What it does |
 | --- | --- |
-| *(none)* | build wl-kbptr with OpenCV, wire everything up |
+| *(none)* | build wl-kbptr with OpenCV, ask before wiring up keybindings |
 | `--dev` | install symlinked to this checkout, for hacking on it |
 | `--lite` | build without OpenCV — hints label whole windows instead of detected targets, and the build loses a 100MB+ dependency |
 | `--rebuild` | force the wl-kbptr build even when it looks current |
 | `--no-build` | integration only, no compile |
+| `--keybinds` | wire up the Hyprland keybindings without asking |
+| `--no-keybinds` | leave the Hyprland keybindings out, without asking |
 
-Then press `SUPER + ;`, and `F1` inside the overlay to see what else you can
-press.
+At a terminal, install.sh asks before it wires `SUPER + ;` and its chords, and
+`CTRL + ALT + DELETE`, into `~/.config/hypr/hyprland.lua` — the only file it
+touches outside its own directories. Say no (or run it non-interactively
+without `--keybinds`) and it skips that step; see
+[Bring your own keybinding](docs/manual/02-keybindings.md#bring-your-own-keybinding)
+for what that means and how to wire up a key of your own later.
+
+Then press `SUPER + ;` (if you opted in), and `F1` inside the overlay to see
+what else you can press.
 
 To remove it:
 
@@ -57,7 +66,7 @@ Nothing outside your home directory, except the one package it builds.
 | What | Where |
 | --- | --- |
 | Plugin files | `~/.local/share/imthemousenow/`, with commands symlinked into `~/.local/bin/` |
-| Hyprland keybindings | one `require(...)` line appended to `~/.config/hypr/hyprland.lua` (backed up first) |
+| Hyprland keybindings | one `require(...)` line appended to `~/.config/hypr/hyprland.lua` (backed up first) — only if you opt in |
 | Bar widget | `~/.config/omarchy/plugins/imthemousenow/`, enabled on the bar |
 | Theme colours | `~/.config/omarchy/themed/wl-kbptr.conf.tpl`, re-rendered on theme change |
 | Hooks | one file each in Omarchy's `theme-set`, `font-set` and `post-update` hook directories |
@@ -65,9 +74,9 @@ Nothing outside your home directory, except the one package it builds.
 | Runtime state | `$XDG_RUNTIME_DIR/imthemousenow/`, gone at logout |
 | Package | `wl-kbptr-omarchy`, built with `makepkg` and installed with pacman, so it is owned and removable like anything else |
 
-It takes over `SUPER + ;` and its modifier chords, and it rebinds
-`CTRL + ALT + DELETE` — to a command that dismisses any overlay and *then* runs
-Omarchy's own action for that key, so nothing is lost. While an overlay is up,
+If you opt in, it takes over `SUPER + ;` and its modifier chords, and it
+rebinds `CTRL + ALT + DELETE` — to a command that dismisses any overlay and
+*then* runs Omarchy's own action for that key, so nothing is lost. While an overlay is up,
 a Hyprland submap makes `;`, `Tab`, `F1`, `F5`, the digits and the arrows mean
 something to the overlay; the submap is reset however the overlay exits,
 including a crash.

@@ -79,6 +79,42 @@ press `/` in the overlay: it moves the pointer to what you pick and then
 scrolls there, and any modifiers you had toggled on in the overlay stay held
 for the whole scroll. Needs the wl-kbptr this plugin builds.
 
+## Bring your own keybinding
+
+`install.sh` asks before it touches `~/.config/hypr/hyprland.lua` — a "no", or
+a non-interactive install run without `--keybinds`, leaves that file alone.
+`imthemousenow` still runs from a terminal or a launcher either way: `imthemousenow`
+opens the overlay with the shipped defaults, same as `SUPER + ;` would have.
+
+Declining means no key opens it, because the submap that makes `;`, `Tab`,
+`F1` and the rest mean something *while the overlay is up* is defined in this
+plugin's own `hypr/imthemousenow.lua`, and Hyprland only knows about a submap
+once something `require()`s the file that sets it up. There's no partial
+version of that file to hand-copy — chase the submap logic into your own
+config and it will drift the next time this plugin changes it.
+
+So the right way to pick your own key is to keep the include and override just
+the one binding, in your own Hyprland config, after this plugin's — the same
+approach `hypr/imthemousenow.lua` itself tells you to use for any of its
+bindings:
+
+```lua
+require("omarchy.plugins.imthemousenow.hypr.imthemousenow")
+
+hl.unbind("SUPER + SEMICOLON")
+hl.bind("SUPER + M", hl.dsp.exec_cmd("imthemousenow"), {
+  description = "Pointer: open the overlay",
+})
+```
+
+`hl.unbind` removes only the one chord Hyprland loaded, not the submap, so
+everything inside the overlay keeps working; the fresh `hl.bind` just points a
+different key at the same command the require would have bound to `SUPER + ;`.
+The other seven chords (the modifier combinations in the table above) can be
+unbound and rebound the same way. Run `./install.sh --keybinds` (or answer
+"yes" at the prompt) to add the include back if you had declined it, then edit
+the binding.
+
 ---
 
 [← The four choices](01-the-four-choices.md) · [Manual contents](README.md) · [Inside the overlay →](03-inside-the-overlay.md)
