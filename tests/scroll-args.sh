@@ -26,7 +26,7 @@ setup() {
   rm -rf "$WORK/plugin" "$WORK/stub" "$WORK/run"
   mkdir -p "$WORK/plugin/bin" "$WORK/plugin/qml" "$WORK/stub" "$WORK/run"
   cp "$REPO/config.default.toml" "$WORK/plugin/"
-  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-session.sh,-steer,-scroll} "$WORK/plugin/bin/"
+  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-locale.sh,-session.sh,-steer,-scroll} "$WORK/plugin/bin/"
   # No qml/scroll.qml in the copy, so no mark is put on the tester's desktop.
   printf '#!/bin/bash\nsleep 30\n' >"$WORK/plugin/bin/imthemousenow-osd"
   chmod +x "$WORK/plugin/bin/imthemousenow-osd"

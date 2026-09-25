@@ -33,7 +33,7 @@ setup() {
   rm -rf "$WORK/plugin" "$WORK/stub" "$WORK/run"
   mkdir -p "$WORK/plugin/bin" "$WORK/stub" "$WORK/run"
   cp "$REPO/config.default.toml" "$WORK/plugin/"
-  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-session.sh,-steer,-hold} "$WORK/plugin/bin/"
+  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-locale.sh,-session.sh,-steer,-hold} "$WORK/plugin/bin/"
   # Neither the announcement nor the halo is under test here, and both would
   # put a surface on the tester's real desktop.
   for quiet in imthemousenow-osd imthemousenow-halo; do

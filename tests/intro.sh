@@ -35,7 +35,7 @@ fi
 
 mkdir -p "$WORK/plugin/bin" "$WORK/stub"
 cp "$REPO/config.default.toml" "$WORK/plugin/"
-cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-session.sh,-steer} "$WORK/plugin/bin/"
+cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-locale.sh,-session.sh,-steer} "$WORK/plugin/bin/"
 printf '#!/bin/bash\n:\n' >"$WORK/plugin/bin/imthemousenow-osd"
 chmod +x "$WORK/plugin/bin/imthemousenow-osd"
 

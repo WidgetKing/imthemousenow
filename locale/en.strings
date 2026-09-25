@@ -2,6 +2,9 @@
 # the sheet's own title -- everything bin/imthemousenow-lib.sh's t() and
 # bin/imthemousenow-help look up by key.
 #
+# The bar widget's own chrome is NOT here: it is en.panel.strings, beside this
+# file. See that file's header for the split.
+#
 # Loaded for English the same way any other locale's file would be, rather
 # than special-cased out of the lookup -- every t() call also carries this
 # same text as its own fallback ($2), so a missing file, a missing key, or a

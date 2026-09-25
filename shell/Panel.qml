@@ -68,12 +68,27 @@ Panel {
   // On a stock build the setting is ignored, so offering it would be a switch
   // that does nothing -- the same `when:` test the menu row used.
   property bool popupsSupported: false
+  property bool stringsLoaded: false
+
+  // The panel's own words, from locale/<code>.panel.strings via
+  // bin/imthemousenow-strings. Read once per panel open, beside the config.
+  // Empty until it arrives, and empty forever for a locale nobody has
+  // translated -- str() falls back to the English written at each call site,
+  // exactly as t() does in bash, so neither case can show a blank label.
+  property var strings: ({})
+
+  function str(key, english) {
+    return Model.t(strings, key, english)
+  }
 
   readonly property bool osdEnabled: Model.boolValue(cfg, "osd.enabled")
   readonly property bool poolEnabled: Model.boolValue(cfg, "pool.enabled")
 
   // --- tabs --------------------------------------------------------------------
-  readonly property var tabs: ["Behaviour", "Overlay", "Feedback", "Advanced"]
+  readonly property var tabs: [root.str("panel.tab.behaviour", "Behaviour"),
+                               root.str("panel.tab.overlay", "Overlay"),
+                               root.str("panel.tab.feedback", "Feedback"),
+                               root.str("panel.tab.advanced", "Advanced")]
   property int currentTab: 0
 
   function selectTab(index) {
@@ -234,7 +249,9 @@ Panel {
 
   function optionLabel(id, value) {
     if (id === "word")
-      return ({ "off": "Off", "font": "Font", "block": "Block letters" })[value] || value
+      return ({ "off": root.str("panel.value.word.off", "Off"),
+                "font": root.str("panel.value.word.font", "Font"),
+                "block": root.str("panel.value.word.block", "Block letters") })[value] || value
     return value
   }
 
@@ -336,6 +353,14 @@ Panel {
       supportProcess.command = ["bash", "-c", "grep -qa WL_KBPTR_KEY_CHANNEL \"$(command -v wl-kbptr)\" 2>/dev/null"]
       supportProcess.running = true
     }
+    // Only ever once. The config is re-read on every open because anything
+    // may have written it -- the CLI, the config file by hand -- but the
+    // strings cannot change without a re-install, and a locale cannot change
+    // without a re-login.
+    if (!stringsLoaded && !stringsProcess.running) {
+      stringsProcess.command = ["imthemousenow-strings", "panel"]
+      stringsProcess.running = true
+    }
   }
 
   // Optimistic: paint the new value now and let the refresh confirm it. A
@@ -421,8 +446,22 @@ Panel {
         root.loaded = true
         root.lastError = ""
       } else {
-        root.lastError = String(envErr.text || "").trim() || "Could not read the config"
+        root.lastError = String(envErr.text || "").trim() || root.str("panel.error.read", "Could not read the config")
       }
+    }
+  }
+
+  // A missing or broken imthemousenow-strings is not an error worth showing:
+  // the panel reads in English, which is what it did before this existed.
+  // stringsLoaded is set either way so a failure is not retried on every open.
+  Process {
+    id: stringsProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: stringsOut; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode === 0) root.strings = Model.parseStrings(stringsOut.text)
+      root.stringsLoaded = true
     }
   }
 
@@ -442,7 +481,7 @@ Panel {
       // A refused write is the config program disagreeing with the panel, and
       // the optimistic value on screen is now a lie. Say why, and let the
       // refresh put the real value back.
-      if (exitCode !== 0) root.lastError = String(writeErr.text || "").trim() || "The setting could not be written"
+      if (exitCode !== 0) root.lastError = String(writeErr.text || "").trim() || root.str("panel.error.write", "The setting could not be written")
       if (root.writeQueue.length > 0) {
         var next = root.writeQueue[0]
         root.writeQueue = root.writeQueue.slice(1)
@@ -527,7 +566,7 @@ Panel {
 
         PanelHero {
           width: parent.width
-          title: "Pointer"
+          title: root.str("panel.title", "Pointer")
           meta: root.loaded ? Model.chordSummary(root.cfg) : "Reading the config…"
           foreground: root.foreground
           fontFamily: root.fontFamily
@@ -628,22 +667,22 @@ Panel {
           ChoiceRow {
             rowId: "mode"
             visible: root.currentTab === 0
-            label: "Default Mode"
-            description: "What SUPER + ; labels: what looks clickable, or a grid of cells"
+            label: root.str("panel.row.mode.label", "Default Mode")
+            description: root.str("panel.row.mode.description", "What SUPER + ; labels: what looks clickable, or a grid of cells")
           }
 
           ChoiceRow {
             rowId: "scope"
             visible: root.currentTab === 0
-            label: "Default Scope"
-            description: "Whether an overlay covers the focused window or the whole monitor"
+            label: root.str("panel.row.scope.label", "Default Scope")
+            description: root.str("panel.row.scope.description", "Whether an overlay covers the focused window or the whole monitor")
           }
 
           ChoiceRow {
             rowId: "lifetime"
             visible: root.currentTab === 0
-            label: "Default Lifetime"
-            description: "One selection, or overlay after overlay until Escape"
+            label: root.str("panel.row.lifetime.label", "Default Lifetime")
+            description: root.str("panel.row.lifetime.description", "One selection, or overlay after overlay until Escape")
           }
 
           ModifierSideRow {
@@ -654,24 +693,24 @@ Panel {
           SliderRow {
             rowId: "hold-step"
             visible: root.currentTab === 0
-            label: "Hold speed"
-            description: "How far a hold moves the pointer per keypress, while the button is down. Shift is five of these."
+            label: root.str("panel.row.hold-step.label", "Hold speed")
+            description: root.str("panel.row.hold-step.description", "How far a hold moves the pointer per keypress, while the button is down. Shift is five of these.")
             valueText: String(Math.round(Model.numberValue(root.cfg, "action.hold.step", 40))) + "px"
           }
 
           SliderRow {
             rowId: "drag-ms"
             visible: root.currentTab === 0
-            label: "Drag time"
-            description: "How long a drag takes to travel from what it picked up to where it drops. Longer is slower, and more reliable with applications that miss a quick drop."
+            label: root.str("panel.row.drag-ms.label", "Drag time")
+            description: root.str("panel.row.drag-ms.description", "How long a drag takes to travel from what it picked up to where it drops. Longer is slower, and more reliable with applications that miss a quick drop.")
             valueText: String(Math.round(Model.numberValue(root.cfg, "action.drag.duration_ms", 300))) + "ms"
           }
 
           ToggleRow {
             rowId: "notify"
             visible: root.currentTab === 0
-            label: "Notifications"
-            description: "Desktop notifications for errors and refusals"
+            label: root.str("panel.row.notify.label", "Notifications")
+            description: root.str("panel.row.notify.description", "Desktop notifications for errors and refusals")
           }
 
           // ===== Appearance ===================================================
@@ -679,66 +718,66 @@ Panel {
           SliderRow {
             rowId: "opacity"
             visible: root.currentTab === 1
-            label: "Opacity"
-            description: "How much of the screen an overlay hides"
+            label: root.str("panel.row.opacity.label", "Opacity")
+            description: root.str("panel.row.opacity.description", "How much of the screen an overlay hides")
             valueText: Model.percentText(Model.numberValue(root.cfg, "opacity.default", 0.8))
           }
 
           SliderRow {
             rowId: "peek"
             visible: root.currentTab === 1
-            label: "Peek"
-            description: "Hold SPACE to fade the overlay and see what is under it. Not in the second half of a grid selection, where SPACE commits."
-            valueText: Model.peekText(Model.numberValue(root.cfg, "peek_alpha", 0.1))
+            label: root.str("panel.row.peek.label", "Peek")
+            description: root.str("panel.row.peek.description", "Hold SPACE to fade the overlay and see what is under it. Not in the second half of a grid selection, where SPACE commits.")
+            valueText: Model.peekText(Model.numberValue(root.cfg, "peek_alpha", 0.1), root.str("panel.value.off", "off"))
           }
 
           DropdownRow {
             rowId: "intro"
             visible: root.currentTab === 1
-            label: "Rad Animations"
-            description: "How the overlay arrives. `random` picks a different one every time."
+            label: root.str("panel.row.intro.label", "Rad Animations")
+            description: root.str("panel.row.intro.description", "How the overlay arrives. `random` picks a different one every time.")
           }
 
           SliderRow {
             rowId: "intro-ms"
             visible: root.currentTab === 1
-            label: "Animation speed"
-            description: "How long the overlay takes to arrive. 0 puts it up whole, at once."
+            label: root.str("panel.row.intro-ms.label", "Animation speed")
+            description: root.str("panel.row.intro-ms.description", "How long the overlay takes to arrive. 0 puts it up whole, at once.")
             valueText: String(Math.round(Model.numberValue(root.cfg, "intro_ms", 250))) + "ms"
           }
 
           ToggleRow {
             rowId: "theme-colors"
             visible: root.currentTab === 1
-            label: "Theme colours"
-            description: "Start from the colours the Omarchy theme renders"
+            label: root.str("panel.row.theme-colors.label", "Theme colours")
+            description: root.str("panel.row.theme-colors.description", "Start from the colours the Omarchy theme renders")
           }
 
           ToggleRow {
             rowId: "theme-font"
             visible: root.currentTab === 1
-            label: "Theme font"
-            description: "Use the current Omarchy font for every mode that draws labels"
+            label: root.str("panel.row.theme-font.label", "Theme font")
+            description: root.str("panel.row.theme-font.description", "Use the current Omarchy font for every mode that draws labels")
           }
 
           ChoiceRow {
             rowId: "word"
             visible: root.currentTab === 2
-            label: "Action word"
-            description: "A large word naming the action you moved into. Block letters draws it the way the Omarchy wordmark is drawn."
+            label: root.str("panel.row.word.label", "Action word")
+            description: root.str("panel.row.word.description", "A large word naming the action you moved into. Block letters draws it the way the Omarchy wordmark is drawn.")
           }
 
           ChoiceRow {
             rowId: "word-position"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: "Position"
+            label: root.str("panel.row.word-position.label", "Position")
             indented: true
           }
 
           SliderRow {
             rowId: "word-size"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: "Size"
+            label: root.str("panel.row.word-size.label", "Size")
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.size", 120))) + "px"
           }
@@ -746,7 +785,7 @@ Panel {
           SliderRow {
             rowId: "word-ms"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: "Time on screen"
+            label: root.str("panel.row.word-ms.label", "Time on screen")
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.ms", 1000))) + "ms"
           }
@@ -754,7 +793,7 @@ Panel {
           SliderRow {
             rowId: "word-fade"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: "Fade"
+            label: root.str("panel.row.word-fade.label", "Fade")
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.fade_ms", 250))) + "ms"
           }
@@ -762,9 +801,9 @@ Panel {
           ToggleRow {
             rowId: "word-on-start"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: "Announce on start"
+            label: root.str("panel.row.word-on-start.label", "Announce on start")
             indented: true
-            description: "Name the action a chord opens in, not only the ones you switch to"
+            description: root.str("panel.row.word-on-start.description", "Name the action a chord opens in, not only the ones you switch to")
           }
 
           PanelSeparator { visible: root.currentTab === 2; foreground: root.foreground }
@@ -772,14 +811,14 @@ Panel {
           ToggleRow {
             rowId: "pool"
             visible: root.currentTab === 2
-            label: "Click mark"
-            description: "The patch of LCD pooling a click leaves where it landed. A hold marks its pointer whatever this says — that mark is the only sign a button is down."
+            label: root.str("panel.row.pool.label", "Click mark")
+            description: root.str("panel.row.pool.description", "The patch of LCD pooling a click leaves where it landed. A hold marks its pointer whatever this says — that mark is the only sign a button is down.")
           }
 
           SliderRow {
             rowId: "pool-radius"
             visible: root.currentTab === 2 && root.poolEnabled
-            label: "Size"
+            label: root.str("panel.row.pool-radius.label", "Size")
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "pool.radius", 56))) + "px"
           }
@@ -787,7 +826,7 @@ Panel {
           SliderRow {
             rowId: "pool-cell"
             visible: root.currentTab === 2 && root.poolEnabled
-            label: "Chunkiness"
+            label: root.str("panel.row.pool-cell.label", "Chunkiness")
             indented: true
             valueText: String(Math.round(Model.numberValue(root.cfg, "pool.cell", 6))) + "px"
           }
@@ -795,7 +834,7 @@ Panel {
           DropdownRow {
             rowId: "pool-style"
             visible: root.currentTab === 2 && root.poolEnabled
-            label: "Style"
+            label: root.str("panel.row.pool-style.label", "Style")
             indented: true
           }
 
@@ -804,8 +843,8 @@ Panel {
           SliderRow {
             rowId: "scroll-mark"
             visible: root.currentTab === 2
-            label: "Scroll mark size"
-            description: "The mark the pointer wears while the keyboard is a mouse wheel"
+            label: root.str("panel.row.scroll-mark.label", "Scroll mark size")
+            description: root.str("panel.row.scroll-mark.description", "The mark the pointer wears while the keyboard is a mouse wheel")
             valueText: String(Math.round(Model.numberValue(root.cfg, "action.scroll.mark_size", 44))) + "px"
           }
 
@@ -814,30 +853,30 @@ Panel {
           ToggleRow {
             rowId: "double-click"
             visible: root.currentTab === 3
-            label: "Double click"
-            description: "Press the same key twice to double click. Off if a second press should always be a second click."
+            label: root.str("panel.row.double-click.label", "Double click")
+            description: root.str("panel.row.double-click.description", "Press the same key twice to double click. Off if a second press should always be a second click.")
           }
 
           ToggleRow {
             rowId: "popups"
             visible: root.currentTab === 3 && root.popupsSupported
-            label: "Popup-safe overlay"
-            description: "Experimental: keep context menus open by re-routing keypresses"
+            label: root.str("panel.row.popups.label", "Popup-safe overlay")
+            description: root.str("panel.row.popups.description", "Experimental: keep context menus open by re-routing keypresses")
           }
 
           SliderRow {
             rowId: "help-size"
             visible: root.currentTab === 3
-            label: "Key sheet size"
-            description: "Body text of the sheet F1 shows, in px"
+            label: root.str("panel.row.help-size.label", "Key sheet size")
+            description: root.str("panel.row.help-size.description", "Body text of the sheet F1 shows, in px")
             valueText: String(Math.round(Model.numberValue(root.cfg, "help.size", 15))) + "px"
           }
 
           SliderRow {
             rowId: "settle"
             visible: root.currentTab === 3
-            label: "Switch settle"
-            description: "How long to wait for the compositor after switching workspace or monitor, before measuring the screen again."
+            label: root.str("panel.row.settle.label", "Switch settle")
+            description: root.str("panel.row.settle.description", "How long to wait for the compositor after switching workspace or monitor, before measuring the screen again.")
             valueText: String(Math.round(Model.numberValue(root.cfg, "switch.settle_ms", 80))) + "ms"
           }
 
@@ -849,27 +888,27 @@ Panel {
             spacing: Style.spacing.md
 
             Button {
-              text: "Edit config…"
+              text: root.str("panel.row.edit.label", "Edit config…")
               iconText: ""
               bordered: true
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
               hasCursor: root.hasCursor("edit")
-              tooltipText: "Everything this panel does not cover"
+              tooltipText: root.str("panel.row.edit.tooltip", "Everything this panel does not cover")
               onHovered: function(on) { if (on) root.setCursor("edit") }
               onClicked: { root.setCursor("edit"); root.activateCursor() }
             }
 
             Button {
-              text: "Check"
+              text: root.str("panel.row.check.label", "Check")
               iconText: "󰗠"
               bordered: true
               foreground: root.foreground
               accent: root.accent
               fontFamily: root.fontFamily
               hasCursor: root.hasCursor("check")
-              tooltipText: "Validate every config layer"
+              tooltipText: root.str("panel.row.check.tooltip", "Validate every config layer")
               onHovered: function(on) { if (on) root.setCursor("check") }
               onClicked: { root.setCursor("check"); root.activateCursor() }
             }
@@ -1171,7 +1210,7 @@ Panel {
       width: parent.width
       spacing: Style.spacing.labelGap
 
-      RowLabel { text: "Modifier side" }
+      RowLabel { text: root.str("panel.row.modifier-side.label", "Modifier side") }
 
       Row {
         width: parent.width
@@ -1233,7 +1272,7 @@ Panel {
 
                 Text {
                   anchors.horizontalCenter: parent.horizontalCenter
-                  text: half.isCommand ? "⇧ ⌥ ⌃" : "hold"
+                  text: half.isCommand ? "⇧ ⌥ ⌃" : root.str("panel.value.hold", "hold")
                   color: half.isCommand ? root.accent : root.foreground
                   opacity: half.isCommand ? 1.0 : 0.45
                   font.family: root.fontFamily

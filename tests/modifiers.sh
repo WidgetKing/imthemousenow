@@ -63,7 +63,7 @@ setup() {
   rm -rf "$WORK/plugin" "$WORK/stub" "$SESSION"
   mkdir -p "$WORK/plugin/bin" "$WORK/stub" "$SESSION"
   cp "$REPO/config.default.toml" "$WORK/plugin/"
-  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-session.sh,-steer} "$WORK/plugin/bin/"
+  cp "$REPO"/bin/imthemousenow{,-config,-lib.sh,-locale.sh,-session.sh,-steer} "$WORK/plugin/bin/"
   # The word, written down rather than drawn.
   printf '#!/bin/bash\necho "$1" >>"%s/osd.log"\n' "$WORK" >"$WORK/plugin/bin/imthemousenow-osd"
   chmod +x "$WORK/plugin/bin/imthemousenow-osd"

@@ -256,56 +256,11 @@ die() {
 }
 
 # --- localisation ---------------------------------------------------------
-# One string table per locale: `locale/<code>.strings`, flat `key = "value"`
-# lines, TOML-flavoured like everything else here. `<code>` is the first
-# underscore- or dot-delimited piece of LC_ALL, LC_MESSAGES or LANG in that
-# order (LANG=de_DE.UTF-8 reads as de) -- the same precedence gettext uses --
-# because the desktop's own locale is what every other piece of software on it
-# is already keying off, and this plugin has no setting of its own to fall out
-# of step with it.
-#
-# Every call site carries the English original as $2 too, so a locale
-# missing this one key, a locale with no file at all, or a $PLUGIN_DIR too old
-# to have a locale directory at all reads as the English rather than as a
-# blank. Translation is additive: a half-finished locale shows English for
-# the rest, never a missing string. locale/en.strings ships and is loaded
-# like any other locale rather than being special-cased out of the lookup --
-# that way `LANG=en_US.UTF-8` exercises the same file-read path a translator's
-# locale will, instead of the fallback path being the only one ever tested.
-declare -A _locale_strings
-_locale_loaded=""
+# Its own file; see its header for why. Sourced here so that every script
+# which already sources this one keeps t() without knowing that changed.
+# shellcheck source=imthemousenow-locale.sh
+source "$(dirname "${BASH_SOURCE[0]}")/imthemousenow-locale.sh"
 
-_locale_name() {
-  local lc="${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}"
-  lc="${lc%%.*}"
-  lc="${lc%%_*}"
-  echo "${lc:-en}"
-}
-
-_locale_load() {
-  local locale file line key value
-  locale="$(_locale_name)"
-  [[ $_locale_loaded == "$locale" ]] && return 0
-  _locale_strings=()
-  file="$PLUGIN_DIR/locale/$locale.strings"
-  if [[ -f $file ]]; then
-    while IFS= read -r line || [[ -n $line ]]; do
-      [[ $line =~ ^[[:space:]]*($|#) ]] && continue
-      [[ $line =~ ^[[:space:]]*([A-Za-z0-9_.]+)[[:space:]]*=[[:space:]]*\"(.*)\"[[:space:]]*$ ]] || continue
-      key="${BASH_REMATCH[1]}" value="${BASH_REMATCH[2]}"
-      _locale_strings["$key"]="$value"
-    done <"$file"
-  fi
-  _locale_loaded="$locale"
-}
-
-# One string, by its dotted key, or $2 (the English original, written where
-# it is used) when the running locale has no better answer.
-t() {
-  _locale_load
-  local value="${_locale_strings[$1]-}"
-  [[ -n $value ]] && printf '%s' "$value" || printf '%s' "${2-}"
-}
 
 # Every setting, once, as MOUSENOW_CFG_* variables. This used to be a process
 # per lookup -- eight or so per invocation, and one more per pass of the run

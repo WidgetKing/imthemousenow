@@ -1,0 +1,120 @@
+# The English source strings for the bar widget -- the Pointer panel that
+# opens from the bar, shell/Panel.qml.
+#
+# Separate from en.strings, in the same directory and the same format, because
+# nothing ever wants both: this table is read only by QML, through
+# `imthemousenow-strings panel`, while en.strings is read by t() in
+# bin/imthemousenow-lib.sh on paths as hot as a keypress. A translator copies
+# the pair -- `cp en.panel.strings de.panel.strings` -- translates the
+# right-hand sides and leaves the keys alone. Translating one file and not the
+# other is fine: each falls back on its own.
+#
+# The keys follow the panel's own structure, so there is no separate list to
+# keep in step with it:
+#
+#   panel.row.<rowId>.label        the row's name, as the panel calls it
+#   panel.row.<rowId>.description  the grey line under it, where there is one
+#
+# <rowId> is the literal `rowId:` in shell/Panel.qml. tests/locale-panel.sh
+# fails if a key here names no row, or a row reaches for a key that is not
+# here, which is the way these two files will actually drift.
+#
+# NOT here, and not translatable yet: the option values these rows choose
+# between -- `hints`/`grid`, `window`/`monitor`, `single`/`continuous`, the
+# intro animations, the pool styles, the OSD positions -- and the seven ACTION
+# words. Every one of those strings is also its own config key (see the same
+# note in en.strings), so translating it needs identifier and display label
+# split apart first. Until then a translated panel reads as translated labels
+# around English values, which is deliberate and not an oversight.
+
+panel.title = "Pointer"
+
+panel.tab.behaviour = "Behaviour"
+panel.tab.overlay = "Overlay"
+panel.tab.feedback = "Feedback"
+panel.tab.advanced = "Advanced"
+
+# --- Behaviour ---------------------------------------------------------------
+panel.row.mode.label = "Default Mode"
+panel.row.mode.description = "What SUPER + ; labels: what looks clickable, or a grid of cells"
+panel.row.scope.label = "Default Scope"
+panel.row.scope.description = "Whether an overlay covers the focused window or the whole monitor"
+panel.row.lifetime.label = "Default Lifetime"
+panel.row.lifetime.description = "One selection, or overlay after overlay until Escape"
+panel.row.modifier-side.label = "Modifier side"
+panel.row.hold-step.label = "Hold speed"
+panel.row.hold-step.description = "How far a hold moves the pointer per keypress, while the button is down. Shift is five of these."
+panel.row.drag-ms.label = "Drag time"
+panel.row.drag-ms.description = "How long a drag takes to travel from what it picked up to where it drops. Longer is slower, and more reliable with applications that miss a quick drop."
+panel.row.notify.label = "Notifications"
+panel.row.notify.description = "Desktop notifications for errors and refusals"
+
+# --- Overlay -----------------------------------------------------------------
+panel.row.opacity.label = "Opacity"
+panel.row.opacity.description = "How much of the screen an overlay hides"
+panel.row.peek.label = "Peek"
+panel.row.peek.description = "Hold SPACE to fade the overlay and see what is under it. Not in the second half of a grid selection, where SPACE commits."
+panel.row.intro.label = "Rad Animations"
+panel.row.intro.description = "How the overlay arrives. `random` picks a different one every time."
+panel.row.intro-ms.label = "Animation speed"
+panel.row.intro-ms.description = "How long the overlay takes to arrive. 0 puts it up whole, at once."
+panel.row.theme-colors.label = "Theme colours"
+panel.row.theme-colors.description = "Start from the colours the Omarchy theme renders"
+panel.row.theme-font.label = "Theme font"
+panel.row.theme-font.description = "Use the current Omarchy font for every mode that draws labels"
+
+# --- Feedback ----------------------------------------------------------------
+panel.row.word.label = "Action word"
+panel.row.word.description = "A large word naming the action you moved into. Block letters draws it the way the Omarchy wordmark is drawn."
+panel.row.word-position.label = "Position"
+panel.row.word-size.label = "Size"
+panel.row.word-ms.label = "Time on screen"
+panel.row.word-fade.label = "Fade"
+panel.row.word-on-start.label = "Announce on start"
+panel.row.word-on-start.description = "Name the action a chord opens in, not only the ones you switch to"
+panel.row.pool.label = "Click mark"
+panel.row.pool.description = "The patch of LCD pooling a click leaves where it landed. A hold marks its pointer whatever this says — that mark is the only sign a button is down."
+panel.row.pool-radius.label = "Size"
+panel.row.pool-cell.label = "Chunkiness"
+panel.row.pool-style.label = "Style"
+panel.row.scroll-mark.label = "Scroll mark size"
+panel.row.scroll-mark.description = "The mark the pointer wears while the keyboard is a mouse wheel"
+
+# --- Advanced ----------------------------------------------------------------
+panel.row.double-click.label = "Double click"
+panel.row.double-click.description = "Press the same key twice to double click. Off if a second press should always be a second click."
+panel.row.popups.label = "Popup-safe overlay"
+panel.row.popups.description = "Experimental: keep context menus open by re-routing keypresses"
+panel.row.help-size.label = "Key sheet size"
+panel.row.help-size.description = "Body text of the sheet F1 shows, in px"
+panel.row.settle.label = "Switch settle"
+panel.row.settle.description = "How long to wait for the compositor after switching workspace or monitor, before measuring the screen again."
+
+# The two buttons at the foot of Advanced. `edit` and `check` are rowIds like
+# any other -- they are what the keyboard cursor lands on -- so they key the
+# same way, with .tooltip for what hovering says.
+panel.row.edit.label = "Edit config…"
+panel.row.edit.tooltip = "Everything this panel does not cover"
+panel.row.check.label = "Check"
+panel.row.check.tooltip = "Validate every config layer"
+
+# --- values the panel computes rather than reads ------------------------------
+# The peek slider's far end. 1.0 means the overlay is already fully drawn, so
+# holding the key does nothing -- "off" is the honest word for it, where "100%"
+# would read as the strongest setting rather than the absent one.
+panel.value.off = "off"
+# The modifier-side row's two halves: which side commands, which side holds.
+panel.value.hold = "hold"
+# The word row's three choices. These name how the ACTION word is drawn, not
+# an ACTION, so unlike the values above they are the panel's own words and can
+# be translated.
+panel.value.word.off = "Off"
+panel.value.word.font = "Font"
+panel.value.word.block = "Block letters"
+
+# --- errors ------------------------------------------------------------------
+# Shown in the panel when a subprocess fails without saying why. Anything it
+# does say is passed through untranslated: it came from the config checker, in
+# whatever language that speaks.
+panel.error.read = "Could not read the config"
+panel.error.write = "The setting could not be written"

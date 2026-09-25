@@ -37,7 +37,7 @@ fi
 say "Removing plugin files"
 rm -rf "$PLUGIN_DIR" "$HOME/.config/omarchy/plugins/imthemousenow"
 rm -f "$BIN_DIR/imthemousenow" "$BIN_DIR/imthemousenow-steer" "$BIN_DIR/imthemousenow-regions" "$BIN_DIR/imthemousenow-panic" "$BIN_DIR/imthemousenow-config" "$BIN_DIR/imthemousenow-osd" "$BIN_DIR/imthemousenow-help" \
-  "$BIN_DIR/imthemousenow-hold" "$BIN_DIR/imthemousenow-halo" "$BIN_DIR/imthemousenow-pool" "$BIN_DIR/imthemousenow-menu" "$BIN_DIR/imthemousenow-scroll"
+  "$BIN_DIR/imthemousenow-hold" "$BIN_DIR/imthemousenow-halo" "$BIN_DIR/imthemousenow-pool" "$BIN_DIR/imthemousenow-menu" "$BIN_DIR/imthemousenow-scroll" "$BIN_DIR/imthemousenow-strings"
 rm -f "$HOME/.config/omarchy/themed/wl-kbptr.conf.tpl"
 rm -f "$HOME/.local/state/omarchy/current/theme/wl-kbptr.conf"
 rm -f "$HOME/.config/omarchy/hooks"/{theme-set,font-set,post-update}.d/imthemousenow.hook

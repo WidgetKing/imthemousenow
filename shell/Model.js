@@ -34,6 +34,35 @@ function unquote(value) {
   return text
 }
 
+// --- strings ---------------------------------------------------------------
+// `imthemousenow-strings panel` output: `key='value'` lines, one per string,
+// the key written exactly as locale/<code>.panel.strings writes it. Unlike
+// parseEnv above there is no name transform -- the key IS the key, so a
+// lookup and the file agree by inspection and tests/locale-panel.sh can
+// compare the two directly.
+function parseStrings(text) {
+  var out = {}
+  var lines = String(text || "").split("\n")
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim()
+    if (!line || line.charAt(0) === "#") continue
+    var eq = line.indexOf("=")
+    if (eq <= 0) continue
+    out[line.slice(0, eq)] = unquote(line.slice(eq + 1))
+  }
+  return out
+}
+
+// One string, by key, or the English written at the call site. The same
+// contract as t() in bin/imthemousenow-lib.sh, and for the same reason: the
+// panel must read correctly with no strings at all -- an untranslated locale,
+// a plugin directory too old to have locale/, a strings process that failed --
+// so every call carries its own fallback and none of them can go blank.
+function t(strings, key, fallback) {
+  var value = strings ? strings[key] : undefined
+  return (value === undefined || value === "") ? fallback : value
+}
+
 function envName(key) {
   return "MOUSENOW_CFG_" + String(key).replace(/[.\-]/g, "_").toUpperCase()
 }
@@ -81,8 +110,8 @@ function actionLabel(settings, action) {
 // already fully drawn. Saying "off" is the only honest label for it, because
 // "100%" reads like the strongest setting when it is the one that does
 // nothing.
-function peekText(fraction) {
-  if (fraction >= 1) return "off"
+function peekText(fraction, offText) {
+  if (fraction >= 1) return offText === undefined ? "off" : offText
   return percentText(fraction)
 }
 
