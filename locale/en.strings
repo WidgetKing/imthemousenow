@@ -1,0 +1,104 @@
+# The English source strings for the key sheet, the OSD's modifier prefix and
+# the sheet's own title -- everything bin/imthemousenow-lib.sh's t() and
+# bin/imthemousenow-help look up by key.
+#
+# Loaded for English the same way any other locale's file would be, rather
+# than special-cased out of the lookup -- every t() call also carries this
+# same text as its own fallback ($2), so a missing file, a missing key, or a
+# $PLUGIN_DIR too old to have a locale/ directory at all still reads correctly
+# in English regardless. This file exists to be copied -- `cp en.strings
+# de.strings`, then translate the right-hand side of each line and leave the
+# keys alone. A locale file that only translates some of these keys is not a
+# broken locale: whatever it leaves out falls back to the English here.
+#
+# `<code>.strings` is chosen from LC_MESSAGES or LANG (LANG=de_DE.UTF-8 reads
+# as de) -- see _locale_name() in bin/imthemousenow-lib.sh.
+#
+# Not covered here: the seven ACTION display words (config.default.toml's
+# `[imthemousenow.action.*]` `label` values), because that string currently
+# doubles as the action's own config key -- translating it needs a schema
+# change (splitting identifier from display label) before a strings file can
+# hand it to a translator. The `--help` heredocs and docs/manual/ are separate,
+# lower-priority tracks of their own.
+
+app.title = "I'm the mouse now"
+
+help.section.aim = "Aim"
+help.aim.grid.range = "type a cell's label to zoom into it"
+help.aim.grid.bisect = "halve the area again, eight ways"
+help.aim.grid.commit = "commit the area you have narrowed to"
+help.aim.grid.undo = "undo the last step"
+help.aim.hints.range = "type a label to pick that target"
+help.aim.hints.peek = "fade the overlay to read what is under it"
+help.aim.hints.undo = "undo the last letter"
+help.aim.escape = "close the overlay without clicking"
+
+help.double_click.grid = "double click: press it twice"
+help.double_click.hints = "double click: type it twice"
+
+help.section.this_drag = "This drag"
+help.drag.cancel = "call the drag off -- nothing has been pressed yet"
+help.drag.cancel_escape = "the same: abandon the drag"
+
+help.section.what_happens = "What happens"
+help.action.right_click = "right click instead (again: back)"
+help.action.move = "move the pointer, no click (again: back)"
+help.action.drag = "drag: pick up here, then say where to drop"
+help.action.hold = "hold: take hold here and steer it by hand"
+help.action.scroll = "scroll: put the pointer here, then turn the wheel"
+
+help.section.if_hold = "If you take hold"
+help.hold.move = "move the pointer with the button down"
+help.hold.big_steps = "move in big steps"
+help.hold.release = "let go of the button"
+help.hold.click_through = "let go too, and the click goes through"
+
+help.section.if_scroll = "If you scroll"
+help.scroll.notch = "turn the wheel a notch that way"
+help.scroll.held = "scroll with it held (Ctrl zooms)"
+help.scroll.stop = "stop scrolling"
+
+help.section.this_overlay = "This overlay"
+help.overlay.scope = "the other scope: window <-> monitor"
+help.overlay.mode = "the other mode: hints <-> grid"
+help.overlay.lifetime = "the other lifetime: single <-> continuous"
+help.overlay.redraw = "measure the screen again and redraw"
+help.overlay.this_sheet = "this sheet"
+
+help.section.where_look = "Where to look"
+help.swap.pick_monitor = "take the picker to the monitor that way"
+help.swap.nothing = "nothing while picking"
+
+help.section.where_drop = "Where to drop"
+help.drop.monitor = "take the drop to the monitor that way"
+help.drop.nothing = "nothing during a drag"
+
+help.section.this_window = "This window"
+help.window.move = "move the window through the layout"
+help.window.workspace = "send the window to that workspace"
+help.window.resize_h = "grow or shrink on the horizontal edge"
+help.window.resize_v = "grow or shrink on the vertical edge"
+help.window.swap = "swap this window with one you pick"
+
+help.section.what_under = "What is under it"
+help.monitor.workspace = "previous or next workspace"
+help.monitor.monitor = "previous or next monitor"
+help.monitor.goto = "go to that workspace"
+
+help.section.held_for_click = "Held for the click"
+help.modifiers.tap = "tap to hold it for the click; again to drop it"
+help.modifiers.stack = "they stack: Ctrl + Alt + right"
+
+help.section.out = "Out"
+help.out.close = "close the overlay"
+help.out.panic = "close the overlay, then Omarchy's own panic"
+
+help.footer.swap = "Picking a window to swap with: choose one, walk the arrows to another monitor, or Escape to put the overlay back."
+help.footer.drop = "Holding one end of a drag. Nothing is pressed until you name the other end."
+help.footer.popup_safe = "Popup-safe mode: the window underneath keeps its focus and its popups."
+help.footer.continuous = "Continuous: the overlay comes back after every click, until Escape."
+
+modifiers.ctrl = "Ctrl + "
+modifiers.alt = "Alt + "
+modifiers.shift = "Shift + "
+modifiers.super = "Super + "
