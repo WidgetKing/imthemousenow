@@ -4,7 +4,7 @@
 #
 # wl-kbptr grabs the keyboard, so nothing typed at an overlay can reach the
 # process that launched it. The keys that change an overlay are compositor
-# bindings instead -- registered in hypr/imthemousenow.lua, live only for the
+# bindings instead -- registered in hypr/imthemousenow-submap.lua, live only for the
 # submap an overlay is in -- and every one of them runs this script.
 #
 # Each verb writes what changed into the session and asks the run loop to
@@ -47,7 +47,7 @@ Usage: imthemousenow-steer <verb> [value]
   refresh        rebuild the overlay against the screen as it is now
   stop           close any overlay that is up
 
-These are what the overlay's own keys run. Bound in hypr/imthemousenow.lua.
+These are what the overlay's own keys run. Bound in hypr/imthemousenow-submap.lua.
 EOF
 }
 
@@ -499,7 +499,7 @@ case "$verb" in
 
   escape)
     # Popup-safe mode only, where Escape is a compositor binding rather than a
-    # key wl-kbptr reads -- see RELAY_KEYS in hypr/imthemousenow.lua. With the
+    # key wl-kbptr reads -- see RELAY_KEYS in hypr/imthemousenow-submap.lua. With the
     # sheet up there is no overlay to cancel and the sheet cannot read its own
     # keyboard (taking it is what closes the popup the mode exists to keep
     # open), so Escape has to arrive here. Otherwise it is the relay it always

@@ -8,6 +8,13 @@
 #   ./install.sh --lite     build without OpenCV (hints fall back to window rects)
 #   ./install.sh --branch B build the fork's branch B instead, to try it live
 #                           before it is merged; a plain run goes back
+#   ./install.sh --keybinds full|submap|none
+#                           how much of hypr/ to wire into hyprland.lua:
+#                           full = SUPER + ; and its chords (the default);
+#                           submap = the overlay and its panic key with no
+#                           entry hotkey, for bringing your own; none = skip
+#                           Hyprland entirely. Asked interactively if omitted
+#                           and this is a terminal. See docs/manual/02-keybindings.md.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +27,18 @@ THEMED_DIR="$HOME/.config/omarchy/themed"
 HOOKS_DIR="$HOME/.config/omarchy/hooks"
 HYPR_ENTRY="$HOME/.config/hypr/hyprland.lua"
 MARKER="-- imthemousenow (managed by install.sh; remove with uninstall.sh)"
-REQUIRE_LINE='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+# Two require() lines this script can write -- see the --keybinds comment
+# above and hypr/imthemousenow-submap.lua's header -- plus one pattern that
+# matches either, so a re-run can tell what is there now and replace it if a
+# later run picks a different choice.
+REQUIRE_FULL='require("omarchy.plugins.imthemousenow.hypr.imthemousenow")'
+REQUIRE_SUBMAP='require("omarchy.plugins.imthemousenow.hypr.imthemousenow-submap")'
+REQUIRE_PATTERN='require\("omarchy\.plugins\.imthemousenow\.hypr\.imthemousenow(-submap)?"\)'
+# Same marker as MARKER above, escaped for use in an ERE (sed -E): the
+# parentheses in the prose are literal there, not a group.
+MARKER_PATTERN='-- imthemousenow \(managed by install\.sh; remove with uninstall\.sh\)'
 
-dev=0 build=1 lite=0 rebuild=0 branch=""
+dev=0 build=1 lite=0 rebuild=0 branch="" keybinds=""
 while (($#)); do
   case "$1" in
     --dev) dev=1 ;;
@@ -30,7 +46,15 @@ while (($#)); do
     --rebuild) rebuild=1 ;;
     --lite) lite=1 ;;
     --branch) branch="${2:-}"; [[ -n $branch ]] || { echo "install.sh: --branch needs a name" >&2; exit 2; }; shift ;;
-    -h | --help) sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --keybinds)
+      keybinds="${2:-}"
+      case "$keybinds" in
+        full | submap | none) ;;
+        *) echo "install.sh: --keybinds needs one of: full submap none" >&2; exit 2 ;;
+      esac
+      shift
+      ;;
+    -h | --help) sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "install.sh: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -47,6 +71,112 @@ link_or_copy() {
 }
 
 mkdir -p "$PLUGIN_DIR" "$BIN_DIR" "$USER_DIR" "$STATE_DIR" "$THEMED_DIR"
+
+# --- 0a. omarchy-ascii -------------------------------------------------------
+# Text drawn large in the font the Omarchy wordmark is drawn in. Omarchy grew
+# `omarchy ascii` after 4.0.0.alpha, so on a machine at or before that release
+# it is simply not there, and the feature that wants it has to bring its own.
+# Resolved before anything is built, so the banner just below can use it on a
+# first install and not only on the second one.
+#
+# The copy goes in STATE_DIR rather than ~/.local/bin, and that is the whole
+# point of this section: ~/.local/bin comes before /usr/bin on PATH, so a copy
+# left there would go on shadowing the packaged omarchy-ascii long after
+# Omarchy shipped it -- pinning every user of this plugin to whatever upstream
+# looked like the day they installed. Nothing but this plugin ever resolves the
+# vendored path (see ascii_cmd in bin/imthemousenow-lib.sh), the packaged one
+# always wins when it exists, and uninstall.sh takes STATE_DIR with it.
+#
+# Pinned by commit and checked by hash. A script fetched from a moving branch
+# and run unread is a different program on any two days.
+ASCII_COMMIT="4baae6bf2afb2c07b617100371c07d8b6dea71a5"
+ASCII_SHA256="9640bc210e8cfe016459bc7b4917344403fe49f67ce013f2cff118cdafdcf7c5"
+ASCII_VENDORED="$STATE_DIR/bin/omarchy-ascii"
+
+if command -v omarchy-ascii >/dev/null 2>&1; then
+  # Omarchy caught up. Drop ours rather than leave two, so there is no question
+  # of which one ran.
+  if [[ -e $ASCII_VENDORED ]]; then
+    say "Omarchy now ships omarchy-ascii; removing the copy this plugin vendored"
+    rm -f "$ASCII_VENDORED"
+  fi
+elif [[ -x $ASCII_VENDORED ]] && "$ASCII_VENDORED" Om >/dev/null 2>&1; then
+  say "Using the vendored omarchy-ascii (this Omarchy has none)"
+else
+  say "This Omarchy has no omarchy-ascii; vendoring ${ASCII_COMMIT:0:9}"
+  mkdir -p "$STATE_DIR/bin"
+  ascii_tmp="$(mktemp)"
+  if ! curl -fsSL --retry 2 \
+    "https://raw.githubusercontent.com/basecamp/omarchy/$ASCII_COMMIT/bin/omarchy-ascii" \
+    -o "$ascii_tmp"; then
+    warn "Could not download omarchy-ascii; anything that draws text large will be unavailable."
+    rm -f "$ascii_tmp"
+  elif [[ "$(sha256sum <"$ascii_tmp" | cut -d' ' -f1)" != "$ASCII_SHA256" ]]; then
+    warn "Downloaded omarchy-ascii does not match its pinned checksum; not installing it."
+    rm -f "$ascii_tmp"
+  else
+    chmod 755 "$ascii_tmp"  # mktemp makes it 0600; +x alone would leave it unreadable
+    # Run it before it counts as installed. The font is embedded in the script,
+    # so a copy that renders one word renders every word, and a copy that fails
+    # here would otherwise fail at the first keypress instead.
+    if "$ascii_tmp" Om >/dev/null 2>&1; then
+      mv "$ascii_tmp" "$ASCII_VENDORED"
+    else
+      warn "The downloaded omarchy-ascii does not run here; not installing it."
+      rm -f "$ascii_tmp"
+    fi
+  fi
+fi
+
+# --- 0b. the banner ------------------------------------------------------------
+# Same tool, same rule as the ACTION announcement in imthemousenow-osd: every
+# way of failing to draw the art ends in the plain word, never a blank line.
+# The font has letters and spaces only (see imthemousenow-osd), hence "IM"
+# rather than "I'M" -- an apostrophe is exactly the kind of glyph it drops
+# silently, and a banner is not worth a second fallback path to get right.
+banner_ascii_bin() {
+  command -v omarchy-ascii >/dev/null 2>&1 && { command -v omarchy-ascii; return 0; }
+  [[ -x $ASCII_VENDORED ]] && { printf '%s\n' "$ASCII_VENDORED"; return 0; }
+  return 1
+}
+
+art=""
+if ascii_bin="$(banner_ascii_bin)" && art="$("$ascii_bin" "IM THE MOUSE NOW" 2>/dev/null)" &&
+  [[ -n ${art//[[:space:]]/} ]]; then
+  printf '%s\n' "$art"
+else
+  printf "I'm the mouse now\n"
+fi
+printf 'v%s\n\n' "$(jq -r '.version // "unknown"' "$REPO/shell/manifest.json" 2>/dev/null || echo unknown)"
+
+# --- 0c. the keybindings choice ------------------------------------------------
+# Asked here, before the build, rather than at section 5 where it is acted on:
+# the one question this installer has for you should come while you are still
+# watching it, not after several minutes of compiling. What it decides is the
+# one thing this installer writes outside its own directories.
+# Three choices, asked once and remembered in STATE_DIR so a plain re-run
+# (say, after a system update) does not ask again or flip what was chosen.
+if [[ -z $keybinds ]]; then
+  keybinds="$(cat "$STATE_DIR/keybinds-mode" 2>/dev/null || echo)"
+fi
+if [[ -z $keybinds ]]; then
+  if [[ -t 0 ]]; then
+    echo
+    echo "Wire imthemousenow into Hyprland's keybindings?"
+    echo "  [f] full   -- SUPER + ; and its chords, ready to use (default)"
+    echo "  [s] submap -- just the overlay; you bind your own entry key to it"
+    echo "  [n] none   -- nothing; you reference hypr/imthemousenow-submap.lua yourself"
+    reply=""
+    read -r -p "Choice [f/s/n]: " reply || true
+    case "$reply" in
+      [sS]*) keybinds=submap ;;
+      [nN]*) keybinds=none ;;
+      *) keybinds=full ;;
+    esac
+  else
+    keybinds=full
+  fi
+fi
 
 # --- 1. wl-kbptr itself -------------------------------------------------------
 # Built from the tip of the fork's branch (pkg/source.toml). What identifies a
@@ -215,66 +345,12 @@ link_or_copy "$REPO/hypr" "$SHELL_PLUGIN_DIR/hypr"
 "$REPO/bin/imthemousenow-osd" --self-test >/dev/null 2>&1 ||
   warn "The ACTION announcement is unavailable (no quickshell?); set osd.enabled = false to silence this."
 
-# The mark a hold wears is drawn the same way, by the same quickshell, and is
+# The halo a hold wears is drawn the same way, by the same quickshell, and is
 # checked separately because it is the only thing on screen during a hold: with
-# no overlay drawn, a hold with no mark is a button held down with nothing at
+# no overlay drawn, a hold with no halo is a button held down with nothing at
 # all to say so.
 "$REPO/bin/imthemousenow-halo" --self-test >/dev/null 2>&1 ||
-  warn "The hold's pointer mark is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
-
-# --- 2c. omarchy-ascii --------------------------------------------------------
-# Text drawn large in the font the Omarchy wordmark is drawn in. Omarchy grew
-# `omarchy ascii` after 4.0.0.alpha, so on a machine at or before that release
-# it is simply not there, and the feature that wants it has to bring its own.
-#
-# The copy goes in STATE_DIR rather than ~/.local/bin, and that is the whole
-# point of this section: ~/.local/bin comes before /usr/bin on PATH, so a copy
-# left there would go on shadowing the packaged omarchy-ascii long after
-# Omarchy shipped it -- pinning every user of this plugin to whatever upstream
-# looked like the day they installed. Nothing but this plugin ever resolves the
-# vendored path (see ascii_cmd in bin/imthemousenow-lib.sh), the packaged one
-# always wins when it exists, and uninstall.sh takes STATE_DIR with it.
-#
-# Pinned by commit and checked by hash. A script fetched from a moving branch
-# and run unread is a different program on any two days.
-ASCII_COMMIT="4baae6bf2afb2c07b617100371c07d8b6dea71a5"
-ASCII_SHA256="9640bc210e8cfe016459bc7b4917344403fe49f67ce013f2cff118cdafdcf7c5"
-ASCII_VENDORED="$STATE_DIR/bin/omarchy-ascii"
-
-if command -v omarchy-ascii >/dev/null 2>&1; then
-  # Omarchy caught up. Drop ours rather than leave two, so there is no question
-  # of which one ran.
-  if [[ -e $ASCII_VENDORED ]]; then
-    say "Omarchy now ships omarchy-ascii; removing the copy this plugin vendored"
-    rm -f "$ASCII_VENDORED"
-  fi
-elif [[ -x $ASCII_VENDORED ]] && "$ASCII_VENDORED" Om >/dev/null 2>&1; then
-  say "Using the vendored omarchy-ascii (this Omarchy has none)"
-else
-  say "This Omarchy has no omarchy-ascii; vendoring ${ASCII_COMMIT:0:9}"
-  mkdir -p "$STATE_DIR/bin"
-  ascii_tmp="$(mktemp)"
-  if ! curl -fsSL --retry 2 \
-    "https://raw.githubusercontent.com/basecamp/omarchy/$ASCII_COMMIT/bin/omarchy-ascii" \
-    -o "$ascii_tmp"; then
-    warn "Could not download omarchy-ascii; anything that draws text large will be unavailable."
-    rm -f "$ascii_tmp"
-  elif [[ "$(sha256sum <"$ascii_tmp" | cut -d' ' -f1)" != "$ASCII_SHA256" ]]; then
-    warn "Downloaded omarchy-ascii does not match its pinned checksum; not installing it."
-    rm -f "$ascii_tmp"
-  else
-    chmod 755 "$ascii_tmp"  # mktemp makes it 0600; +x alone would leave it unreadable
-    # Run it before it counts as installed. The font is embedded in the script,
-    # so a copy that renders one word renders every word, and a copy that fails
-    # here would otherwise fail at the first keypress instead.
-    if "$ascii_tmp" Om >/dev/null 2>&1; then
-      mv "$ascii_tmp" "$ASCII_VENDORED"
-    else
-      warn "The downloaded omarchy-ascii does not run here; not installing it."
-      rm -f "$ascii_tmp"
-    fi
-  fi
-fi
+  warn "The hold halo is unavailable (no quickshell?); a hold will still work, with nothing on screen to show it."
 
 # --- 3. theme template --------------------------------------------------------
 link_or_copy "$REPO/templates/wl-kbptr.conf.tpl" "$THEMED_DIR/wl-kbptr.conf.tpl"
@@ -286,11 +362,35 @@ for hook in theme-set font-set post-update; do
 done
 
 # --- 5. Hyprland include ------------------------------------------------------
-if ! grep -qF "$REQUIRE_LINE" "$HYPR_ENTRY"; then
-  say "Adding the Hyprland include to hyprland.lua"
+case "$keybinds" in
+  full) desired="$REQUIRE_FULL" ;;
+  submap)
+    desired="$REQUIRE_SUBMAP"
+    say "Wiring up just the submap -- bind your own key to 'imthemousenow' (see docs/manual/02-keybindings.md, \"Bring your own keybinding\")"
+    ;;
+  none)
+    desired=""
+    warn "Skipping the Hyprland include entirely, by request (--keybinds none)."
+    warn "Nothing here opens the overlay, and the panic key (CTRL+ALT+DELETE) is NOT wired up either."
+    warn "With [imthemousenow.popups] keep_open on (the shipped default), an overlay opened with no"
+    warn "submap loaded cannot be reached by the keyboard AT ALL -- that mode takes no keyboard focus"
+    warn "of its own and relays every key through submap binds. Read \"Bring your own keybinding\" in"
+    warn "docs/manual/02-keybindings.md before you launch imthemousenow this way."
+    ;;
+esac
+
+current="$(grep -oE "$REQUIRE_PATTERN" "$HYPR_ENTRY" 2>/dev/null | head -n1 || true)"
+if [[ -n $desired && $current != "$desired" ]]; then
+  say "Adding the Hyprland include to hyprland.lua ($keybinds)"
   cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
-  printf '\n%s\n%s\n' "$MARKER" "$REQUIRE_LINE" >>"$HYPR_ENTRY"
+  [[ -n $current ]] && sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
+  printf '\n%s\n%s\n' "$MARKER" "$desired" >>"$HYPR_ENTRY"
+elif [[ -z $desired && -n $current ]]; then
+  say "Removing the Hyprland include from hyprland.lua (--keybinds none)"
+  cp "$HYPR_ENTRY" "$HYPR_ENTRY.bak.$(date +%s)"
+  sed -i -E "/^$MARKER_PATTERN\$/d;/$REQUIRE_PATTERN/d" "$HYPR_ENTRY"
 fi
+echo "$keybinds" >"$STATE_DIR/keybinds-mode"
 
 # --- 5b. the bar widget -------------------------------------------------------
 # The settings used to be rows merged into the one user menu file Omarchy's
@@ -345,6 +445,10 @@ if ! "$PLUGIN_DIR/bin/imthemousenow-config" check >/dev/null; then
   warn "The config did not validate; see the errors above."
 fi
 
-say "Done. Try: SUPER + ;   (or: imthemousenow)"
+case "$keybinds" in
+  full) say "Done. Try: SUPER + ;   (or: imthemousenow)" ;;
+  submap) say "Done. No entry key is bound -- bind your own to: imthemousenow" ;;
+  none) say "Done. Hyprland is not wired up -- see docs/manual/02-keybindings.md before running: imthemousenow" ;;
+esac
 ((dev)) && say "Dev mode: edits in $REPO are live. Re-run only after changing install.sh itself."
 exit 0

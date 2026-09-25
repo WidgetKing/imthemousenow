@@ -79,6 +79,50 @@ press `/` in the overlay: it moves the pointer to what you pick and then
 scrolls there, and any modifiers you had toggled on in the overlay stay held
 for the whole scroll. Needs the wl-kbptr this plugin builds.
 
+## Bring your own keybinding
+
+What used to be one file, `hypr/imthemousenow.lua`, is two:
+
+- `hypr/imthemousenow-submap.lua` is the overlay itself — every key it reads
+  while it is up, the panic key, and nothing that opens it.
+- `hypr/imthemousenow.lua` is two entry points, `SUPER + ;` (and its chords)
+  and `SUPER + '`, plus a `require` that pulls the submap file in underneath
+  them.
+
+`./install.sh` asks which of three ways to wire this into
+`~/.config/hypr/hyprland.lua`, or takes it as `--keybinds full|submap|none`:
+
+| Choice | Gets you | Pick it when |
+| --- | --- | --- |
+| `full` (default) | Both files. `SUPER + ;` and everything above work immediately. | You want the shipped keys. |
+| `submap` | Just `hypr/imthemousenow-submap.lua`. The overlay, the panic key and Escape all work; nothing opens the overlay for you. | You want your own entry key — bind it to `imthemousenow` (or `imthemousenow --flip ...`, same as the chords do) in `~/.config/hypr/bindings.lua`. |
+| `none` | Neither file. | You are going to reference `hypr/imthemousenow-submap.lua` from your own Hyprland config in your own way. |
+
+Either `full` or `submap` gets you a *working* overlay — the panic key
+(`CTRL + ALT + DELETE`) lives in the submap file, not the entry one, precisely
+so that choosing `submap` does not cost you the way out of a stuck overlay.
+`imthemousenow` still runs from the CLI under every choice; what changes is
+only whether anything is listening for a key to launch it.
+
+**`none` needs a warning `install.sh` also prints.** `[imthemousenow.popups]
+keep_open` ships **on**, and in that mode the overlay asks Hyprland for no
+keyboard focus of its own — every key it reads, including Escape, arrives as a
+compositor bind from the submap file, relayed through a file it watches. With
+no submap loaded there is nothing to do that relaying: an overlay opened this
+way cannot be reached by the keyboard *at all*, not even to cancel it. If you
+pick `none` and still intend to launch `imthemousenow` yourself, either
+`require("omarchy.plugins.imthemousenow.hypr.imthemousenow-submap")` from your
+own config (which is the `submap` choice, just written by hand) or set
+`keep_open = false` under `[imthemousenow.popups]` first — see
+[Popup-safe mode](10-popup-safe-mode.md).
+
+To override one binding rather than dropping a whole file, keep the `full` or
+`submap` require and call `hl.unbind("SUPER + SEMICOLON")` (or whichever bind)
+in `~/.config/hypr/bindings.lua` before binding it yourself — see the comment
+at the top of `hypr/imthemousenow.lua`. Hand-copying the submap's logic
+instead of requiring it is the one thing to avoid: it will drift out of step
+with this plugin the first time either side changes.
+
 ---
 
 [← The four choices](01-the-four-choices.md) · [Manual contents](README.md) · [Inside the overlay →](03-inside-the-overlay.md)

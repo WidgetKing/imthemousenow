@@ -165,7 +165,7 @@ export XDG_RUNTIME_DIR="$WORK/run"
 if ! command -v lua >/dev/null 2>&1; then
   printf 'skip  the relay binds (no lua interpreter)\n'
 else
-  got="$(LUA_UNDER_TEST="$REPO/hypr/imthemousenow.lua" lua "$WORK/hlstub.lua" 2>&1)"
+  got="$(LUA_UNDER_TEST="$REPO/hypr/imthemousenow-submap.lua" lua "$WORK/hlstub.lua" 2>&1)"
   case "$got" in
     *"space (press)"*) ok "space is relayed on press" ;;
     *) no "space is relayed on press (got: $got)" ;;

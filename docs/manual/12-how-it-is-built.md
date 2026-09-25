@@ -68,7 +68,8 @@ qml/osd.qml                 what draws the word, through quickshell
 qml/help.qml                what draws the sheet, the same way
 config.default.toml         shipped defaults and MODEs
 templates/wl-kbptr.conf.tpl Omarchy theme template -> theme colours
-hypr/imthemousenow.lua      keybindings + layer rules
+hypr/imthemousenow.lua      entry keys (SUPER + ; and '), requires the submap
+hypr/imthemousenow-submap.lua  the submap itself, layer rules, panic key
 hooks/{theme-set,font-set,post-update}
 tests/                      run them directly; no framework
 pkg/{PKGBUILD,source.toml}  from-source build of the fork's branch

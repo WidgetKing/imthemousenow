@@ -86,7 +86,7 @@ has "every sheet says how to get out" "$window" "Escape"
 # bound to `imthemousenow-steer escape`, which closes the sheet if one is up
 # and relays Escape if not. Both halves of that are written down twice, in the
 # lua and in the bash that re-asserts dropped binds, so both are checked.
-if grep -q 'RELAY_KEYS = { "comma", "BackSpace"' "$REPO/hypr/imthemousenow.lua"; then
+if grep -q 'RELAY_KEYS = { "comma", "BackSpace"' "$REPO/hypr/imthemousenow-submap.lua"; then
   ok "Escape is out of the lua's relay list"
 else
   no "Escape is out of the lua's relay list"
@@ -96,7 +96,7 @@ if grep -q 'RELAY_KEYS=(comma BackSpace' "$REPO/bin/imthemousenow"; then
 else
   no "and out of the bash mirror of it, which must stay in step"
 fi
-if grep -q 'imthemousenow-steer escape' "$REPO/hypr/imthemousenow.lua" &&
+if grep -q 'imthemousenow-steer escape' "$REPO/hypr/imthemousenow-submap.lua" &&
   grep -q 'imthemousenow-steer escape' "$REPO/bin/imthemousenow"; then
   ok "and bound on its own in both, so the overlay is still cancellable"
 else
@@ -108,7 +108,7 @@ fi
 # launch the way the arrows are -- Hyprland drops binds across an overlay, and
 # a help key that works only on the first overlay of a session is worse than
 # none.
-if grep -q '"F1", hl.dsp.exec_cmd("imthemousenow-steer help")' "$REPO/hypr/imthemousenow.lua"; then
+if grep -q '"F1", hl.dsp.exec_cmd("imthemousenow-steer help")' "$REPO/hypr/imthemousenow-submap.lua"; then
   ok "F1 opens the sheet"
 else
   no "F1 opens the sheet"
@@ -126,8 +126,8 @@ fi
 # pair of binds that are only right for some keymaps, which is a worse trade
 # than one key that is right for all of them. Asserted so it does not come
 # back by accident.
-if grep -q 'question' "$REPO/hypr/imthemousenow.lua" &&
-  ! grep -q 'hl.bind("[^"]*question"' "$REPO/hypr/imthemousenow.lua"; then
+if grep -q 'question' "$REPO/hypr/imthemousenow-submap.lua" &&
+  ! grep -q 'hl.bind("[^"]*question"' "$REPO/hypr/imthemousenow-submap.lua"; then
   ok "\`?\` is not bound, and the lua says why"
 else
   no "\`?\` is not bound, and the lua says why"

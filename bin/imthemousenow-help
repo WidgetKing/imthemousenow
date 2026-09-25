@@ -115,61 +115,61 @@ section() {
 dbl=()
 if double_click_armed "$action"; then
   if [[ $mode == grid ]]; then
-    dbl=("Space / Return again" "double click: press it twice")
+    dbl=("Space / Return again" "$(t help.double_click.grid 'double click: press it twice')")
   else
-    dbl=("last letter again" "double click: type it twice")
+    dbl=("last letter again" "$(t help.double_click.hints 'double click: type it twice')")
   fi
 fi
 
 # What wl-kbptr itself reads. These are the keys that actually select
 # something; everything below them only changes what selecting will do.
 if [[ $mode == grid ]]; then
-  section "Aim" \
-    "a . . z ," "type a cell's label to zoom into it" \
-    "home row" "halve the area again, eight ways" \
-    "Space / Return" "commit the area you have narrowed to" \
+  section "$(t help.section.aim Aim)" \
+    "a . . z ," "$(t help.aim.grid.range "type a cell's label to zoom into it")" \
+    "home row" "$(t help.aim.grid.bisect 'halve the area again, eight ways')" \
+    "Space / Return" "$(t help.aim.grid.commit 'commit the area you have narrowed to')" \
     "${dbl[@]}" \
-    "BackSpace" "undo the last step" \
-    "Escape" "close the overlay without clicking"
+    "BackSpace" "$(t help.aim.grid.undo 'undo the last step')" \
+    "Escape" "$(t help.aim.escape 'close the overlay without clicking')"
 else
-  section "Aim" \
-    "a . . z ," "type a label to pick that target" \
+  section "$(t help.section.aim Aim)" \
+    "a . . z ," "$(t help.aim.hints.range 'type a label to pick that target')" \
     "${dbl[@]}" \
-    "Space (hold)" "fade the overlay to read what is under it" \
-    "BackSpace" "undo the last letter" \
-    "Escape" "close the overlay without clicking"
+    "Space (hold)" "$(t help.aim.hints.peek 'fade the overlay to read what is under it')" \
+    "BackSpace" "$(t help.aim.hints.undo 'undo the last letter')" \
+    "Escape" "$(t help.aim.escape 'close the overlay without clicking')"
 fi
 
 # ACTION. `;` and `:` are two meanings of one physical key, `'` is the key next
 # to it; pressing the same one twice goes back to what the chord asked for.
 if [[ $stage == drop ]]; then
-  section "This drag" \
-    ";  :  '" "call the drag off -- nothing has been pressed yet" \
-    "Escape" "the same: abandon the drag"
+  section "$(t help.section.this_drag 'This drag')" \
+    ";  :  '" "$(t help.drag.cancel 'call the drag off -- nothing has been pressed yet')" \
+    "Escape" "$(t help.drag.cancel_escape 'the same: abandon the drag')"
 else
-  section "What happens" \
-    ";" "right click instead (again: back)" \
-    ":" "move the pointer, no click (again: back)" \
-    "'" "drag: pick up here, then say where to drop" \
-    '"' "hold: take hold here and steer it by hand" \
-    "/" "scroll: put the pointer here, then turn the wheel"
+  section "$(t help.section.what_happens 'What happens')" \
+    ";" "$(t help.action.right_click 'right click instead (again: back)')" \
+    ":" "$(t help.action.move 'move the pointer, no click (again: back)')" \
+    "'" "$(t help.action.drag 'drag: pick up here, then say where to drop')" \
+    '"' "$(t help.action.hold 'hold: take hold here and steer it by hand')" \
+    "/" "$(t help.action.scroll 'scroll: put the pointer here, then turn the wheel')"
 fi
 
 # The keys of a hold, listed here rather than in a sheet of their own: a hold
 # has no overlay and takes no keyboard, so there is nowhere to press F1 once it
 # has started. This is the moment they are wanted anyway -- the sheet is up
 # because you are deciding what to press next, and `"` is one of the choices.
-section "If you take hold" \
-  "arrows / wasd / hjkl" "move the pointer with the button down" \
-  "Shift + those" "move in big steps" \
-  "Space / Return / Escape" "let go of the button" \
-  "a real mouse click" "let go too, and the click goes through"
+section "$(t help.section.if_hold 'If you take hold')" \
+  "arrows / wasd / hjkl" "$(t help.hold.move 'move the pointer with the button down')" \
+  "Shift + those" "$(t help.hold.big_steps 'move in big steps')" \
+  "Space / Return / Escape" "$(t help.hold.release 'let go of the button')" \
+  "a real mouse click" "$(t help.hold.click_through 'let go too, and the click goes through')"
 
 # The same reason for a scroll: once one is on there is no overlay to ask.
-section "If you scroll" \
-  "arrows / wasd / hjkl" "turn the wheel a notch that way" \
-  "hold Ctrl / Alt / Shift" "scroll with it held (Ctrl zooms)" \
-  "Escape" "stop scrolling"
+section "$(t help.section.if_scroll 'If you scroll')" \
+  "arrows / wasd / hjkl" "$(t help.scroll.notch 'turn the wheel a notch that way')" \
+  "hold Ctrl / Alt / Shift" "$(t help.scroll.held 'scroll with it held (Ctrl zooms)')" \
+  "Escape" "$(t help.scroll.stop 'stop scrolling')"
 
 
 # The axes a modifier flips outside the overlay flip the same way inside it,
@@ -178,65 +178,65 @@ section "If you scroll" \
 # sides as they are set rather than as they ship.
 mod_side="$(setting keyboard_modifier_side)"
 [[ $mod_side == left ]] && cmd_side=right || { mod_side=right; cmd_side=left; }
-section "This overlay" \
-  "${cmd_side^} Shift (tap)" "the other scope: window <-> monitor" \
-  "${cmd_side^} Alt (tap)" "the other mode: hints <-> grid" \
-  "${cmd_side^} Ctrl (tap)" "the other lifetime: single <-> continuous" \
-  "${cmd_side^} Super (tap)" "measure the screen again and redraw" \
-  "F5" "measure the screen again and redraw" \
-  "F1" "this sheet"
+section "$(t help.section.this_overlay 'This overlay')" \
+  "${cmd_side^} Shift (tap)" "$(t help.overlay.scope 'the other scope: window <-> monitor')" \
+  "${cmd_side^} Alt (tap)" "$(t help.overlay.mode 'the other mode: hints <-> grid')" \
+  "${cmd_side^} Ctrl (tap)" "$(t help.overlay.lifetime 'the other lifetime: single <-> continuous')" \
+  "${cmd_side^} Super (tap)" "$(t help.overlay.redraw 'measure the screen again and redraw')" \
+  "F5" "$(t help.overlay.redraw 'measure the screen again and redraw')" \
+  "F1" "$(t help.overlay.this_sheet 'this sheet')"
 
 # SCOPE decides what the digits and the arrows move, so the sheet says the one
 # thing they do here rather than all three things they can do.
 if [[ $stage == swap ]]; then
-  section "Where to look" \
-    "arrows" "take the picker to the monitor that way" \
-    "1 . . 9" "nothing while picking"
+  section "$(t help.section.where_look 'Where to look')" \
+    "arrows" "$(t help.swap.pick_monitor 'take the picker to the monitor that way')" \
+    "1 . . 9" "$(t help.swap.nothing 'nothing while picking')"
 elif [[ $stage == drop ]]; then
-  section "Where to drop" \
-    "arrows" "take the drop to the monitor that way" \
-    "1 . . 9" "nothing during a drag"
+  section "$(t help.section.where_drop 'Where to drop')" \
+    "arrows" "$(t help.drop.monitor 'take the drop to the monitor that way')" \
+    "1 . . 9" "$(t help.drop.nothing 'nothing during a drag')"
 elif [[ $scope == window ]]; then
-  section "This window" \
-    "arrows" "move the window through the layout" \
-    "1 . . 9" "send the window to that workspace" \
-    "-  =" "grow or shrink on the horizontal edge" \
-    "_  +" "grow or shrink on the vertical edge" \
-    "Tab" "swap this window with one you pick"
+  section "$(t help.section.this_window 'This window')" \
+    "arrows" "$(t help.window.move 'move the window through the layout')" \
+    "1 . . 9" "$(t help.window.workspace 'send the window to that workspace')" \
+    "-  =" "$(t help.window.resize_h 'grow or shrink on the horizontal edge')" \
+    "_  +" "$(t help.window.resize_v 'grow or shrink on the vertical edge')" \
+    "Tab" "$(t help.window.swap 'swap this window with one you pick')"
 else
-  section "What is under it" \
-    "left / right" "previous or next workspace" \
-    "up / down" "previous or next monitor" \
-    "1 . . 9" "go to that workspace"
+  section "$(t help.section.what_under 'What is under it')" \
+    "left / right" "$(t help.monitor.workspace 'previous or next workspace')" \
+    "up / down" "$(t help.monitor.monitor 'previous or next monitor')" \
+    "1 . . 9" "$(t help.monitor.goto 'go to that workspace')"
 fi
 
 # Not in a move, which presses nothing for them to be held around.
 if [[ $action != move && $stage != swap ]]; then
-  section "Held for the click" \
-    "${mod_side^} Ctrl / Alt / Shift / Super" "tap to hold it for the click; again to drop it" \
-    "several" "they stack: Ctrl + Alt + right"
+  section "$(t help.section.held_for_click 'Held for the click')" \
+    "${mod_side^} Ctrl / Alt / Shift / Super" "$(t help.modifiers.tap 'tap to hold it for the click; again to drop it')" \
+    "several" "$(t help.modifiers.stack 'they stack: Ctrl + Alt + right')"
 fi
 
-section "Out" \
-  "Escape" "close the overlay" \
-  "Ctrl+Alt+Del" "close the overlay, then Omarchy's own panic"
+section "$(t help.section.out Out)" \
+  "Escape" "$(t help.out.close 'close the overlay')" \
+  "Ctrl+Alt+Del" "$(t help.out.panic "close the overlay, then Omarchy's own panic")"
 
 footer=""
 if [[ $stage == swap ]]; then
-  footer="Picking a window to swap with: choose one, walk the arrows to another monitor, or Escape to put the overlay back."
+  footer="$(t help.footer.swap 'Picking a window to swap with: choose one, walk the arrows to another monitor, or Escape to put the overlay back.')"
 elif [[ $stage == drop ]]; then
-  footer="Holding one end of a drag. Nothing is pressed until you name the other end."
+  footer="$(t help.footer.drop 'Holding one end of a drag. Nothing is pressed until you name the other end.')"
 elif [[ $focus == none ]]; then
-  footer="Popup-safe mode: the window underneath keeps its focus and its popups."
+  footer="$(t help.footer.popup_safe 'Popup-safe mode: the window underneath keeps its focus and its popups.')"
 fi
 [[ $lifetime == continuous ]] &&
-  footer="Continuous: the overlay comes back after every click, until Escape. $footer"
+  footer="$(t help.footer.continuous 'Continuous: the overlay comes back after every click, until Escape.') $footer"
 
 label="$(setting "action.${action}.label")"
 [[ -n $label ]] || label="${action%-click}"
 
 sheet="$(jq -cn \
-  --arg title "I'm the mouse now" \
+  --arg title "$(t app.title "I'm the mouse now")" \
   --arg state "$mode · $scope · $label" \
   --arg footer "$footer" \
   --argjson sections "$sections_json" \
