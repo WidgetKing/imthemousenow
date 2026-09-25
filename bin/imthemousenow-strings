@@ -74,11 +74,18 @@ _strings_read "$file" strings
 #
 # Sorted, so two runs are diffable and a test can line the output up against
 # the file it came from without caring about hash order.
-shquote() {
-  local value="${1-}"
-  printf "'%s'" "${value//\'/\'\"\'\"\'}"
-}
+# In one printf, with the quoting done by parameter expansion rather than a
+# shquote function: this runs on every panel open, and a command substitution
+# per key made a 5ms script into a 66ms one -- sixty-odd forks to quote sixty-
+# odd strings. Long enough to see the panel paint English and then correct
+# itself.
+# An empty table prints nothing at all -- an untranslated locale, which is
+# not an error. Guarded here because "${!strings[@]}" on an empty associative
+# array still yields one empty line for printf to read.
+((${#strings[@]})) || exit 0
 
-for key in $(printf '%s\n' "${!strings[@]}" | sort); do
-  printf '%s=%s\n' "$key" "$(shquote "${strings[$key]}")"
-done
+out=""
+while IFS= read -r key; do
+  out+="$key='${strings[$key]//\'/\'\"\'\"\'}'"$'\n'
+done < <(printf '%s\n' "${!strings[@]}" | sort)
+printf '%s' "$out"

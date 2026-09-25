@@ -68,7 +68,6 @@ Panel {
   // On a stock build the setting is ignored, so offering it would be a switch
   // that does nothing -- the same `when:` test the menu row used.
   property bool popupsSupported: false
-  property bool stringsLoaded: false
 
   // The panel's own words, from locale/<code>.panel.strings via
   // bin/imthemousenow-strings. Read once per panel open, beside the config.
@@ -353,11 +352,13 @@ Panel {
       supportProcess.command = ["bash", "-c", "grep -qa WL_KBPTR_KEY_CHANNEL \"$(command -v wl-kbptr)\" 2>/dev/null"]
       supportProcess.running = true
     }
-    // Only ever once. The config is re-read on every open because anything
-    // may have written it -- the CLI, the config file by hand -- but the
-    // strings cannot change without a re-install, and a locale cannot change
-    // without a re-login.
-    if (!stringsLoaded && !stringsProcess.running) {
+    // Re-read on every open, exactly like the config above. Caching this for
+    // the life of the bar was the obvious saving and the wrong one: on a dev
+    // install locale/ is a symlink into the checkout, so editing
+    // en.panel.strings IS the workflow, and a cache means the edit does
+    // nothing until the whole bar restarts. It costs one ~10ms process per
+    // open, next to the two already being run.
+    if (!stringsProcess.running) {
       stringsProcess.command = ["imthemousenow-strings", "panel"]
       stringsProcess.running = true
     }
@@ -452,8 +453,10 @@ Panel {
   }
 
   // A missing or broken imthemousenow-strings is not an error worth showing:
-  // the panel reads in English, which is what it did before this existed.
-  // stringsLoaded is set either way so a failure is not retried on every open.
+  // the panel reads in English, which is what it did before this existed and
+  // what every str() call falls back to. The last good table is kept on a
+  // failure rather than cleared, so a file saved mid-edit with a syntax error
+  // does not blank the panel you are watching.
   Process {
     id: stringsProcess
     running: false
@@ -461,7 +464,6 @@ Panel {
     stdout: StdioCollector { id: stringsOut; waitForEnd: true }
     onExited: function(exitCode) {
       if (exitCode === 0) root.strings = Model.parseStrings(stringsOut.text)
-      root.stringsLoaded = true
     }
   }
 
