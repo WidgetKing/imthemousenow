@@ -112,7 +112,7 @@ check "no focused window falls back to the screen" left-click window "LEFT" "" "
 # The axes the config owns, which a caller must not have to repeat.
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 check "timings and placement come from the config" left-click monitor \
-  "--ms 1000" "--fade-ms 250" "--position top" "--size 120"
+  "--ms 1000" "--fade-ms 350" "--position top" "--size 120"
 
 # The wordmark is the default, so the flag that turns it off is the only one
 # that should ever appear -- and it must appear the moment the config says so.
@@ -127,7 +127,7 @@ rm -f "$HOME/.config/omarchy/imthemousenow/config.toml"
 # The departure style, same shape as the timings above: the default ships in
 # config.default.toml, and a caller must not have to repeat it.
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
-check "the departure style comes from the config" left-click monitor "--outro fade"
+check "the departure style comes from the config" left-click monitor "--outro random"
 setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
 mkdir -p "$HOME/.config/omarchy/imthemousenow"
 printf '[imthemousenow.osd]\noutro = "scanline"\n' >"$HOME/.config/omarchy/imthemousenow/config.toml"

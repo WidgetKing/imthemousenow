@@ -74,6 +74,12 @@ ShellRoot {
   property string outro: "fade"
   // Resolved once per trigger, so "random" does not re-roll mid-departure.
   property string resolvedOutro: "fade"
+  // What "random" picks from: the animations, and never `fade`. A person who
+  // asked for random asked for something to happen -- a coin that lands on the
+  // plain fade half the time reads as the setting not having worked. `none` is
+  // out for the same reason. Adding an animation below means adding it here.
+  readonly property var randomOutros: ["scanline", "bytes"]
+  property string lastOutro: ""
 
   // A box to sit inside, monitor-relative, as WxH+X+Y -- what window scope
   // passes so the word lands on the window the overlay is confined to rather
@@ -164,10 +170,20 @@ ShellRoot {
     glitchOffset.y = 0;
     scanScale.yScale = 1;
     scanFlash.opacity = 0;
-    root.resolvedOutro = root.outro === "random"
-      ? (Math.random() < 0.5 ? "scanline" : "bytes")
-      : root.outro;
+    root.resolvedOutro = root.nextOutro();
     solid.start();
+  }
+
+  // Random never picks the one it just showed, so two words in a row always
+  // leave differently -- which is most of what "random" is for. The same rule
+  // as qml/pool.qml's click mark, for the same reason.
+  function nextOutro() {
+    if (root.outro !== "random") {
+      return root.outro;
+    }
+    const choices = root.randomOutros.filter(o => o !== root.lastOutro);
+    root.lastOutro = choices[Math.floor(Math.random() * choices.length)];
+    return root.lastOutro;
   }
 
   function beginDeparture() {
