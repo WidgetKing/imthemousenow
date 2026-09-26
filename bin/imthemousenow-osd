@@ -1,6 +1,6 @@
 #!/bin/bash
 # omarchy:summary=Flash one large word on screen, then fade it out
-# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME] [--no-ascii]
+# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME] [--outro fade|scanline|bytes|random|none] [--no-ascii]
 #
 # Say which ACTION you just switched into, large enough to read without looking
 # for it and gone before it is in the way.
@@ -17,7 +17,19 @@
 # `omarchy` package itself, so it is present on every Omarchy machine and this
 # feature adds nothing to install. (An earlier version used gtk4-layer-shell,
 # which only arrives with applications a user may or may not have.) Quickshell
-# owns argv, so parameters are passed as environment variables.
+# owns argv, so a fresh process gets its parameters as environment variables --
+# but this script no longer starts a fresh process for every word.
+#
+# Same fix as bin/imthemousenow-pool's click mark, and for the same reason: a
+# switch happens faster than quickshell can start (~300ms), and that lag was
+# invisible only while the overlay itself was restarting on every switch too.
+# Now that it does not, a cold start per word is the slowest thing in the loop.
+# So this writes the announcement to a report file instead of always launching
+# a process to read one off argv, and only launches quickshell when nothing is
+# already alive to read it -- the same "already on screen and waiting" trick,
+# just triggered by a word instead of by the overlay opening. One process
+# outlives any single announcement; qml/osd.qml watches the file and replays
+# from the top on every change instead of exiting after the first.
 #
 # What that QML must get right, and why, is in docs/design-notes.md: an empty
 # input region so this cannot swallow the click it is announcing, and no
@@ -28,6 +40,7 @@ SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 QML="$SELF_DIR/../qml/osd.qml"
 RUNTIME="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 PIDFILE="$RUNTIME/osd.pid"
+REPORT="$RUNTIME/osd-report"
 
 usage() {
   sed -n '/^# Usage/,/^$/p' "$0" | sed 's/^# \?//'
@@ -43,13 +56,15 @@ Usage: imthemousenow-osd TEXT [options]
   --region R      WxH+X+Y, monitor-relative: place within this box rather than
                   across the whole screen. What window scope passes.
   --output NAME   which monitor the region belongs to
+  --outro STYLE   how the word leaves: fade | scanline | bytes | random | none
+                  (default fade)
   --no-ascii      plain text, rather than the Omarchy wordmark's block art
 
 One at a time: starting another replaces the one on screen.
 USAGE
 }
 
-text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output="" ascii=1
+text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output="" outro="fade" ascii=1
 
 while (($#)); do
   case "$1" in
@@ -69,6 +84,7 @@ while (($#)); do
     --position) position="${2:?--position needs a value}"; shift 2 ;;
     --region) region="${2:?--region needs a value}"; shift 2 ;;
     --output) output="${2:?--output needs a value}"; shift 2 ;;
+    --outro) outro="${2:?--outro needs a value}"; shift 2 ;;
     --ascii) ascii=1; shift ;;
     --no-ascii) ascii=0; shift ;;
     -*) echo "imthemousenow-osd: unknown option $1" >&2; exit 2 ;;
@@ -83,6 +99,10 @@ done
 case "$position" in
   top | center | bottom) ;;
   *) echo "imthemousenow-osd: --position is top, center or bottom" >&2; exit 2 ;;
+esac
+case "$outro" in
+  fade | scanline | bytes | random | none) ;;
+  *) echo "imthemousenow-osd: --outro is fade, scanline, bytes, random or none" >&2; exit 2 ;;
 esac
 # Rejected here rather than silently ignored in QML, where a malformed box would
 # place the word somewhere arbitrary and look like a bug in the positioning.
@@ -197,31 +217,70 @@ if ((ascii)) && ascii_bin="$(ascii_cmd)" && [[ -n $ascii_bin ]]; then
   fi
 fi
 
+# No shell has a JSON encoder built in, and pulling in jq here would break the
+# one thing this script promises the rest of the plugin: an announcement must
+# not be lost over a decoration, jq included. Only text and art can contain
+# anything that needs escaping -- everything else is a number or a value this
+# script already validated above.
+json_escape() {
+  local s=$1
+  s=${s//\\/\\\\}
+  s=${s//\"/\\\"}
+  s=${s//$'\t'/\\t}
+  s=${s//$'\r'/\\r}
+  s=${s//$'\n'/\\n}
+  printf '%s' "$s"
+}
+
 # Replace whatever is on screen rather than stacking on top of it: two switches
 # in quick succession are normal (`;` cycles), and two words both fading would
 # be one unreadable over the other. The runtime directory is the session's own,
 # so a reboot clears it for free.
 mkdir -p "$RUNTIME"
-# The recorded pid is checked to be one of ours before it is signalled: the file
-# outlives the process (exec leaves no trap to clean it up), so by the time it is
-# read the pid may have been recycled by something else entirely.
-if [[ -f $PIDFILE ]]; then
-  old="$(cat "$PIDFILE" 2>/dev/null || true)"
-  if [[ $old =~ ^[0-9]+$ ]] && grep -qa "osd.qml" "/proc/$old/cmdline" 2>/dev/null; then
-    kill "$old" 2>/dev/null || true
-  fi
-fi
-echo $$ >"$PIDFILE"
 
-# exec, so the pid recorded above is the process that owns the surface.
-export MOUSENOW_OSD_TEXT="$text" \
-  MOUSENOW_OSD_ART="$art" \
-  MOUSENOW_OSD_COLOR="$color" \
-  MOUSENOW_OSD_FONT="$font" \
-  MOUSENOW_OSD_SIZE="$size" \
-  MOUSENOW_OSD_MS="$ms" \
-  MOUSENOW_OSD_FADE_MS="$fade_ms" \
-  MOUSENOW_OSD_POSITION="$position" \
-  MOUSENOW_OSD_REGION="$region" \
-  MOUSENOW_OSD_OUTPUT="$output"
-exec quickshell --no-color -p "$QML"
+# The announcement, as a report for whatever is watching -- one object, the
+# whole file, the same way bin/imthemousenow-pool's click report is one line
+# and the whole file. `stamp` is a nanosecond clock rather than anything about
+# the word itself, so two identical announcements in a row (`;` cycling back to
+# where it started) still count as a new one instead of a no-op rewrite.
+report="{\"stamp\":\"$(date +%s%N)\""
+report+=",\"text\":\"$(json_escape "$text")\""
+report+=",\"art\":\"$(json_escape "$art")\""
+report+=",\"color\":\"$(json_escape "$color")\""
+report+=",\"font\":\"$(json_escape "$font")\""
+report+=",\"size\":\"$(json_escape "$size")\""
+report+=",\"ms\":\"$(json_escape "$ms")\""
+report+=",\"fadeMs\":\"$(json_escape "$fade_ms")\""
+report+=",\"position\":\"$(json_escape "$position")\""
+report+=",\"region\":\"$(json_escape "$region")\""
+report+=",\"output\":\"$(json_escape "$output")\""
+report+=",\"outro\":\"$(json_escape "$outro")\""
+report+="}"
+# Written to a temp file and moved into place rather than written in place, so
+# a watcher never catches the file half-written and reads a report with no
+# closing brace as one with none at all.
+tmp="$RUNTIME/.osd-report.$$"
+printf '%s' "$report" >"$tmp"
+mv -f "$tmp" "$REPORT"
+
+# Is anything already alive to read that? The recorded pid is checked to be one
+# of ours before it is trusted: the file outlives the process, so by the time
+# it is read the pid may have been recycled by something else entirely.
+osd_alive() {
+  [[ -f $PIDFILE ]] || return 1
+  local pid
+  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  grep -qa "osd.qml" "/proc/$pid/cmdline" 2>/dev/null
+}
+
+# Nothing to hand the report to: start it, once, and leave it running rather
+# than exiting after this word the way it used to. The report is already on
+# disk, so whatever starts up reads it the moment its watch attaches -- the
+# same ordering bin/imthemousenow-hold relies on for the halo's position file.
+# Only this first word of a session pays quickshell's ~300ms; every one after
+# it, for as long as this process lives, is a file write.
+if ! osd_alive; then
+  MOUSENOW_OSD_REPORT="$REPORT" setsid quickshell --no-color -p "$QML" >/dev/null 2>&1 &
+  echo $! >"$PIDFILE"
+fi

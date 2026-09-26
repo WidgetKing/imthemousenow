@@ -124,6 +124,16 @@ printf '[imthemousenow.osd]\nascii = false\n' >"$HOME/.config/omarchy/imthemouse
 check "ascii = false asks for the plain word" left-click monitor "LEFT" "--no-ascii"
 rm -f "$HOME/.config/omarchy/imthemousenow/config.toml"
 
+# The departure style, same shape as the timings above: the default ships in
+# config.default.toml, and a caller must not have to repeat it.
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+check "the departure style comes from the config" left-click monitor "--outro fade"
+setup; hyprctl_stub '{"at":[400,250],"size":[800,600]}'
+mkdir -p "$HOME/.config/omarchy/imthemousenow"
+printf '[imthemousenow.osd]\noutro = "scanline"\n' >"$HOME/.config/omarchy/imthemousenow/config.toml"
+check "a configured outro overrides the default" left-click monitor "--outro scanline"
+rm -f "$HOME/.config/omarchy/imthemousenow/config.toml"
+
 echo
 if ((failures)); then
   echo "$failures failing"

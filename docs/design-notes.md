@@ -127,11 +127,34 @@ second `;`, which by then is a decision rather than a default. `osd.on_start`
 turns the start announcement on for someone still learning the four actions.
 
 **Startup costs about 300ms**, measured (287-308ms to a mapped surface, against
-370-460ms for the gtk4-layer-shell version it replaced). With the defaults at
-250ms solid plus 250ms of fade, the word is on screen from roughly 0.3s to 0.8s
-after the key. If that lag ever needs to go, the answer is a pre-warmed process
--- or a widget inside Omarchy's already-running quickshell instance, the way
-OmaGrid does it -- rather than a faster cold start.
+370-460ms for the gtk4-layer-shell version it replaced). That was invisible for
+as long as the overlay itself restarted on every switch too -- the word was
+never the slowest thing in the loop. Once the overlay stopped doing that, a
+cold start per word became the slowest thing in the loop, and switching stopped
+feeling as fast as the overlay's own response to a key. The fix taken is the
+first of the two named above: `bin/imthemousenow-osd` now starts quickshell
+once and leaves it running, handing it each new word through a report file --
+`MOUSENOW_OSD_REPORT`, one JSON object, the whole file -- the same trick
+`bin/imthemousenow-pool` already used for its click mark, for the identical
+reason. Only the first word of a session pays the 300ms; every one after it,
+for as long as that process lives, is a file write and a re-triggered
+animation. `qml/osd.qml` watches the file the way `qml/halo.qml` watches the
+hold's position file, and replays from the top on every new `stamp` instead of
+exiting after one word. The other option -- a widget inside Omarchy's own
+already-running quickshell instance, the way OmaGrid does it -- stays on the
+table for later; it would drop the first-word cost too, at the price of
+depending on shell internals this plugin does not otherwise touch.
+
+**The departure is not only a fade any more.** `osd.outro` picks it --
+`fade` (the original animation, and still the default), `scanline` (a CRT-off
+squash with a bright line left behind for a moment), `bytes` (a burst of
+flicker and jitter), `random` (scanline or bytes, a different one each time),
+or `none` -- in the same spirit as `[imthemousenow] intro` on the overlay's own
+entrance. It costs nothing extra to offer more than a fade now that one process
+plays every departure instead of a fresh one exiting after its only one: the
+old design tied the word's exit to `Qt.quit()`, which a `scanline` or `bytes`
+departure cannot end on, since each needs its own animation to finish on its
+own terms while the process itself keeps running for the next word.
 
 **The word is drawn as the wordmark is drawn.** This used to say the opposite --
 that there was no logo font to borrow -- and that was true of *fonts*: the

@@ -147,6 +147,18 @@ on_start = false
 # read.
 ms = 1000
 fade_ms = 250
+# How the word leaves, over fade_ms, once the solid part above is done. The
+# same idea as [imthemousenow] intro -- an entrance for the overlay -- but this
+# one is the OSD's own exit, drawn in the same process for every word rather
+# than one process each, so there is no cost to it being more than a fade.
+#
+#   "fade"      the plain opacity fade this always did
+#   "scanline"  a CRT switched off: squashed flat, with a bright line where the
+#               word was for a moment before that fades too
+#   "bytes"     a burst of flicker and jitter before it cuts out
+#   "random"    scanline or bytes, a different one each time
+#   "none"      gone the instant the solid time is up
+outro = "fade"
 # Font size in px. Large on purpose: it is meant to be read without looking for
 # it, from wherever on screen your eyes already were.
 size = 120

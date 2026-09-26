@@ -165,6 +165,7 @@ osd_word() {
   [[ -n $(setting osd.fade_ms) ]] && args+=(--fade-ms "$(setting osd.fade_ms)")
   [[ -n $(setting osd.size) ]] && args+=(--size "$(setting osd.size)")
   [[ -n $(setting osd.position) ]] && args+=(--position "$(setting osd.position)")
+  [[ -n $(setting osd.outro) ]] && args+=(--outro "$(setting osd.outro)")
 
   # In window scope the word belongs to the window, not to the screen: an
   # overlay confined to one window that announces itself in the middle of the
