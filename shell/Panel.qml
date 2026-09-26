@@ -128,7 +128,7 @@ Panel {
     // this one -- rather than one invented to even out a tab strip.
     if (currentTab === 2) {
       var says = ["word"]
-      if (osdEnabled) says = says.concat(["word-position", "word-size", "word-ms", "word-fade", "word-on-start"])
+      if (osdEnabled) says = says.concat(["word-position", "word-size", "word-ms", "word-outro", "word-fade", "word-on-start"])
       says.push("pool")
       if (poolEnabled) says = says.concat(["pool-radius", "pool-cell", "pool-style"])
       return says.concat(["scroll-mark"])
@@ -214,6 +214,11 @@ Panel {
     if (id === "word") return { key: "word", options: ["off", "font", "block"] }
     if (id === "word-position") return { key: "osd.position", options: ["top", "center", "bottom"] }
     if (id === "intro") return { key: "intro", options: ["bytes", "interlace", "scanline", "dropout", "roll", "beam", "shuffle", "random", "none"], dropdown: true }
+    // The same vocabulary as the overlay's entrance above, because they ARE
+    // the same animations run backwards -- with `fade` in front, which is the
+    // plain one only a word has, and without the two that are a whole screen's
+    // worth of motion. See [imthemousenow.osd] outro.
+    if (id === "word-outro") return { key: "osd.outro", options: ["fade", "bytes", "interlace", "scanline", "dropout", "beam", "random", "none"], dropdown: true }
     if (id === "pool-style") return { key: "pool.style", options: ["pool", "patchy", "lines", "cross", "random"], dropdown: true }
     return null
   }
@@ -289,7 +294,7 @@ Panel {
       return { key: "osd.ms", value: Model.numberValue(cfg, "osd.ms", 1000),
                minimum: 250, maximum: 3000, step: 250, integer: true }
     if (id === "word-fade")
-      return { key: "osd.fade_ms", value: Model.numberValue(cfg, "osd.fade_ms", 250),
+      return { key: "osd.fade_ms", value: Model.numberValue(cfg, "osd.fade_ms", 200),
                minimum: 0, maximum: 1000, step: 50, integer: true }
     if (id === "pool-radius")
       return { key: "pool.radius", value: Model.numberValue(cfg, "pool.radius", 56),
@@ -792,12 +797,20 @@ Panel {
             valueText: String(Math.round(Model.numberValue(root.cfg, "osd.ms", 1000))) + "ms"
           }
 
+          DropdownRow {
+            rowId: "word-outro"
+            visible: root.currentTab === 2 && root.osdEnabled
+            label: root.str("panel.row.word-outro.label", "Departure")
+            description: root.str("panel.row.word-outro.description", "How the word leaves. All but the fade are the overlay's own entrance animations, run backwards.")
+            indented: true
+          }
+
           SliderRow {
             rowId: "word-fade"
             visible: root.currentTab === 2 && root.osdEnabled
-            label: root.str("panel.row.word-fade.label", "Fade")
+            label: root.str("panel.row.word-fade.label", "Departure time")
             indented: true
-            valueText: String(Math.round(Model.numberValue(root.cfg, "osd.fade_ms", 250))) + "ms"
+            valueText: String(Math.round(Model.numberValue(root.cfg, "osd.fade_ms", 200))) + "ms"
           }
 
           ToggleRow {

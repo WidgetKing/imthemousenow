@@ -175,7 +175,8 @@ The config key is still `intro`. `Rad Animations` is the label.
 | — Position | chips | `osd.position` | top, center, bottom |
 | — Size | slider | `osd.size` | 40–200 px |
 | — Time on screen | slider | `osd.ms` | 250–3000 ms |
-| — Fade | slider | `osd.fade_ms` | 0–1000 ms |
+| — Departure | dropdown | `osd.outro` | fade, bytes, interlace, scanline, dropout, beam, random, none |
+| — Departure time | slider | `osd.fade_ms` | 0–1000 ms |
 | — Announce on start | toggle | `osd.on_start` | on/off |
 | **Click mark** | toggle | `pool.enabled` | on/off |
 | — Size | slider | `pool.radius` | 16–120 px |
@@ -184,6 +185,17 @@ The config key is still `intro`. `Rad Animations` is the label.
 | Scroll mark size | slider | `action.scroll.mark_size` | 16–96 px |
 
 Rows marked `—` are indented and hidden when their group's first row is off.
+
+**Departure** is the same vocabulary as *Rad Animations* above, because they
+are the same animations: the word leaves the way the overlay arrives, run
+backwards. Two differences, both deliberate. `fade` is in front of the list —
+the plain opacity fade, which only a word has and which is still the default
+for anyone who has not chosen. And two of the seven are not in it: `roll`,
+three copies of the picture crossing the screen at once, and `shuffle`, the
+picture assembled out of the wrong pieces. Both are the right size of gesture
+for an overlay arriving and too much of one for a word. Unlike `intro`, `outro`
+does not accept a list; the dropdown still renders an unrecognised value as
+itself rather than snapping, for the reason given above.
 
 ### Action word: one three-way row, two config keys
 
