@@ -245,6 +245,31 @@ osd_word() {
   disown 2>/dev/null || true
 }
 
+# Put the announcement's surface back on top, now that an overlay is going up
+# underneath it.
+#
+# Both are layer surfaces on the `overlay` layer, and a compositor stacks that
+# layer by the order surfaces were mapped: wl-kbptr's is mapped last, so it is
+# on top, so a warm announcement process would be announcing from underneath
+# the overlay's dim. qml/osd.qml's `raise()` has the rest of it.
+#
+# After a delay because the overlay is not up the instant it is launched, and
+# a raise that lands first is a raise that achieves nothing. Backgrounded
+# because nothing here may hold up the overlay, and silent because a missing
+# OSD is not an error: the poke does nothing at all if no announcement process
+# is running, which is also the case where nothing needs raising.
+osd_raise_soon() {
+  [[ $(setting osd.enabled) == false ]] && return 0
+  command -v "${OSD_CMD%% *}" >/dev/null 2>&1 || [[ -x $OSD_CMD ]] || return 0
+  local delay
+  delay="$(ms_to_s "$(setting osd.raise_delay_ms)")"
+  (
+    sleep "$delay"
+    "$OSD_CMD" --raise >/dev/null 2>&1 || true
+  ) &
+  disown 2>/dev/null || true
+}
+
 # --- modifiers -----------------------------------------------------------------
 # The modifiers toggled on for the next press, as the session keeps them: a
 # space-separated list, always in this order whatever order they were tapped

@@ -516,6 +516,10 @@ def cmd_check(args):
     osd = merged.get("imthemousenow", {}).get("osd", {})
     if osd.get("position") not in (None, "top", "center", "bottom"):
         problems.append(f"[imthemousenow.osd].position = '{osd['position']}' is not top, center or bottom")
+    if osd.get("outro") is not None and osd["outro"] not in OUTROS:
+        problems.append(
+            f"[imthemousenow.osd].outro = '{osd['outro']}' is not one of {sorted(OUTROS)}"
+        )
     for field in ("ms", "fade_ms", "size"):
         value = osd.get(field)
         if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0):
@@ -690,6 +694,22 @@ def settable_type(path: str):
     return None
 
 
+# How the announcement leaves. Declared once: the setter, `check` and the
+# panel's dropdown all mean this list, and bin/imthemousenow-osd rejects
+# anything outside it -- which, for a value the wrapper passes on every
+# switch, is an announcement that silently never happens.
+OUTROS = [
+    "fade",
+    "bytes",
+    "interlace",
+    "scanline",
+    "dropout",
+    "beam",
+    "random",
+    "none",
+]
+
+
 def settable_enum(path: str, merged: dict):
     """The closed set of values a key accepts, or None if it is not an enum.
     Drawn from axis_values so the four axes are declared once, not twice."""
@@ -698,6 +718,8 @@ def settable_enum(path: str, merged: dict):
         return axes.get(path.split(".", 1)[1])
     if path == "osd.position":
         return ["top", "center", "bottom"]
+    if path == "osd.outro":
+        return OUTROS
     if path == "keyboard_modifier_side":
         return ["left", "right"]
     return None

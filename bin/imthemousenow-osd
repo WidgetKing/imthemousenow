@@ -1,6 +1,6 @@
 #!/bin/bash
 # omarchy:summary=Flash one large word on screen, then fade it out
-# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME] [--outro fade|scanline|bytes|random|none] [--no-ascii]
+# omarchy:args=TEXT [--ms N] [--fade-ms N] [--color #rrggbb] [--font NAME] [--size N] [--position top|center|bottom] [--region WxH+X+Y] [--output NAME] [--outro fade|bytes|interlace|scanline|dropout|beam|random|none] [--no-ascii]
 #
 # Say which ACTION you just switched into, large enough to read without looking
 # for it and gone before it is in the way.
@@ -41,6 +41,9 @@ QML="$SELF_DIR/../qml/osd.qml"
 RUNTIME="${XDG_RUNTIME_DIR:-/tmp}/imthemousenow"
 PIDFILE="$RUNTIME/osd.pid"
 REPORT="$RUNTIME/osd-report"
+# The raise poke, in a file of its own so it can never overwrite a word that
+# was asked for in the same instant. See qml/osd.qml's `raise()`.
+RAISE="$RUNTIME/osd-raise"
 
 usage() {
   sed -n '/^# Usage/,/^$/p' "$0" | sed 's/^# \?//'
@@ -56,14 +59,24 @@ Usage: imthemousenow-osd TEXT [options]
   --region R      WxH+X+Y, monitor-relative: place within this box rather than
                   across the whole screen. What window scope passes.
   --output NAME   which monitor the region belongs to
-  --outro STYLE   how the word leaves: fade | scanline | bytes | random | none
-                  (default fade)
+  --raise         put the announcement's surface back on top of the overlay
+                  layer and do nothing else -- no word. What the wrapper asks
+                  for once an overlay is up, because within a layer the last
+                  surface mapped is the one on top, and wl-kbptr's is mapped
+                  after this one whenever this process was already warm. Does
+                  nothing at all if no announcement process is running: one
+                  starting now maps last by itself.
+  --outro STYLE   how the word leaves: fade | bytes | interlace | scanline |
+                  dropout | beam | random | none
+                  (default fade). All but fade are the overlay's own entrance
+                  animations, run backwards -- same names, same look.
   --no-ascii      plain text, rather than the Omarchy wordmark's block art
 
 One at a time: starting another replaces the one on screen.
 USAGE
 }
 
+raise_only=0
 text="" ms=500 fade_ms=250 color="#ffffff" font="sans-serif" size=120 position="top" region="" output="" outro="fade" ascii=1
 
 while (($#)); do
@@ -76,6 +89,7 @@ while (($#)); do
       echo "imthemousenow-osd: ready"
       exit 0
       ;;
+    --raise) raise_only=1; shift ;;
     --ms) ms="${2:?--ms needs a value}"; shift 2 ;;
     --fade-ms) fade_ms="${2:?--fade-ms needs a value}"; shift 2 ;;
     --color) color="${2:?--color needs a value}"; shift 2 ;;
@@ -95,14 +109,43 @@ while (($#)); do
   esac
 done
 
+# Is anything already alive to read that? The recorded pid is checked to be one
+# of ours before it is trusted: the file outlives the process, so by the time
+# it is read the pid may have been recycled by something else entirely.
+osd_alive() {
+  [[ -f $PIDFILE ]] || return 1
+  local pid
+  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
+  [[ $pid =~ ^[0-9]+$ ]] || return 1
+  grep -qa "osd.qml" "/proc/$pid/cmdline" 2>/dev/null
+}
+
+# A poke, not an announcement: no word, no art, no report of one.
+if ((raise_only)); then
+  [[ -z $text ]] || { echo "imthemousenow-osd: --raise takes no TEXT" >&2; exit 2; }
+  mkdir -p "$RUNTIME"
+  # Nothing alive to poke. A process that starts after this maps its surface
+  # after wl-kbptr's, which is the thing a raise is for, so there is nothing
+  # to do and nothing to start -- an overlay must not cost a quickshell to
+  # someone whose ACTION never gets announced.
+  osd_alive || exit 0
+  tmp="$RUNTIME/.osd-raise.$$"
+  printf '%s' "$(date +%s%N)" >"$tmp"
+  mv -f "$tmp" "$RAISE"
+  exit 0
+fi
+
 [[ -n $text ]] || { usage >&2; exit 2; }
 case "$position" in
   top | center | bottom) ;;
   *) echo "imthemousenow-osd: --position is top, center or bottom" >&2; exit 2 ;;
 esac
 case "$outro" in
-  fade | scanline | bytes | random | none) ;;
-  *) echo "imthemousenow-osd: --outro is fade, scanline, bytes, random or none" >&2; exit 2 ;;
+  fade | bytes | interlace | scanline | dropout | beam | random | none) ;;
+  *)
+    echo "imthemousenow-osd: --outro is fade, bytes, interlace, scanline, dropout, beam, random or none" >&2
+    exit 2
+    ;;
 esac
 # Rejected here rather than silently ignored in QML, where a malformed box would
 # place the word somewhere arbitrary and look like a bug in the positioning.
@@ -263,17 +306,6 @@ tmp="$RUNTIME/.osd-report.$$"
 printf '%s' "$report" >"$tmp"
 mv -f "$tmp" "$REPORT"
 
-# Is anything already alive to read that? The recorded pid is checked to be one
-# of ours before it is trusted: the file outlives the process, so by the time
-# it is read the pid may have been recycled by something else entirely.
-osd_alive() {
-  [[ -f $PIDFILE ]] || return 1
-  local pid
-  pid="$(cat "$PIDFILE" 2>/dev/null || true)"
-  [[ $pid =~ ^[0-9]+$ ]] || return 1
-  grep -qa "osd.qml" "/proc/$pid/cmdline" 2>/dev/null
-}
-
 # Nothing to hand the report to: start it, once, and leave it running rather
 # than exiting after this word the way it used to. The report is already on
 # disk, so whatever starts up reads it the moment its watch attaches -- the
@@ -281,6 +313,6 @@ osd_alive() {
 # Only this first word of a session pays quickshell's ~300ms; every one after
 # it, for as long as this process lives, is a file write.
 if ! osd_alive; then
-  MOUSENOW_OSD_REPORT="$REPORT" setsid quickshell --no-color -p "$QML" >/dev/null 2>&1 &
+  MOUSENOW_OSD_REPORT="$REPORT" MOUSENOW_OSD_RAISE="$RAISE" setsid quickshell --no-color -p "$QML" >/dev/null 2>&1 &
   echo $! >"$PIDFILE"
 fi

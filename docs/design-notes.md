@@ -146,15 +146,57 @@ table for later; it would drop the first-word cost too, at the price of
 depending on shell internals this plugin does not otherwise touch.
 
 **The departure is not only a fade any more.** `osd.outro` picks it --
-`fade` (the original animation, and still the default), `scanline` (a CRT-off
-squash with a bright line left behind for a moment), `bytes` (a burst of
-flicker and jitter), `random` (scanline or bytes, a different one each time),
-or `none` -- in the same spirit as `[imthemousenow] intro` on the overlay's own
-entrance. It costs nothing extra to offer more than a fade now that one process
-plays every departure instead of a fresh one exiting after its only one: the
-old design tied the word's exit to `Qt.quit()`, which a `scanline` or `bytes`
-departure cannot end on, since each needs its own animation to finish on its
-own terms while the process itself keeps running for the next word.
+`fade` (the original animation, and still the default), `none`, `random`, or
+any of five the overlay's own entrance has: `bytes`, `interlace`, `scanline`,
+`dropout`, `beam`. They are `[imthemousenow] intro` name for name, so a desktop
+set to one vocabulary gets it coming and going -- all but the overlay's `roll`
+and `shuffle`, three copies of the picture crossing the screen at once and the
+picture assembled out of the wrong pieces. Both are the right size of gesture
+for an overlay arriving and too much of one for a word, which is the only
+place any of these are tuned differently from the transition they come from. It costs
+nothing extra to offer more than a fade now that one process plays every
+departure instead of a fresh one exiting after its only one: the old design
+tied the word's exit to `Qt.quit()`, which a `scanline` or `bytes` departure
+cannot end on, since each needs its own animation to finish on its own terms
+while the process itself keeps running for the next word.
+
+**They are the overlay's own entrance, run backwards, and built the way the
+fork builds it.** The first pass of them was not: `scanline` scaled the
+whole label flat and `bytes` jittered the whole label's opacity between 0.25
+and 1. Both of those are transforms of one item, and next to the overlay's
+entrance -- which is `src/transition.c` in the fork, a cell mask composited
+over the picture or bands clipped and displaced by a whole number of cells --
+they read as a toy of a different kind. `qml/osd.qml` now does the same
+arithmetic on a snapshot of the word: `cell_noise()` verbatim, displacement
+snapped to the cell, and a band or a cell either drawn whole or not drawn at
+all. That last rule is also the answer to a real complaint -- an announcement
+that spends a third of its life at part opacity does not read as "leaving", it
+reads as the word having lost its colour, which is the one thing the word is
+for. Nothing in a departure touches the whole word's opacity any more.
+
+**Keeping the process warm put the announcement underneath the overlay.** Both
+are `wlr-layer-shell` surfaces on the `overlay` layer -- the topmost there is
+-- and within a layer a compositor stacks by the order surfaces were mapped.
+A process per word mapped its surface after wl-kbptr had mapped its own, so
+the word was on top for free. One warm process maps its surface once, before
+any overlay of the session, so from the second word on the announcement was
+drawn *under* the dim and the hint labels: same word, same animation, washed
+out. That is worth spelling out because of how it presents -- it looks like a
+colour or a theme problem, and every colour in the pipeline is correct.
+
+The fix is to map the surface again, which puts it back on top; there is
+nothing above `overlay` to move to instead. What it must not be is part of
+showing a word: the surface takes ~150ms to come back (the configure round
+trip, and quickshell rebuilding the window), which would hand back most of
+what keeping the process warm bought. So it happens twice, at the two moments
+when the screen is empty anyway: `bin/imthemousenow`'s run loop pokes
+`imthemousenow-osd --raise` once per pass, `osd.raise_delay_ms` after the
+overlay is launched, and `qml/osd.qml` raises itself again as each word
+finishes leaving. The second is the backstop for the first: if a poke is ever
+missed or lands before wl-kbptr has mapped, at most the first word of that
+overlay is dimmed. The poke is a file of its own rather than a field in the
+report, because a word and a raise are asked for in the same instant whenever
+`osd.on_start` is true, and one file would lose one of them.
 
 **The word is drawn as the wordmark is drawn.** This used to say the opposite --
 that there was no logo font to borrow -- and that was true of *fonts*: the

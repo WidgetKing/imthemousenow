@@ -814,6 +814,10 @@ EOF
     build_args "$current_action"
     started=$(date +%s%N)
     status=0
+    # Once per pass, because a pass is once per overlay: every relaunch --
+    # a switch, a continuous click -- maps a new wl-kbptr surface over the
+    # announcement's, so every one of them needs the announcement put back.
+    osd_raise_soon
     run_once || status=$?
     # A rejected config is not a pass that failed, it is the plugin not working:
     # every chord is down until it is fixed, and a continuous lifetime would

@@ -163,24 +163,54 @@ on_start = false
 # short enough that it is gone before you have aimed. This is a reminder of a state you just chose, not a message to be
 # read.
 ms = 1000
-# Long enough for a departure that is more than a fade to be an animation rather
-# than a flicker: `bytes` gets its corruption in frames of 25ms, and `scanline`
-# collapses over the first 70% of this. Under about 300 there is not room.
-fade_ms = 350
+# How long the departure below gets, out of that total. Every one of them is
+# one clock over this, so it is the whole of their speed: the word is solid for
+# `ms` minus this, and coming apart for this.
+#
+# 200 rather than longer because these are the overlay's own entrance and that
+# is what the entrance takes ([imthemousenow] intro_ms, 250) -- a departure
+# that outlasts the arrival reads as the announcement dawdling on its way out.
+# Long enough to be an animation rather than a flicker is about 120; below that
+# the eye gets a smear and none of the mechanism.
+fade_ms = 200
 # How the word leaves, over fade_ms, once the solid part above is done. The
 # same idea as [imthemousenow] intro -- an entrance for the overlay -- but this
 # one is the OSD's own exit, drawn in the same process for every word rather
 # than one process each, so there is no cost to it being more than a fade.
 #
 #   "fade"      the plain opacity fade this always did
-#   "scanline"  a CRT switched off: squashed flat, with a bright line where the
-#               word was for a moment before that fades too
-#   "bytes"     a burst of flicker and jitter before it cuts out
+#   "bytes"     the word eaten away a square at a time, in no order
+#   "interlace" one field then the other, each sweeping down the way the beam
+#               did
+#   "scanline"  sync loss: the word comes apart into horizontal bands, each
+#               thrown further off true than the last
+#   "dropout"   scanline stood on its end -- columns pulled out of line
+#   "beam"      a raster scan un-painting the word top to bottom, the line
+#               itself brighter than what it is scanning
 #   "random"    one of the animations, a different one each time -- never the
 #               one it just showed, and never "fade": asking for random is
 #               asking for something to happen
 #   "none"      gone the instant the solid time is up
+#
+# These are the overlay's own entrance ([imthemousenow] intro) run backwards
+# and built out of the same arithmetic, so a desktop set to one vocabulary gets
+# it coming and going. All but the overlay's `roll` and `shuffle` -- three
+# copies of the picture crossing the screen at once, and the picture assembled
+# out of the wrong pieces. Both are the right size of gesture for a whole
+# overlay arriving and too much of one for a word.
 outro = "random"
+# How long after an overlay is launched to put the announcement's surface back
+# on top of it, in ms.
+#
+# Not a preference: both are layer surfaces on the same layer, and a compositor
+# stacks that layer by the order surfaces were mapped, so the overlay -- mapped
+# after a warm announcement process -- is above the word until the word's
+# surface is mapped again. This is how long that wait is, and it has to outlast
+# wl-kbptr getting its own surface up: too short and the first word of an
+# overlay is announced from underneath it, which costs the word its colour and
+# nothing else. Every word after the first is put back on top as it leaves, so
+# this only ever decides the first one.
+raise_delay_ms = 250
 # Font size in px. Large on purpose: it is meant to be read without looking for
 # it, from wherever on screen your eyes already were.
 size = 120
