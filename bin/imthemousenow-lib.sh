@@ -131,6 +131,51 @@ notify() {
   fi
 }
 
+DIAGNOSE_CMD="$PLUGIN_DIR/bin/imthemousenow-diagnose"
+[[ -x $DIAGNOSE_CMD ]] || DIAGNOSE_CMD="imthemousenow-diagnose"
+# Which agent launcher to look for before promising a diagnosis. A name rather
+# than a hardcoded one so a test can ask for the machine it is not on: every
+# Omarchy has omarchy-agent, and there is no PATH a test can set that hides it.
+AGENT_CMD="${MOUSENOW_AGENT_CMD:-omarchy-agent}"
+
+# The overlay failed to launch, and $2 is the log of what it said on the way
+# out. Louder than notify(), and clicking it hands the whole thing to an agent:
+# the one failure a person cannot investigate for themselves is this one,
+# because the wrapper runs from a keybinding and its stderr goes nowhere.
+#
+# Critical, unlike everything else here, and deliberately: a config wl-kbptr
+# rejects takes *every* chord down, not the one feature it names, so the plugin
+# is entirely dead until it is fixed. A toast that expires unread is no use for
+# that -- and `notify = false` is still honoured, because a setting that says
+# "no notifications" means it.
+#
+# --exec rather than a notification action: Omarchy's shell runs clicks from its
+# own hint and never emits ActionInvoked. The log path rides as one argv word,
+# so nothing in it can be reparsed as a command, and --exec consumes the rest of
+# the line, so it comes last.
+notify_launch_failure() {
+  local what="$1" log="$2" line
+  [[ $(setting notify) == false ]] && return 0
+  # The first thing wl-kbptr actually complained about, without its colours:
+  # the body of the toast is worth more than "something went wrong".
+  line="$(grep -a -m1 "err:" "$log" 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g; s/^err: *//' || true)"
+  [[ -n $line ]] || line="wl-kbptr exited without opening an overlay"
+
+  if command -v omarchy-notification-send >/dev/null 2>&1 &&
+    command -v "$AGENT_CMD" >/dev/null 2>&1; then
+    omarchy-notification-send -u critical "$what" \
+      "$line -- click to diagnose with AI" \
+      --exec "$DIAGNOSE_CMD" "$log" "$what"
+  elif command -v omarchy-notification-send >/dev/null 2>&1; then
+    # No agent configured, so nothing to click through to: say where the log is
+    # instead, which is the same facts by hand.
+    omarchy-notification-send -u critical "$what" "$line -- see $log"
+  else
+    command -v notify-send >/dev/null 2>&1 &&
+      notify-send -u critical "$what" "$line -- see $log"
+  fi
+}
+
 # Announce an ACTION: one large word, solid then fading.
 #   $3  the modifiers toggled on, as the session keeps them: said in front of
 #       the word ("Ctrl + Alt + right") when the ACTION holds them at all.

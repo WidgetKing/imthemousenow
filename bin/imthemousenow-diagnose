@@ -1,0 +1,129 @@
+#!/bin/bash
+# omarchy:summary=Explain a failed overlay launch with the default coding agent
+# omarchy:args=[--print] <log-file> [what]
+#
+# Clicked from the "Overlay did not open" notification, or run by hand against a
+# log this plugin left behind. It gathers the facts and hands them to whichever
+# agent Omarchy is set to; it diagnoses nothing itself.
+#
+# Why this exists: wl-kbptr rejects a config it does not recognise outright, so
+# one unknown key or one value the installed build has never heard of takes
+# every chord down rather than that one feature -- and it does it by printing to
+# a stderr nobody is watching, because the wrapper runs from a keybinding. The
+# error was there all along and nowhere a person would see it. See
+# docs/lessons-learned.md and CLAUDE.md's "Two things that will bite".
+#
+# The prompt says which layer each setting came from, because that is the whole
+# question a person has when a chord stops working: not "what is wrong with the
+# config" but "which of my three config files do I edit".
+set -euo pipefail
+
+SELF_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+PLUGIN_DIR="${MOUSENOW_PLUGIN_DIR:-$(cd "$SELF_DIR/.." && pwd)}"
+USER_DIR="$HOME/.config/omarchy/imthemousenow"
+
+# --print writes the prompt out instead of handing it to an agent: what a person
+# with no agent installed gets, and what the tests read.
+print_only=0
+if [[ ${1-} == --print ]]; then
+  print_only=1
+  shift
+fi
+
+log="${1:?usage: imthemousenow-diagnose [--print] <log-file> [what]}"
+what="${2:-The overlay did not open.}"
+
+AGENT_CMD="${MOUSENOW_AGENT_CMD:-omarchy-agent}"
+
+if [[ ! -f $log ]]; then
+  echo "imthemousenow-diagnose: no such log: $log" >&2
+  echo "The error it held is gone -- the runtime directory is cleared on reboot." >&2
+  exit 1
+fi
+
+# Bounded, because this is going into a prompt and a run that failed in a loop
+# can have repeated itself a hundred times with nothing new to say.
+errors="$(grep -a "err:" "$log" | head -20 || true)"
+[[ -n $errors ]] || errors="$(head -20 "$log")"
+# The escape codes wl-kbptr colours its levels with are noise in a prompt.
+errors="$(sed 's/\x1b\[[0-9;]*m//g' <<<"$errors")"
+
+version="$(wl-kbptr --version 2>&1 | head -1 || echo "unknown")"
+
+# What the wrapper would run now. The failing command itself is the most useful
+# single fact here, and it is reproducible rather than remembered.
+dry_run="$("$PLUGIN_DIR/bin/imthemousenow" --dry-run 2>&1 | head -20 || true)"
+
+layers=""
+for file in "$PLUGIN_DIR/config.default.toml" "$USER_DIR/config.toml" "$USER_DIR/config.local"; do
+  if [[ -f $file ]]; then
+    layers+="  $file"$'\n'
+  else
+    layers+="  $file (not present)"$'\n'
+  fi
+done
+
+# The user's own layers in full: they are short, they are where the answer
+# almost always is, and the agent must not have to guess at their contents.
+user_config="(no config.toml)"
+[[ -f $USER_DIR/config.toml ]] && user_config="$(cat "$USER_DIR/config.toml")"
+user_local="(no config.local)"
+[[ -f $USER_DIR/config.local ]] && user_local="$(cat "$USER_DIR/config.local")"
+
+prompt=$(
+  cat <<PROMPT
+$what
+
+I'm The Mouse Now's overlay failed to launch on this Omarchy machine. The
+plugin runs wl-kbptr from a keybinding, so this is what it printed to a stderr
+nobody sees:
+
+$errors
+
+The installed wl-kbptr: $version
+
+The command the wrapper builds right now:
+
+$dry_run
+
+Config layers, later winning:
+$layers
+My own config.toml:
+
+$user_config
+
+My own config.local (raw wl-kbptr override lines, applied last):
+
+$user_local
+
+Please work out what is wrong and tell me exactly which file to edit and what
+to change it to. Two things worth knowing before you start:
+
+- wl-kbptr rejects a config it does not recognise *outright*, so one unknown
+  key or one value this build has never heard of stops every keybinding rather
+  than just that feature. A setting that was valid before an update may not be
+  valid now: the plugin builds wl-kbptr from a fork whose set of valid values
+  changes. \`intro\` is the usual one -- its transitions are added and removed
+  in the fork, and a name that is gone is a config this build rejects.
+- config.local is raw wl-kbptr override lines, applied after everything else,
+  and is easy to forget about: a value being tested there overrides the same
+  setting in config.toml and in the panel.
+
+The plugin is at $PLUGIN_DIR; its config.default.toml documents every valid
+value, and \`$PLUGIN_DIR/bin/imthemousenow --dry-run\` prints the command
+without running it. Don't change anything without telling me what and why
+first.
+PROMPT
+)
+
+if ((print_only)) || ! command -v "$AGENT_CMD" >/dev/null 2>&1; then
+  # Nothing to hand it to, or nothing was asked to be: the facts are still worth
+  # having, so they go where a person can read them back.
+  printf '%s\n' "$prompt"
+  exit 0
+fi
+
+# --pick, so a machine with no default agent chosen yet offers the choice rather
+# than failing silently: this is reached by clicking a notification, where an
+# error on a stderr nobody sees is the thing that got us here.
+exec "$AGENT_CMD" --pick --prompt "$prompt"

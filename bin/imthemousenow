@@ -43,6 +43,11 @@ SUBMAP="imthemousenow"
 # popup it is drawn over lives on. See hypr/imthemousenow-submap.lua.
 SUBMAP_POPUPS="imthemousenow-popups"
 KEY_CHANNEL="$SESSION_DIR/keys"
+# What wl-kbptr said on its way out. One file, overwritten per pass, kept after
+# the run rather than cleaned up: the notification it feeds is clicked later, by
+# a hand, long after this process is gone. The runtime directory is the
+# session's own, so a reboot clears it for free.
+LAUNCH_LOG="$SESSION_DIR/launch-log"
 # Mirrors RELAY_KEYS in hypr/imthemousenow-submap.lua; keep them in step. Only the
 # names, not how each one is bound: `space` is relayed on release as well as
 # press (the peek needs to know when the hand comes off it), and that pairing
@@ -742,9 +747,25 @@ EOF
         notify "Nothing to label in this $scope"
         return 1
       fi
-      wl-kbptr "${args[@]}" <<<"$regions" || rc=$?
+      wl-kbptr "${args[@]}" <<<"$regions" 2>"$LAUNCH_LOG" || rc=$?
     else
-      wl-kbptr "${args[@]}" || rc=$?
+      wl-kbptr "${args[@]}" 2>"$LAUNCH_LOG" || rc=$?
+    fi
+    # Kept, not swallowed: the stderr of a keybinding goes nowhere a person will
+    # look, so it is put back on this process's stderr for whoever ran the
+    # wrapper by hand, and left in the file for the notification to point at.
+    if [[ -s $LAUNCH_LOG ]]; then
+      cat "$LAUNCH_LOG" >&2
+    fi
+    # `err:` and not a nonzero status, because the two mean different things.
+    # Escape leaves nonzero and is how you dismiss the overlay; a rejected
+    # config is the one that printed. wl-kbptr says `info:` and `warn:` in a
+    # perfectly good run, so only `err:` counts.
+    if grep -qa "err:" "$LAUNCH_LOG" 2>/dev/null; then
+      notify_launch_failure "Overlay did not open" "$LAUNCH_LOG"
+      # Nothing was on screen, so a continuous lifetime has nothing to go back
+      # to: this is fatal to the whole run rather than to one pass of it.
+      launch_failed=1
     fi
     return "$rc"
   }
@@ -769,6 +790,8 @@ EOF
   }
 
   local status=0 passes=0 quick_exits=0 started elapsed
+  # Set by run_once when wl-kbptr rejected something rather than being escaped.
+  local launch_failed=0
   local current_action="$base_action"
   local guard_ms max_quick max_passes
   guard_ms="$(setting continuous.guard_ms)"
@@ -792,6 +815,14 @@ EOF
     started=$(date +%s%N)
     status=0
     run_once || status=$?
+    # A rejected config is not a pass that failed, it is the plugin not working:
+    # every chord is down until it is fixed, and a continuous lifetime would
+    # spin on it, notifying once per pass. Out, with the notification already
+    # sent by run_once.
+    if ((launch_failed)); then
+      status=1
+      break
+    fi
     # `;` between two clicking ACTIONs switches the overlay in place, without
     # a relaunch, so the only place to learn of it is the session.
     current_action="$(session_get action)"

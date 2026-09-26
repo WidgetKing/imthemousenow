@@ -25,7 +25,12 @@
 # correct as shipped, and explained there for the day you need it.
 
 [imthemousenow]
-# Desktop notifications for errors and refusals.
+# Desktop notifications for errors and refusals. Including the one failure that
+# cannot be seen any other way: wl-kbptr rejecting the config outright, which
+# stops every chord rather than the feature it names, and says so only on a
+# stderr that a keybinding throws away. That one is critical rather than low,
+# and clicking it hands the error and all three config layers to Omarchy's
+# default coding agent (bin/imthemousenow-diagnose). Off means off for it too.
 notify = true
 # Start from the colours the Omarchy theme template renders. Turn this off to
 # use only the colours in this file and your own config.
