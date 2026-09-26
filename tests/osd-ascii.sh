@@ -7,10 +7,12 @@
 # announcement comes up blank, or comes up saying something other than the
 # action it is naming.
 #
-# Nothing is drawn: imthemousenow-osd ends in `exec quickshell`, so a stub by
-# that name on PATH prints the environment the QML would have read instead.
-# omarchy-ascii is stubbed the same way, which is how the "no such command"
-# and "renders nothing" branches are reached on a machine that has a good one.
+# Nothing is drawn: imthemousenow-osd writes the announcement to its report file
+# and only starts quickshell when nothing is alive to read one, so what is read
+# back here is that file -- and a stub named quickshell on PATH keeps a real one
+# from ever starting. omarchy-ascii is stubbed the same way, which is how the
+# "no such command" and "renders nothing" branches are reached on a machine that
+# has a good one.
 #
 #   ./tests/osd-ascii.sh
 set -uo pipefail
@@ -28,15 +30,35 @@ export XDG_RUNTIME_DIR="$WORK/run"
 mkdir -p "$HOME" "$XDG_RUNTIME_DIR" "$WORK/stub" "$WORK/state/bin"
 failures=0
 
-# Stands in for the thing that execs: prints what the QML reads, and nothing
-# else. MOUSENOW_OSD_ART empty is exactly what "draw the plain word" looks like
-# from inside qml/osd.qml.
+# Stands in for the thing that would draw: it does nothing and exits, because
+# these assertions are about the report the script writes before it ever looks
+# for a process, not about a process. It is here so a machine with a real
+# quickshell does not put a word on the tester's screen once per check.
 cat >"$WORK/stub/quickshell" <<'STUB'
 #!/bin/bash
-printf 'TEXT=%s\n' "$MOUSENOW_OSD_TEXT"
-printf 'ART_ROWS=%s\n' "$([[ -n ${MOUSENOW_OSD_ART//[[:space:]]/} ]] && wc -l <<<"$MOUSENOW_OSD_ART" || echo 0)"
+exit 0
 STUB
 chmod +x "$WORK/stub/quickshell"
+
+REPORT="$XDG_RUNTIME_DIR/imthemousenow/osd-report"
+
+# The report, in the shape the old stub printed: the word, and how many rows of
+# art went with it. An empty `art` is exactly what "draw the plain word" looks
+# like from inside qml/osd.qml, and it stays the thing being asserted.
+#
+# `art` is one JSON string with the rows escaped as \n, so the row count is the
+# escapes plus one -- which is what `wc -l` on the unescaped text came to.
+report_fields() {
+  local text art
+  text="$(sed -n 's/.*"text":"\([^"]*\)".*/\1/p' "$REPORT")"
+  art="$(sed -n 's/.*"art":"\(.*\)","color".*/\1/p' "$REPORT")"
+  printf 'TEXT=%s\n' "$text"
+  if [[ -z ${art//[[:space:]\\n]/} ]]; then
+    printf 'ART_ROWS=0\n'
+  else
+    printf 'ART_ROWS=%s\n' "$(($(grep -o '\\n' <<<"$art" | wc -l) + 1))"
+  fi
+}
 
 # The real thing, when this machine has one to copy; otherwise a stand-in that
 # draws the one shape these assertions actually care about -- some rows out, and
@@ -59,8 +81,12 @@ check() {
   local label="$1" want_text="$2" want_art="$3"
   shift 3
   local out problem=""
+  # Gone first, so a run that bails out early is read as no announcement at all
+  # rather than as the one before it.
+  rm -f "$REPORT"
   out="$(PATH="$WORK/stub:$PATH" MOUSENOW_PLUGIN_DIR="$WORK/plugin" \
     MOUSENOW_STATE_DIR="$STATE" "$REPO/bin/imthemousenow-osd" "$want_text" "$@" 2>&1)"
+  [[ -s $REPORT ]] && out+=$'\n'"$(report_fields)"
 
   # Strictly: anything else in `out` is an error message, and feeding that to
   # (( )) would evaluate it as an expression rather than report it.
