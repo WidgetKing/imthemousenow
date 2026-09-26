@@ -213,7 +213,7 @@ Panel {
     if (id === "modifier-side") return { key: "keyboard_modifier_side", options: ["left", "right"] }
     if (id === "word") return { key: "word", options: ["off", "font", "block"] }
     if (id === "word-position") return { key: "osd.position", options: ["top", "center", "bottom"] }
-    if (id === "intro") return { key: "intro", options: ["bytes", "dither", "interlace", "warmup", "scanline", "dropout", "roll", "beam", "flicker", "shuffle", "squeeze", "random", "none"], dropdown: true }
+    if (id === "intro") return { key: "intro", options: ["bytes", "interlace", "scanline", "dropout", "roll", "beam", "shuffle", "random", "none"], dropdown: true }
     if (id === "pool-style") return { key: "pool.style", options: ["pool", "patchy", "lines", "cross", "random"], dropdown: true }
     return null
   }
