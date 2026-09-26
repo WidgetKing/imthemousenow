@@ -19,6 +19,13 @@
 # fails if a key here names no row, or a row reaches for a key that is not
 # here, which is the way these two files will actually drift.
 #
+# Rewording a value here needs nothing else touched: this file is the only
+# place the panel's English exists. shell/Panel.qml carries no fallback copy
+# of it, deliberately -- a string this file does not have renders in the panel
+# as the bracketed key name, and a table that could not be loaded at all puts
+# a message across the top of the panel. A missing word is a fault, and it is
+# meant to look like one rather than quietly reading as English forever.
+#
 # NOT here, and not translatable yet: the option values these rows choose
 # between -- `hints`/`grid`, `window`/`monitor`, `single`/`continuous`, the
 # intro animations, the pool styles, the OSD positions -- and the seven ACTION
@@ -27,7 +34,7 @@
 # split apart first. Until then a translated panel reads as translated labels
 # around English values, which is deliberate and not an oversight.
 
-panel.title = "Pointer"
+panel.title = "I'm The Mouse Now"
 
 panel.tab.behaviour = "Behaviour"
 panel.tab.overlay = "Overlay"

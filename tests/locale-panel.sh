@@ -3,12 +3,17 @@
 #
 # The panel is QML and cannot call t(), so its words make a longer trip than
 # anything else here: locale/<code>.panel.strings -> bin/imthemousenow-strings
-# -> Model.parseStrings -> root.str(). Every step is covered below, but the
-# one that matters is the first and last together. Each str() call carries the
-# English as its fallback, exactly as t() does, which means a key that has
-# quietly stopped matching the file does not fail loudly -- the panel just
-# goes on showing English and no locale can ever reach it. So the drift IS the
-# bug, and this is the only thing that can see it.
+# -> Model.parseStrings -> root.str(). Every step is covered below.
+#
+# What is being protected is the KEYS, and nothing about the English. The file
+# is where the words live: rewording a row there is the point of it, and it
+# takes effect everywhere the table loads, which is everywhere it works.
+#
+# A key is another matter. The panel carries no English of its own, so a key
+# that stopped matching the file shows as the bracketed key name -- loud, but
+# only once someone opens that tab. Checks 1 and 2 below are what catch it
+# before that, in both directions: a row reaching for a key nobody wrote, and
+# a key nobody reaches for.
 #
 #   ./tests/locale-panel.sh
 set -uo pipefail
@@ -60,22 +65,22 @@ while IFS= read -r key; do
 done < <(sed -nE 's/^[[:space:]]*([A-Za-z0-9_.-]+)[[:space:]]*=.*/\1/p' "$STRINGS" | sort -u)
 ((unused == 0)) && ok "every key in en.panel.strings is asked for by the panel"
 
-# --- 3. the English in the file is the English at the call site --------------
-# The fallback is what the panel shows when there is no locale, and the file
-# is what an English desktop actually reads. If they drift, en is subtly not
-# en, and it would take someone reading both files side by side to notice.
-drift=0
-while IFS=$'\t' read -r key english; do
-  want="$(sed -nE "s/^[[:space:]]*${key//./\\.}[[:space:]]*=[[:space:]]*\"(.*)\"[[:space:]]*$/\1/p" "$STRINGS")"
-  [[ -z $want ]] && continue  # already reported by check 1
-  if [[ $want != "$english" ]]; then
-    no "$key: the call site's English and en.panel.strings disagree"
-    printf '        file: %s\n        call: %s\n' "$want" "$english"
-    drift=$((drift + 1))
-  fi
-done < <(grep -oE 'root\.str\("[^"]+", "[^"]*"\)' "$PANEL" |
-  sed -E 's/root\.str\("([^"]+)", "(.*)"\)/\1\t\2/' | sort -u)
-((drift == 0)) && ok "each fallback matches the English in en.panel.strings"
+# --- 3. no call site carries English of its own ------------------------------
+# The panel has no fallbacks, on purpose. A second English at the call site is
+# a second place to edit for every rename, and -- worse -- it hides the failure
+# it exists for: a table that never loaded, or a key renamed on one side only,
+# reads as a perfectly good English panel that no locale can ever reach. Now a
+# missing string renders as the bracketed key and the panel says so.
+#
+# So a `root.str(key, "...")` creeping back in is a regression, not a style
+# preference, and this is what sees it.
+carried="$(grep -nE 'root\.str\("[^"]+",' "$PANEL" | head -5)"
+if [[ -z $carried ]]; then
+  ok "no call site carries an English fallback"
+else
+  no "a call site still carries English of its own:"
+  printf '        %s\n' "$carried"
+fi
 
 # --- 4. the dumper reaches all of it -----------------------------------------
 dumped="$(strings_cmd panel | wc -l)"
@@ -122,31 +127,56 @@ fi
 # --- 7. a translated panel locale is actually read ---------------------------
 # The whole point of the file being in locale/ next to the other one: copy,
 # translate the right-hand sides, and the panel picks it up off LANG.
+#
+# And, since the panel carries no English of its own any more, the table has to
+# arrive WHOLE: English underneath, the locale over the top. A half-translated
+# locale is the normal case, not an edge one -- every translation starts there
+# -- and it must read as its own words where it has them and English
+# everywhere else, not as bracketed key names.
 FAKE="$WORK/plugin"
 mkdir -p "$FAKE/locale" "$FAKE/bin"
-cp "$REPO/bin/imthemousenow-lib.sh" "$FAKE/bin/"
+cp "$REPO/bin/imthemousenow-lib.sh" "$REPO/bin/imthemousenow-locale.sh" "$FAKE/bin/"
+printf 'panel.title = "Pointer"\npanel.tab.overlay = "Overlay"\n' >"$FAKE/locale/en.panel.strings"
 printf 'panel.title = "Zeiger"\n' >"$FAKE/locale/de.panel.strings"
-got="$(env -u LC_ALL -u LC_MESSAGES MOUSENOW_PLUGIN_DIR="$FAKE" LANG="de_DE.UTF-8" \
-  "$REPO/bin/imthemousenow-strings" panel)"
-if [[ $got == "panel.title='Zeiger'" ]]; then
+
+dump() {
+  env -u LC_ALL -u LC_MESSAGES MOUSENOW_PLUGIN_DIR="$FAKE" LANG="$1" \
+    "$REPO/bin/imthemousenow-strings" panel
+}
+
+got="$(dump de_DE.UTF-8)"
+if [[ $got == *"panel.title='Zeiger'"* ]]; then
   ok "LANG picks the panel table for that locale"
 else
   no "a de panel table was not read: $got"
 fi
+if [[ $got == *"panel.tab.overlay='Overlay'"* ]]; then
+  ok "a key that locale has not translated comes back in English"
+else
+  no "a half-translated locale dropped the untranslated key: $got"
+fi
 
-# A locale with a panel file that translates one key and nothing else is not
-# broken: the panel shows that key translated and English everywhere else,
-# because the English lives at the call site. Nothing to assert in the dump
-# beyond its being short -- the fallback happens in QML -- but a file that is
-# missing entirely must still exit 0 and print nothing, or the panel would
-# show an error where it should show English.
-got="$(env -u LC_ALL -u LC_MESSAGES MOUSENOW_PLUGIN_DIR="$FAKE" LANG="fr_FR.UTF-8" \
-  "$REPO/bin/imthemousenow-strings" panel)"
+# Missing entirely is the same case with nothing translated, and reads the
+# same way. There is no third behaviour to have: the panel would otherwise
+# show bracketed key names to everyone whose language nobody has got to yet.
+got="$(dump fr_FR.UTF-8)"
+rc=$?
+if ((rc == 0)) && [[ $got == *"panel.title='Pointer'"* && $got == *"panel.tab.overlay='Overlay'"* ]]; then
+  ok "a locale with no panel file gets the English table"
+else
+  no "an untranslated locale should read as English (rc=$rc, out=$got)"
+fi
+
+# The one case that IS a fault, and the reason the panel may treat an empty
+# table as one: no locale directory at all. A plugin directory this broken has
+# no English to offer either, so nothing comes back and the caller says so.
+rm -rf "$FAKE/locale"
+got="$(dump en_GB.UTF-8)"
 rc=$?
 if ((rc == 0)) && [[ -z $got ]]; then
-  ok "a locale with no panel file prints nothing and succeeds"
+  ok "a plugin directory with no locale/ prints nothing and succeeds"
 else
-  no "an untranslated locale should be silent and exit 0 (rc=$rc, out=$got)"
+  no "a missing locale/ should be silent and exit 0 (rc=$rc, out=$got)"
 fi
 
 echo

@@ -14,9 +14,19 @@
 # program decides both; this is how it tells anyone else.
 #
 # TABLE picks which file: none for locale/<code>.strings, `panel` for
-# locale/<code>.panel.strings. A table with no file for the running locale
-# prints nothing and exits 0 -- that is not an error, it is a locale nobody
-# has translated yet, and every caller carries its own English fallback.
+# locale/<code>.panel.strings.
+#
+# English underneath, the running locale on top. The table that comes back is
+# always complete: a locale nobody has translated yet reads as English, and a
+# half-translated one reads as its own words where it has them and English
+# everywhere else -- the same answer t() gets from the English written at each
+# of its call sites, except that here there is nowhere else to get it.
+#
+# That is what lets the bar widget carry no fallbacks of its own (see
+# shell/Panel.qml's str()): with English layered in here, a key this prints
+# nothing for is a key that exists nowhere, which is a fault worth showing.
+# Nothing prints only when locale/ itself is missing or unreadable, and that
+# is a broken install rather than an untranslated desktop.
 set -euo pipefail
 
 # imthemousenow-locale.sh, not imthemousenow-lib.sh: sourcing the lib loads
@@ -62,6 +72,11 @@ if ((print_path)); then
 fi
 
 declare -A strings=()
+# Both, in this order, and _strings_read only ever adds to the array: English
+# first so every key exists, then the locale's own file over the top of it.
+# Reading the same file twice when the locale IS English costs one pass over
+# sixty lines and keeps the order below free of a special case.
+_strings_read "$(strings_file_for en "$table")" strings
 _strings_read "$file" strings
 
 # Single-quoted, with an embedded quote written the long way round --
@@ -79,9 +94,10 @@ _strings_read "$file" strings
 # per key made a 5ms script into a 66ms one -- sixty-odd forks to quote sixty-
 # odd strings. Long enough to see the panel paint English and then correct
 # itself.
-# An empty table prints nothing at all -- an untranslated locale, which is
-# not an error. Guarded here because "${!strings[@]}" on an empty associative
-# array still yields one empty line for printf to read.
+# An empty table prints nothing at all. With English layered in above, that
+# means locale/ itself is missing or unreadable -- a broken install, which the
+# caller is left to notice and say so. Guarded here because "${!strings[@]}"
+# on an empty associative array still yields one empty line for printf.
 ((${#strings[@]})) || exit 0
 
 out=""

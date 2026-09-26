@@ -49,8 +49,12 @@ _locale_name() {
 # Parse one `<code><suffix>.strings` file into the named associative array.
 # The array is the caller's -- this only ever adds to it -- so a table that is
 # missing, or a $PLUGIN_DIR too old to have a locale/ directory at all, leaves
-# the caller with an empty table rather than an error. That is the whole
-# fallback story: every lookup carries its own English.
+# the caller with an empty table rather than an error.
+#
+# Two callers, two fallback stories. t() below carries the English at each of
+# its call sites, so an empty table costs it nothing. The bar widget carries
+# none, so bin/imthemousenow-strings calls this twice -- English, then the
+# locale over it -- and hands the panel a table that is always whole.
 _strings_read() {
   local file="$1" into="$2" line key value
   [[ -f $file ]] || return 0
@@ -65,9 +69,16 @@ _strings_read() {
 # The path of one table for the running locale. $1 is the table: "" for the
 # main one, "panel" for the bar widget's.
 strings_file() {
-  local table="${1-}"
+  strings_file_for "$(_locale_name)" "${1-}"
+}
+
+# The same path for a named locale rather than the running one. What
+# bin/imthemousenow-strings uses to lay English under a translation: the panel
+# has no English of its own to fall back on, so its table has to arrive whole.
+strings_file_for() {
+  local locale="$1" table="${2-}"
   [[ -n $table ]] && table=".$table"
-  printf '%s' "$PLUGIN_DIR/locale/$(_locale_name)$table.strings"
+  printf '%s' "$PLUGIN_DIR/locale/$locale$table.strings"
 }
 
 _locale_load() {

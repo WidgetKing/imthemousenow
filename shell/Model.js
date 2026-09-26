@@ -53,14 +53,22 @@ function parseStrings(text) {
   return out
 }
 
-// One string, by key, or the English written at the call site. The same
-// contract as t() in bin/imthemousenow-lib.sh, and for the same reason: the
-// panel must read correctly with no strings at all -- an untranslated locale,
-// a plugin directory too old to have locale/, a strings process that failed --
-// so every call carries its own fallback and none of them can go blank.
-function t(strings, key, fallback) {
+// One string, by key, or "" when the table does not have it. Unlike t() in
+// bin/imthemousenow-lib.sh there is no English fallback to give: the panel
+// carries none, so that a table which failed to load is a visible fault
+// rather than a panel that reads perfectly and can never be translated. What
+// an empty answer turns into is str()'s business, in Panel.qml.
+function t(strings, key) {
   var value = strings ? strings[key] : undefined
-  return (value === undefined || value === "") ? fallback : value
+  return (value === undefined) ? "" : value
+}
+
+// Whether a parsed table has anything in it. A strings process that exits 0
+// and prints nothing is not a working table -- see the panel's own check.
+function isEmpty(table) {
+  if (!table) return true
+  for (var key in table) return false
+  return true
 }
 
 function envName(key) {
